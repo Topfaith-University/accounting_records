@@ -1,7 +1,29 @@
-FROM node:20
+# Use Node with Debian for better ARM64 support
+FROM node:20-bullseye
 
 WORKDIR /app
-COPY frontend/sage-frontend /app
-RUN npm install
+
+# 1️⃣ Install Angular CLI globally
+RUN npm install -g @angular/cli@17 --legacy-peer-deps
+
+# 2️⃣ Copy only dependency files first
+COPY frontend/sage-frontend/package*.json ./
+
+# 3️⃣ Clean cache, remove lockfile & install dependencies
+RUN npm cache clean --force \
+    && rm -rf node_modules package-lock.json \
+    && npm install --legacy-peer-deps --no-optional
+
+# 4️⃣ Install rollup manually (forces JS fallback, avoids missing ARM binary)
+RUN npm install rollup@4 --save-dev --force
+
+# 5️⃣ Copy remaining source code
+COPY frontend/sage-frontend/ .
+
+# 6️⃣ Set environment variable to skip native Rollup binary
+ENV ROLLUP_SKIP_NATIVE=true
+
 EXPOSE 4200
-CMD ["npm", "start"]
+
+# 7️⃣ Serve Angular app on all interfaces
+CMD ["npx", "ng", "serve", "--host", "0.0.0.0"]
