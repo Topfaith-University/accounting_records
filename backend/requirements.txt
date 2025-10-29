@@ -5,3 +5,4 @@ neomodel
 neo4j-driver
 python-decouple
 gunicorn
+django-neomodel
