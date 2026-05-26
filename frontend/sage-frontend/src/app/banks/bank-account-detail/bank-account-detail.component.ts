@@ -72,7 +72,7 @@ export class BankAccountDetailComponent implements OnInit {
       this.formPeriodEnd = '';
       this.formStatementBalance = '';
     } catch (e: any) {
-      this.formError = e.response?.data?.detail ?? JSON.stringify(e.response?.data) ?? 'Failed to create reconciliation.';
+      this.formError = e.response?.data?.detail ?? (e.response?.data ? JSON.stringify(e.response.data) : 'Failed to create reconciliation.');
     } finally {
       this.saving = false;
     }

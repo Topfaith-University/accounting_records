@@ -1,13 +1,13 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { RouterModule, ActivatedRoute } from '@angular/router';
+import { ActivatedRoute } from '@angular/router';
 import { BanksService } from '../../services/banks.service';
 import { AuthService } from '../../services/auth.service';
 
 @Component({
   selector: 'app-bank-reconciliation',
   standalone: true,
-  imports: [CommonModule, RouterModule],
+  imports: [CommonModule],
   templateUrl: './bank-reconciliation.component.html',
 })
 export class BankReconciliationComponent implements OnInit {
@@ -17,6 +17,7 @@ export class BankReconciliationComponent implements OnInit {
   error = '';
   completing = false;
   completeError = '';
+  toggleError = '';
 
   private id = '';
 
@@ -61,16 +62,17 @@ export class BankReconciliationComponent implements OnInit {
   }
 
   get isBalanced(): boolean {
-    return Math.abs(this.difference) < 0.01;
+    return this.difference < 0.01;
   }
 
   async toggleLine(line: any) {
     if (this.recon?.status === 'COMPLETED') return;
+    this.toggleError = '';
     try {
       const result = await this.banksService.toggleLine(this.recon.reconciliation_id, line.line_id);
       line.is_reconciled = result.is_reconciled;
     } catch {
-      this.error = 'Failed to toggle line.';
+      this.toggleError = 'Failed to toggle line.';
     }
   }
 
@@ -82,7 +84,7 @@ export class BankReconciliationComponent implements OnInit {
       const updated = await this.banksService.completeReconciliation(this.id);
       this.recon = { ...this.recon, ...updated };
     } catch (e: any) {
-      this.completeError = e.response?.data?.detail ?? JSON.stringify(e.response?.data) ?? 'Failed to complete reconciliation.';
+      this.completeError = e.response?.data?.detail ?? (e.response?.data ? JSON.stringify(e.response.data) : 'Failed to complete reconciliation.');
     } finally {
       this.completing = false;
     }

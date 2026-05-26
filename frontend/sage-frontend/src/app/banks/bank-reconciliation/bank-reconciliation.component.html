@@ -28,6 +28,7 @@
   </div>
 
   <h3 style="margin:0 0 .75rem;font-size:1rem">GL Lines</h3>
+  @if (toggleError) { <p style="color:red;margin:.5rem 0">{{ toggleError }}</p> }
   <table style="width:100%;border-collapse:collapse;background:white;border-radius:8px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.1);margin-bottom:1.5rem">
     <thead style="background:#f0f0f5">
       <tr>
@@ -40,7 +41,7 @@
       </tr>
     </thead>
     <tbody>
-      @for (line of lines; track line) {
+      @for (line of lines; track line.line_id) {
         <tr [style.background]="line.is_reconciled ? '#f0fdf4' : 'transparent'"
           style="border-top:1px solid #eee">
           <td style="padding:.75rem 1rem;font-size:.875rem">{{ line.date }}</td>
