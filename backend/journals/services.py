@@ -1,6 +1,5 @@
 from rest_framework.exceptions import ValidationError
-from neomodel import db
-from .models import JournalEntry, AccountingPeriod
+from .models import JournalEntry
 
 
 def post_entry(entry_id: str, approver_username: str) -> JournalEntry:
