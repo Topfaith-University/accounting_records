@@ -56,6 +56,8 @@
             <td style="padding:.75rem 1rem;color:#555">{{ line.description }}</td>
             <td style="padding:.75rem 1rem;text-align:right">{{ line.amount | number:'1.2-2' }}</td>
           </tr>
+        } @empty {
+          <tr><td colspan="3" style="padding:1rem;text-align:center;color:#888">No line items.</td></tr>
         }
       </tbody>
       <tfoot style="background:#f9f9fb;border-top:2px solid #eee">
