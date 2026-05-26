@@ -52,7 +52,6 @@ export class EntryFormComponent implements OnInit {
 
   async ngOnInit() {
     this.form = this.fb.group({
-      reference: ['', Validators.required],
       date: [new Date().toISOString().slice(0, 10), Validators.required],
       description: ['', Validators.required],
       entry_type: ['MANUAL'],

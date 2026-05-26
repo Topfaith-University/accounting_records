@@ -2,6 +2,26 @@ from rest_framework import serializers
 from .models import Customer, SalesInvoice, SalesInvoiceLine, ARReceipt
 
 
+def _next_invoice_number(prefix: str, label: str) -> str:
+    from neomodel import db
+    from datetime import datetime
+    year = datetime.now().year
+    pattern = f'{prefix}-{year}-'
+    results, _ = db.cypher_query(
+        f"MATCH (n:{label}) WHERE n.invoice_number STARTS WITH $pattern "
+        f"RETURN n.invoice_number ORDER BY n.invoice_number DESC LIMIT 1",
+        {'pattern': pattern}
+    )
+    if results and results[0][0]:
+        try:
+            num = int(results[0][0].split('-')[-1]) + 1
+        except (ValueError, IndexError):
+            num = 1
+    else:
+        num = 1
+    return f'{prefix}-{year}-{num:04d}'
+
+
 class CustomerSerializer(serializers.Serializer):
     customer_id = serializers.CharField(read_only=True)
     name = serializers.CharField(max_length=200)
@@ -49,7 +69,7 @@ class SalesInvoiceLineSerializer(serializers.Serializer):
 
 class SalesInvoiceSerializer(serializers.Serializer):
     invoice_id = serializers.CharField(read_only=True)
-    invoice_number = serializers.CharField(max_length=50)
+    invoice_number = serializers.CharField(max_length=50, required=False, allow_blank=True)
     date = serializers.DateField()
     due_date = serializers.DateField()
     description = serializers.CharField(default='', allow_blank=True)
@@ -89,6 +109,9 @@ class SalesInvoiceSerializer(serializers.Serializer):
         lines_data = validated_data.pop('lines', [])
         customer_id = validated_data.pop('customer_id')
         ar_account_id = validated_data.pop('ar_account_id')
+
+        if not validated_data.get('invoice_number'):
+            validated_data['invoice_number'] = _next_invoice_number('SI', 'SalesInvoice')
 
         invoice = SalesInvoice(**validated_data)
         invoice.save()

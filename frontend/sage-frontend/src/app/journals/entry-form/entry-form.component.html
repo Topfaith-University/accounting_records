@@ -4,12 +4,7 @@
 
   <form [formGroup]="form">
     <!-- Header fields -->
-    <div style="display:grid;grid-template-columns:1fr 1fr 2fr;gap:1rem;margin-bottom:1.5rem;background:white;padding:1.25rem;border-radius:8px;box-shadow:0 1px 4px rgba(0,0,0,.1)">
-      <div>
-        <label style="display:block;font-size:.8rem;color:#555;margin-bottom:.25rem">Reference *</label>
-        <input formControlName="reference" placeholder="JE-2025-0001"
-          style="width:100%;padding:.5rem;border:1px solid #ccc;border-radius:4px;box-sizing:border-box" />
-      </div>
+    <div style="display:grid;grid-template-columns:1fr 2fr;gap:1rem;margin-bottom:1.5rem;background:white;padding:1.25rem;border-radius:8px;box-shadow:0 1px 4px rgba(0,0,0,.1)">
       <div>
         <label style="display:block;font-size:.8rem;color:#555;margin-bottom:.25rem">Date *</label>
         <input formControlName="date" type="date"

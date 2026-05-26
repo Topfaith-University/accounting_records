@@ -33,7 +33,6 @@ export class SalesInvoiceFormComponent implements OnInit {
 
   async ngOnInit() {
     this.form = this.fb.group({
-      invoice_number: ['', Validators.required],
       date: [new Date().toISOString().slice(0, 10), Validators.required],
       due_date: ['', Validators.required],
       description: [''],

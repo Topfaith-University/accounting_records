@@ -28,7 +28,7 @@ class JournalLineSerializer(serializers.Serializer):
 
 class JournalEntrySerializer(serializers.Serializer):
     entry_id = serializers.CharField(read_only=True)
-    reference = serializers.CharField(max_length=50)
+    reference = serializers.CharField(max_length=50, required=False, allow_blank=True)
     date = serializers.DateField()
     description = serializers.CharField(max_length=500)
     status = serializers.CharField(read_only=True)
@@ -46,6 +46,12 @@ class JournalEntrySerializer(serializers.Serializer):
     created_at = serializers.DateTimeField(read_only=True)
     lines = JournalLineSerializer(many=True, required=False)
 
+    def validate_reference(self, value):
+        # If reference is provided, check if it's unique
+        if value and JournalEntry.nodes.filter(reference=value).exists():
+            raise serializers.ValidationError("A journal entry with this reference already exists.")
+        return value
+
     def validate(self, data):
         lines = data.get('lines', [])
         if len(lines) < 2:
@@ -61,6 +67,11 @@ class JournalEntrySerializer(serializers.Serializer):
     def create(self, validated_data):
         from accounts.models import Account
         lines_data = validated_data.pop('lines', [])
+
+        # Auto-generate reference if not provided
+        if 'reference' not in validated_data or not validated_data['reference']:
+            validated_data['reference'] = self._generate_journal_entry_reference()
+
         entry = JournalEntry(**validated_data)
         entry.save()
         total_debit = 0.0
@@ -81,6 +92,32 @@ class JournalEntrySerializer(serializers.Serializer):
         entry.total_credit = total_credit
         entry.save()
         return entry
+
+    def _generate_journal_entry_reference(self):
+        """Generate a journal entry reference based on date and sequence."""
+        from datetime import datetime
+        # Format: JN-YYYYMMDD-XXXX (e.g., JN-20260526-0001)
+        date_prefix = datetime.now().strftime('%Y%m%d')
+
+        # Find the highest existing sequence for today and increment
+        today_entries = JournalEntry.nodes.filter(reference__startswith=f'JN-{date_prefix}-')
+        if today_entries:
+            # Extract sequence number and find max
+            max_seq = 0
+            for entry in today_entries:
+                try:
+                    # Assuming format like "JN-20260526-0001"
+                    suffix = entry.reference.split('-')[-1]
+                    seq_num = int(suffix)
+                    max_seq = max(max_seq, seq_num)
+                except (ValueError, IndexError):
+                    # If parsing fails, skip this entry
+                    continue
+            next_seq = max_seq + 1
+        else:
+            next_seq = 1
+
+        return f"JN-{date_prefix}-{next_seq:04d}"
 
 
 class FiscalYearSerializer(serializers.Serializer):
