@@ -53,6 +53,7 @@ export class SalesInvoiceDetailComponent implements OnInit {
         this.receivables.getInvoice(id),
         this.banks.getAccounts().then((d: any) => d.results ?? d),
       ]);
+      this.invoice.lines = this.invoice.lines ?? [];
       this.receiveForm.patchValue({ amount: this.remaining });
     } catch { this.error = 'Invoice not found.'; }
     finally { this.loading = false; }

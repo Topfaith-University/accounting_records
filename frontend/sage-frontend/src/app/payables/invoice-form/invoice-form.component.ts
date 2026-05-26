@@ -42,12 +42,16 @@ export class PurchaseInvoiceFormComponent implements OnInit {
       lines: this.fb.array([]),
     });
     this.addLine();
-    const [vendorData, accountData] = await Promise.all([
-      this.payables.getVendors(),
-      this.accountsService.getAll(),
-    ]);
-    this.vendors = vendorData.results ?? vendorData;
-    this.accounts = (accountData.results ?? accountData);
+    try {
+      const [vendorData, accountData] = await Promise.all([
+        this.payables.getVendors(),
+        this.accountsService.getAll(),
+      ]);
+      this.vendors = vendorData.results ?? vendorData;
+      this.accounts = accountData.results ?? accountData;
+    } catch {
+      this.error = 'Failed to load form data. Please refresh.';
+    }
   }
 
   addLine() {
@@ -63,7 +67,7 @@ export class PurchaseInvoiceFormComponent implements OnInit {
   }
 
   async save() {
-    if (!this.form.valid) return;
+    if (!this.form.valid || this.saving) return;
     this.saving = true;
     this.error = '';
     try {

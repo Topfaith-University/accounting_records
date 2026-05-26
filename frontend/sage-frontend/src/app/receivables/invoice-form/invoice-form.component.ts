@@ -42,12 +42,16 @@ export class SalesInvoiceFormComponent implements OnInit {
       lines: this.fb.array([]),
     });
     this.addLine();
-    const [customerData, accountData] = await Promise.all([
-      this.receivables.getCustomers(),
-      this.accountsService.getAll(),
-    ]);
-    this.customers = customerData.results ?? customerData;
-    this.accounts = accountData.results ?? accountData;
+    try {
+      const [customerData, accountData] = await Promise.all([
+        this.receivables.getCustomers(),
+        this.accountsService.getAll(),
+      ]);
+      this.customers = customerData.results ?? customerData;
+      this.accounts = accountData.results ?? accountData;
+    } catch {
+      this.error = 'Failed to load form data. Please refresh.';
+    }
   }
 
   addLine() {
@@ -63,7 +67,7 @@ export class SalesInvoiceFormComponent implements OnInit {
   }
 
   async save() {
-    if (!this.form.valid) return;
+    if (!this.form.valid || this.saving) return;
     this.saving = true;
     this.error = '';
     try {
