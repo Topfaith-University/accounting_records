@@ -1,0 +1,114 @@
+@if (loading) { <p>Loading…</p> }
+@if (error) { <p [style.color]="'red'">{{ error }}</p> }
+
+@if (!loading && !error && recon) {
+  <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:1rem">
+    <h2 style="margin:0">Bank Reconciliation</h2>
+    <span [style.color]="statusColor(recon.status)"
+      style="font-weight:700;font-size:.9rem;padding:.25rem .75rem;border-radius:12px;border:1.5px solid currentColor">
+      {{ recon.status }}
+    </span>
+  </div>
+
+  <div style="background:white;border-radius:8px;padding:1.25rem;box-shadow:0 1px 4px rgba(0,0,0,.1);margin-bottom:1.5rem">
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:1rem">
+      <div>
+        <div style="font-size:.75rem;color:#888;margin-bottom:.25rem">Bank Account</div>
+        <div style="font-family:monospace;font-size:.875rem">{{ recon.bank_account_id }}</div>
+      </div>
+      <div>
+        <div style="font-size:.75rem;color:#888;margin-bottom:.25rem">Period</div>
+        <div>{{ recon.period_start }} → {{ recon.period_end }}</div>
+      </div>
+      <div>
+        <div style="font-size:.75rem;color:#888;margin-bottom:.25rem">Statement Balance</div>
+        <div style="font-weight:600">₦{{ recon.statement_balance | number:'1.2-2' }}</div>
+      </div>
+    </div>
+  </div>
+
+  <h3 style="margin:0 0 .75rem;font-size:1rem">GL Lines</h3>
+  <table style="width:100%;border-collapse:collapse;background:white;border-radius:8px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.1);margin-bottom:1.5rem">
+    <thead style="background:#f0f0f5">
+      <tr>
+        <th style="text-align:left;padding:.75rem 1rem">Date</th>
+        <th style="text-align:left;padding:.75rem 1rem">Reference</th>
+        <th style="text-align:left;padding:.75rem 1rem">Description</th>
+        <th style="text-align:left;padding:.75rem 1rem">Side</th>
+        <th style="text-align:right;padding:.75rem 1rem">Amount (₦)</th>
+        <th style="text-align:center;padding:.75rem 1rem">Reconciled</th>
+      </tr>
+    </thead>
+    <tbody>
+      @for (line of lines; track line) {
+        <tr [style.background]="line.is_reconciled ? '#f0fdf4' : 'transparent'"
+          style="border-top:1px solid #eee">
+          <td style="padding:.75rem 1rem;font-size:.875rem">{{ line.date }}</td>
+          <td style="padding:.75rem 1rem;font-family:monospace;font-size:.8rem">{{ line.reference }}</td>
+          <td style="padding:.75rem 1rem;font-size:.875rem">{{ line.entry_description }}</td>
+          <td style="padding:.75rem 1rem">
+            <span [style.color]="sideColor(line.side)" style="font-weight:600;font-size:.8rem">{{ line.side }}</span>
+          </td>
+          <td style="padding:.75rem 1rem;text-align:right;font-family:monospace">
+            {{ line.amount | number:'1.2-2' }}
+          </td>
+          <td style="padding:.75rem 1rem;text-align:center">
+            <input type="checkbox" [checked]="line.is_reconciled"
+              [disabled]="recon.status === 'COMPLETED'"
+              (change)="toggleLine(line)"
+              style="cursor:pointer;width:16px;height:16px" />
+          </td>
+        </tr>
+      }
+      @empty {
+        <tr>
+          <td colspan="6" style="padding:1rem;text-align:center;color:#888">No GL lines found.</td>
+        </tr>
+      }
+    </tbody>
+  </table>
+
+  <div style="background:white;border-radius:8px;padding:1.25rem;box-shadow:0 1px 4px rgba(0,0,0,.1);margin-bottom:1.5rem;max-width:400px;margin-left:auto">
+    <h4 style="margin:0 0 .75rem;font-size:.95rem">Summary</h4>
+    <div style="display:flex;justify-content:space-between;padding:.4rem 0;border-bottom:1px solid #f0f0f0">
+      <span style="font-size:.875rem;color:#555">Reconciled Debits</span>
+      <span style="font-family:monospace">₦{{ reconciledDebits | number:'1.2-2' }}</span>
+    </div>
+    <div style="display:flex;justify-content:space-between;padding:.4rem 0;border-bottom:1px solid #f0f0f0">
+      <span style="font-size:.875rem;color:#555">Reconciled Credits</span>
+      <span style="font-family:monospace">₦{{ reconciledCredits | number:'1.2-2' }}</span>
+    </div>
+    <div style="display:flex;justify-content:space-between;padding:.4rem 0;border-bottom:1px solid #f0f0f0">
+      <span style="font-size:.875rem;color:#555">Reconciled (net)</span>
+      <span style="font-family:monospace;font-weight:600">₦{{ (reconciledDebits - reconciledCredits) | number:'1.2-2' }}</span>
+    </div>
+    <div style="display:flex;justify-content:space-between;padding:.4rem 0;border-bottom:1px solid #f0f0f0">
+      <span style="font-size:.875rem;color:#555">Statement Balance</span>
+      <span style="font-family:monospace">₦{{ recon.statement_balance | number:'1.2-2' }}</span>
+    </div>
+    <div style="display:flex;justify-content:space-between;padding:.4rem 0">
+      <span style="font-size:.875rem;font-weight:600">Difference</span>
+      <span style="font-family:monospace;font-weight:600" [style.color]="isBalanced ? '#10b981' : '#ef4444'">
+        ₦{{ difference | number:'1.2-2' }}
+      </span>
+    </div>
+    @if (isBalanced) {
+      <p style="margin:.75rem 0 0;font-size:.875rem;font-weight:600" [style.color]="'#10b981'">
+        ✓ Ready to complete
+      </p>
+    }
+  </div>
+
+  @if (isManagerOrAdmin && recon.status === 'DRAFT') {
+    <div style="margin-bottom:1.5rem">
+      @if (completeError) {
+        <p [style.color]="'red'" style="margin:0 0 .5rem;font-size:.875rem">{{ completeError }}</p>
+      }
+      <button (click)="complete()"
+        [disabled]="!isBalanced || completing"
+        style="padding:.625rem 1.5rem;background:#10b981;color:white;border:none;border-radius:4px;cursor:pointer;font-size:.875rem;font-weight:600">
+        {{ completing ? 'Completing…' : 'Complete Reconciliation' }}
+      </button>
+    </div>
+  }
+}

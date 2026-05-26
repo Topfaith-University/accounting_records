@@ -28,6 +28,18 @@ export const routes: Routes = [
         path: 'journals/:id',
         loadComponent: () => import('./journals/entry-detail/entry-detail.component').then(m => m.EntryDetailComponent)
       },
+      {
+        path: 'banks',
+        loadComponent: () => import('./banks/bank-account-list/bank-account-list.component').then(m => m.BankAccountListComponent)
+      },
+      {
+        path: 'banks/reconciliations/:id',
+        loadComponent: () => import('./banks/bank-reconciliation/bank-reconciliation.component').then(m => m.BankReconciliationComponent)
+      },
+      {
+        path: 'banks/:id',
+        loadComponent: () => import('./banks/bank-account-detail/bank-account-detail.component').then(m => m.BankAccountDetailComponent)
+      },
     ]
   },
   { path: '**', redirectTo: 'accounts' }
