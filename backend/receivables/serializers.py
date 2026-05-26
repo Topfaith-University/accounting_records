@@ -100,7 +100,7 @@ class SalesInvoiceSerializer(serializers.Serializer):
 
     def validate(self, data):
         lines = data.get('lines', [])
-        if len(lines) < 1:
+        if not self.partial and len(lines) < 1:
             raise serializers.ValidationError({'lines': 'At least one line is required.'})
         return data
 
@@ -134,6 +134,52 @@ class SalesInvoiceSerializer(serializers.Serializer):
                 line.revenue_account.connect(revenue_acct)
 
         return invoice
+
+    def update(self, instance, validated_data):
+        from accounts.models import Account
+
+        lines_data = validated_data.pop('lines', None)
+        customer_id = validated_data.pop('customer_id', None)
+        ar_account_id = validated_data.pop('ar_account_id', None)
+
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        instance.save()
+
+        if customer_id:
+            current_customer = instance.customer.single()
+            if current_customer:
+                instance.customer.disconnect(current_customer)
+            customer = Customer.nodes.get_or_none(customer_id=customer_id)
+            if customer:
+                instance.customer.connect(customer)
+
+        if ar_account_id:
+            current_ar_account = instance.ar_account.single()
+            if current_ar_account:
+                instance.ar_account.disconnect(current_ar_account)
+            ar_account = Account.nodes.get_or_none(account_id=ar_account_id)
+            if ar_account:
+                instance.ar_account.connect(ar_account)
+
+        if lines_data is not None:
+            for existing_line in list(instance.lines.all()):
+                instance.lines.disconnect(existing_line)
+                revenue_account = existing_line.revenue_account.single()
+                if revenue_account:
+                    existing_line.revenue_account.disconnect(revenue_account)
+                existing_line.delete()
+
+            for line_data in lines_data:
+                revenue_account_id = line_data.pop('revenue_account_id')
+                line = SalesInvoiceLine(**line_data)
+                line.save()
+                instance.lines.connect(line)
+                revenue_account = Account.nodes.get_or_none(account_id=revenue_account_id)
+                if revenue_account:
+                    line.revenue_account.connect(revenue_account)
+
+        return instance
 
 
 class ARReceiptSerializer(serializers.Serializer):

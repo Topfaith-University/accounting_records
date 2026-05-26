@@ -1,58 +1,59 @@
-<div style="display:flex;height:100vh">
-  <nav style="width:220px;background:#1a1a2e;color:white;padding:1rem;flex-shrink:0;position:relative">
-    <h3 style="margin:0 0 1.5rem;color:#e8e8f0">Sage</h3>
+<div class="page-transition" style="display:flex;height:100vh">
+  <nav class="nav-sidebar lift-on-hover">
+    <h3>Sage</h3>
     <a routerLink="/accounts" routerLinkActive="active-link"
-       style="display:block;padding:.5rem;color:#b0b0c8;text-decoration:none;border-radius:4px;margin-bottom:.25rem">
+       class="nav-link">
       Chart of Accounts
     </a>
     <a routerLink="/journals" routerLinkActive="active-link"
-       style="display:block;padding:.5rem;color:#b0b0c8;text-decoration:none;border-radius:4px;margin-bottom:.25rem">
+       class="nav-link">
       Journal Entries
     </a>
     <a routerLink="/banks" routerLinkActive="active-link"
-       style="display:block;padding:.5rem;color:#b0b0c8;text-decoration:none;border-radius:4px;margin-bottom:.25rem">
+       class="nav-link">
       Bank Accounts
     </a>
     <a routerLink="/reports/trial-balance" routerLinkActive="active-link"
-       style="display:block;padding:.5rem;color:#b0b0c8;text-decoration:none;border-radius:4px;margin-bottom:.25rem">
+       class="nav-link">
       Trial Balance
     </a>
     <a routerLink="/reports/income-statement" routerLinkActive="active-link"
-       style="display:block;padding:.5rem;color:#b0b0c8;text-decoration:none;border-radius:4px;margin-bottom:.25rem">
+       class="nav-link">
       Income Statement
     </a>
     <a routerLink="/reports/balance-sheet" routerLinkActive="active-link"
-       style="display:block;padding:.5rem;color:#b0b0c8;text-decoration:none;border-radius:4px;margin-bottom:.25rem">
+       class="nav-link">
       Balance Sheet
     </a>
     <a routerLink="/reports/gl-detail" routerLinkActive="active-link"
-       style="display:block;padding:.5rem;color:#b0b0c8;text-decoration:none;border-radius:4px;margin-bottom:.25rem">
+       class="nav-link">
       GL Detail
     </a>
     <a routerLink="/payables/invoices" routerLinkActive="active-link"
-       style="display:block;padding:.5rem;color:#b0b0c8;text-decoration:none;border-radius:4px;margin-bottom:.25rem">
+       class="nav-link">
       AP Invoices
     </a>
     <a routerLink="/payables/vendors" routerLinkActive="active-link"
-       style="display:block;padding:.5rem;color:#b0b0c8;text-decoration:none;border-radius:4px;margin-bottom:.25rem">
+       class="nav-link">
       Vendors
     </a>
     <a routerLink="/receivables/invoices" routerLinkActive="active-link"
-       style="display:block;padding:.5rem;color:#b0b0c8;text-decoration:none;border-radius:4px;margin-bottom:.25rem">
+       class="nav-link">
       AR Invoices
     </a>
     <a routerLink="/receivables/customers" routerLinkActive="active-link"
-       style="display:block;padding:.5rem;color:#b0b0c8;text-decoration:none;border-radius:4px;margin-bottom:.25rem">
+       class="nav-link">
       Customers
     </a>
-    <div style="position:absolute;bottom:1rem;width:188px">
+    <div style="margin-top:auto;">
       <button (click)="logout()"
-        style="background:transparent;border:1px solid #555;color:#b0b0c8;padding:.375rem .75rem;border-radius:4px;cursor:pointer;width:100%">
+        class="btn-secondary lift-on-hover"
+        style="width:100%;margin-top:1rem;">
         Sign Out
       </button>
     </div>
   </nav>
-  <main style="flex:1;overflow:auto;padding:1.5rem;background:#f9f9fb">
+  <main class="flex-1 overflow-auto" style="flex:1;overflow:auto;padding:2rem;background:var(--cream);">
     <router-outlet></router-outlet>
   </main>
 </div>

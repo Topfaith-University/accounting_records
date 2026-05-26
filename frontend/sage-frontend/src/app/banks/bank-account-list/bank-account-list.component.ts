@@ -21,6 +21,7 @@ export class BankAccountListComponent implements OnInit {
   showForm = false;
   saving = false;
   formError = '';
+  editingBankAccountId: string | null = null;
   form = {
     name: '',
     account_number: '',
@@ -31,9 +32,13 @@ export class BankAccountListComponent implements OnInit {
     gl_account_id_input: '',
   };
 
-  get canCreate(): boolean {
+  get canManage(): boolean {
     const user = this.auth.getCurrentUser();
     return user?.roles.some((r: string) => ['Admin', 'Manager'].includes(r)) ?? false;
+  }
+
+  get isEditMode(): boolean {
+    return !!this.editingBankAccountId;
   }
 
   constructor(
@@ -43,6 +48,10 @@ export class BankAccountListComponent implements OnInit {
   ) {}
 
   async ngOnInit() {
+    await this.loadData();
+  }
+
+  async loadData() {
     try {
       const [bankData, glData] = await Promise.all([
         this.banksService.getAccounts(),
@@ -59,6 +68,7 @@ export class BankAccountListComponent implements OnInit {
 
   toggleForm() {
     this.showForm = !this.showForm;
+    this.editingBankAccountId = null;
     this.formError = '';
     this.form = {
       name: '',
@@ -71,19 +81,62 @@ export class BankAccountListComponent implements OnInit {
     };
   }
 
-  async submitCreate() {
+  startEdit(account: any) {
+    this.showForm = true;
+    this.editingBankAccountId = account.bank_account_id;
+    this.formError = '';
+    this.form = {
+      name: account.name ?? '',
+      account_number: account.account_number ?? '',
+      bank_name: account.bank_name ?? '',
+      currency: account.currency ?? 'NGN',
+      opening_balance: account.opening_balance ?? 0,
+      opening_balance_date: account.opening_balance_date ?? new Date().toISOString().slice(0, 10),
+      gl_account_id_input: account.gl_account_id ?? '',
+    };
+  }
+
+  cancelForm() {
+    this.showForm = false;
+    this.editingBankAccountId = null;
+    this.formError = '';
+    this.form = {
+      name: '',
+      account_number: '',
+      bank_name: '',
+      currency: 'NGN',
+      opening_balance: 0,
+      opening_balance_date: new Date().toISOString().slice(0, 10),
+      gl_account_id_input: '',
+    };
+  }
+
+  async submitForm() {
     if (!this.form.name || !this.form.bank_name || !this.form.opening_balance_date) return;
     this.saving = true;
     this.formError = '';
     try {
-      await this.banksService.createAccount(this.form);
-      const data = await this.banksService.getAccounts();
-      this.accounts = data.results ?? data;
-      this.showForm = false;
+      if (this.editingBankAccountId) {
+        await this.banksService.updateAccount(this.editingBankAccountId, this.form);
+      } else {
+        await this.banksService.createAccount(this.form);
+      }
+      await this.loadData();
+      this.cancelForm();
     } catch (e: any) {
-      this.formError = e.response?.data?.detail ?? JSON.stringify(e.response?.data) ?? 'Failed to create bank account.';
+      this.formError = e.response?.data?.detail ?? (e.response?.data ? JSON.stringify(e.response.data) : 'Failed to save bank account.');
     } finally {
       this.saving = false;
+    }
+  }
+
+  async deleteAccount(account: any) {
+    if (!confirm(`Delete bank account "${account.name}"?`)) return;
+    try {
+      await this.banksService.deleteAccount(account.bank_account_id);
+      await this.loadData();
+    } catch (e: any) {
+      this.error = e.response?.data?.detail ?? (e.response?.data ? JSON.stringify(e.response.data) : 'Failed to delete bank account.');
     }
   }
 }

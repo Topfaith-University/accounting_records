@@ -21,6 +21,10 @@ export class AccountsService {
     return axios.patch(this.baseUrl + id + '/', data).then(r => r.data);
   }
 
+  delete(id: string) {
+    return axios.delete(this.baseUrl + id + '/').then(r => r.data);
+  }
+
   getTypes() {
     return axios.get(this.baseUrl + 'types/').then(r => r.data);
   }

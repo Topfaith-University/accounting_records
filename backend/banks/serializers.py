@@ -35,10 +35,19 @@ class BankAccountSerializer(serializers.Serializer):
         return bank_account
 
     def update(self, instance, validated_data):
-        validated_data.pop('gl_account_id_input', None)
+        gl_account_id = validated_data.pop('gl_account_id_input', None)
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
         instance.save()
+        if 'gl_account_id_input' in self.initial_data:
+            current_account = instance.gl_account.single()
+            if current_account:
+                instance.gl_account.disconnect(current_account)
+            if gl_account_id:
+                from accounts.models import Account
+                new_account = Account.nodes.get_or_none(account_id=gl_account_id)
+                if new_account:
+                    instance.gl_account.connect(new_account)
         return instance
 
 

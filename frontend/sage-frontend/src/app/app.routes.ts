@@ -25,6 +25,10 @@ export const routes: Routes = [
         loadComponent: () => import('./journals/entry-form/entry-form.component').then(m => m.EntryFormComponent)
       },
       {
+        path: 'journals/:id/edit',
+        loadComponent: () => import('./journals/entry-form/entry-form.component').then(m => m.EntryFormComponent)
+      },
+      {
         path: 'journals/:id',
         loadComponent: () => import('./journals/entry-detail/entry-detail.component').then(m => m.EntryDetailComponent)
       },

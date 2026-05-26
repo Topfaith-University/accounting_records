@@ -25,6 +25,15 @@ class JournalLineSerializer(serializers.Serializer):
         except Exception:
             return None
 
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        try:
+            acct = instance.account.single()
+            data['account_id'] = acct.account_id if acct else None
+        except Exception:
+            data['account_id'] = None
+        return data
+
 
 class JournalEntrySerializer(serializers.Serializer):
     entry_id = serializers.CharField(read_only=True)
@@ -53,6 +62,8 @@ class JournalEntrySerializer(serializers.Serializer):
         return value
 
     def validate(self, data):
+        if self.instance and 'lines' not in data:
+            return data
         lines = data.get('lines', [])
         if len(lines) < 2:
             raise serializers.ValidationError({'lines': 'A journal entry requires at least 2 lines.'})
@@ -92,6 +103,37 @@ class JournalEntrySerializer(serializers.Serializer):
         entry.total_credit = total_credit
         entry.save()
         return entry
+
+    def update(self, instance, validated_data):
+        from accounts.models import Account
+
+        lines_data = validated_data.pop('lines', None)
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+
+        if lines_data is not None:
+            total_debit = 0.0
+            total_credit = 0.0
+            for existing_line in list(instance.lines.all()):
+                instance.lines.disconnect(existing_line)
+                existing_line.delete()
+            for line_data in lines_data:
+                account_id = line_data.pop('account_id')
+                line = JournalLine(**line_data)
+                line.save()
+                instance.lines.connect(line)
+                account = Account.nodes.get_or_none(account_id=account_id)
+                if account:
+                    line.account.connect(account)
+                if line_data['side'] == 'DEBIT':
+                    total_debit += line_data['amount']
+                else:
+                    total_credit += line_data['amount']
+            instance.total_debit = total_debit
+            instance.total_credit = total_credit
+
+        instance.save()
+        return instance
 
     def _generate_journal_entry_reference(self):
         """Generate a journal entry reference based on date and sequence."""

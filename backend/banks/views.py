@@ -38,6 +38,16 @@ class BankAccountViewSet(viewsets.ViewSet):
         account = serializer.save()
         return Response(BankAccountSerializer(account).data)
 
+    def destroy(self, request, pk=None):
+        if not request.user.groups.filter(name__in=['Admin', 'Manager']).exists():
+            return Response({'detail': 'Forbidden.'}, status=status.HTTP_403_FORBIDDEN)
+        account = BankAccount.nodes.get_or_none(bank_account_id=pk)
+        if not account:
+            return Response({'detail': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
+        account.is_active = False
+        account.save()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
     @action(detail=True, methods=['get'], url_path='ledger')
     def ledger(self, request, pk=None):
         account = BankAccount.nodes.get_or_none(bank_account_id=pk)

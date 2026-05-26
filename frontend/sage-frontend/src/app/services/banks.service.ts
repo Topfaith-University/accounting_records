@@ -17,6 +17,14 @@ export class BanksService {
     return axios.post(this.baseUrl + 'accounts/', data).then(r => r.data);
   }
 
+  updateAccount(id: string, data: object) {
+    return axios.patch(this.baseUrl + `accounts/${id}/`, data).then(r => r.data);
+  }
+
+  deleteAccount(id: string) {
+    return axios.delete(this.baseUrl + `accounts/${id}/`).then(r => r.data);
+  }
+
   getAccountLedger(id: string) {
     return axios.get(this.baseUrl + `accounts/${id}/ledger/`).then(r => r.data);
   }

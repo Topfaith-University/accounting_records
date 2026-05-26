@@ -99,7 +99,7 @@ class PurchaseInvoiceSerializer(serializers.Serializer):
 
     def validate(self, data):
         lines = data.get('lines', [])
-        if len(lines) < 1:
+        if not self.partial and len(lines) < 1:
             raise serializers.ValidationError({'lines': 'At least one line is required.'})
         return data
 
@@ -133,6 +133,52 @@ class PurchaseInvoiceSerializer(serializers.Serializer):
                 line.expense_account.connect(expense_acct)
 
         return invoice
+
+    def update(self, instance, validated_data):
+        from accounts.models import Account
+
+        lines_data = validated_data.pop('lines', None)
+        vendor_id = validated_data.pop('vendor_id', None)
+        ap_account_id = validated_data.pop('ap_account_id', None)
+
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        instance.save()
+
+        if vendor_id:
+            current_vendor = instance.vendor.single()
+            if current_vendor:
+                instance.vendor.disconnect(current_vendor)
+            vendor = Vendor.nodes.get_or_none(vendor_id=vendor_id)
+            if vendor:
+                instance.vendor.connect(vendor)
+
+        if ap_account_id:
+            current_ap_account = instance.ap_account.single()
+            if current_ap_account:
+                instance.ap_account.disconnect(current_ap_account)
+            ap_account = Account.nodes.get_or_none(account_id=ap_account_id)
+            if ap_account:
+                instance.ap_account.connect(ap_account)
+
+        if lines_data is not None:
+            for existing_line in list(instance.lines.all()):
+                instance.lines.disconnect(existing_line)
+                expense_account = existing_line.expense_account.single()
+                if expense_account:
+                    existing_line.expense_account.disconnect(expense_account)
+                existing_line.delete()
+
+            for line_data in lines_data:
+                expense_account_id = line_data.pop('expense_account_id')
+                line = PurchaseInvoiceLine(**line_data)
+                line.save()
+                instance.lines.connect(line)
+                expense_account = Account.nodes.get_or_none(account_id=expense_account_id)
+                if expense_account:
+                    line.expense_account.connect(expense_account)
+
+        return instance
 
 
 class APPaymentSerializer(serializers.Serializer):

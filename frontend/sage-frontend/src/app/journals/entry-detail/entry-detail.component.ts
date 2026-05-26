@@ -21,6 +21,12 @@ export class EntryDetailComponent implements OnInit {
     return user?.roles.some(r => ['Manager', 'Admin'].includes(r)) ?? false;
   }
 
+  get canEditDraft(): boolean {
+    const user = this.auth.getCurrentUser();
+    if (!this.entry || this.entry.status !== 'DRAFT' || !user) return false;
+    return this.entry.created_by === user.username || this.isManagerOrAdmin;
+  }
+
   constructor(
     private route: ActivatedRoute,
     private router: Router,
@@ -52,6 +58,20 @@ export class EntryDetailComponent implements OnInit {
       this.actionError = '';
     } catch (e: any) {
       this.actionError = e.response?.data?.detail ?? 'Void failed.';
+    }
+  }
+
+  editEntry() {
+    this.router.navigate(['/journals', this.entry.entry_id, 'edit']);
+  }
+
+  async deleteEntry() {
+    if (!confirm('Delete this draft entry? This cannot be undone.')) return;
+    try {
+      await this.journalsService.deleteEntry(this.entry.entry_id);
+      this.router.navigate(['/journals']);
+    } catch (e: any) {
+      this.actionError = e.response?.data?.detail ?? 'Delete failed.';
     }
   }
 

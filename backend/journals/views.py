@@ -44,11 +44,12 @@ class JournalEntryViewSet(viewsets.ViewSet):
             return Response({'detail': 'Only DRAFT entries can be edited.'}, status=status.HTTP_400_BAD_REQUEST)
         if entry.created_by != request.user.username and not request.user.groups.filter(name__in=['Manager', 'Admin']).exists():
             return Response({'detail': 'Forbidden.'}, status=status.HTTP_403_FORBIDDEN)
-        for field in ['reference', 'date', 'description', 'entry_type']:
-            if field in request.data:
-                setattr(entry, field, request.data[field])
-        entry.save()
-        return Response(JournalEntrySerializer(entry).data)
+        serializer = JournalEntrySerializer(entry, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        entry = serializer.save()
+        data = JournalEntrySerializer(entry).data
+        data['lines'] = _serialize_lines(entry)
+        return Response(data)
 
     def destroy(self, request, pk=None):
         entry = JournalEntry.nodes.get_or_none(entry_id=pk)
