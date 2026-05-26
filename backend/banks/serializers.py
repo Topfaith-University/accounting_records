@@ -87,10 +87,10 @@ class BankTransactionSplitSerializer(serializers.Serializer):
 class BankTransactionSerializer(serializers.Serializer):
     transaction_id = serializers.CharField(read_only=True)
     reference = serializers.CharField(read_only=True)
-    transaction_type = serializers.ChoiceField(choices=['RECEIPT', 'PAYMENT', 'TRANSFER'])
+    transaction_type = serializers.ChoiceField(choices=[('RECEIPT', 'Receipt'), ('PAYMENT', 'Payment'), ('TRANSFER', 'Transfer')])
     date = serializers.DateField()
     amount = serializers.FloatField(read_only=True)
-    description = serializers.CharField(max_length=500)
+    description = serializers.CharField(max_length=500, required=False, allow_blank=True, default='')
     created_by = serializers.CharField(read_only=True)
     created_at = serializers.DateTimeField(read_only=True)
 
@@ -98,7 +98,7 @@ class BankTransactionSerializer(serializers.Serializer):
     source_bank_id = serializers.CharField(write_only=True)
     destination_bank_id = serializers.CharField(write_only=True, required=False, allow_null=True, allow_blank=True)
     transfer_amount = serializers.FloatField(write_only=True, required=False, allow_null=True, min_value=0.01)
-    splits = BankTransactionSplitSerializer(many=True, required=False, default=list)
+    splits = BankTransactionSplitSerializer(many=True, write_only=True, required=False, default=list)
 
     # Read-only derived fields
     source_bank_name = serializers.SerializerMethodField()
