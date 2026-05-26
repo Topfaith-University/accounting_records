@@ -30,8 +30,8 @@ export class EntryListComponent implements OnInit {
     finally { this.loading = false; }
   }
 
-  async setTab(tab: typeof this.activeTab) {
-    this.activeTab = tab;
+  async setTab(tab: string) {
+    this.activeTab = tab as typeof this.activeTab;
     await this.loadEntries();
   }
 
