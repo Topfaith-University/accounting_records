@@ -76,3 +76,64 @@ class BankReconciliationSerializer(serializers.Serializer):
         recon.save()
         recon.bank_account.connect(bank_account)
         return recon
+
+
+class BankTransactionSplitSerializer(serializers.Serializer):
+    account_id = serializers.CharField()
+    amount = serializers.FloatField(min_value=0.01)
+    description = serializers.CharField(default='', allow_blank=True)
+
+
+class BankTransactionSerializer(serializers.Serializer):
+    transaction_id = serializers.CharField(read_only=True)
+    reference = serializers.CharField(read_only=True)
+    transaction_type = serializers.ChoiceField(choices=['RECEIPT', 'PAYMENT', 'TRANSFER'])
+    date = serializers.DateField()
+    amount = serializers.FloatField(read_only=True)
+    description = serializers.CharField(max_length=500)
+    created_by = serializers.CharField(read_only=True)
+    created_at = serializers.DateTimeField(read_only=True)
+
+    # Write-only inputs
+    source_bank_id = serializers.CharField(write_only=True)
+    destination_bank_id = serializers.CharField(write_only=True, required=False, allow_null=True, allow_blank=True)
+    transfer_amount = serializers.FloatField(write_only=True, required=False, allow_null=True, min_value=0.01)
+    splits = BankTransactionSplitSerializer(many=True, required=False, default=list)
+
+    # Read-only derived fields
+    source_bank_name = serializers.SerializerMethodField()
+    destination_bank_name = serializers.SerializerMethodField()
+    entry_id = serializers.SerializerMethodField()
+
+    def get_source_bank_name(self, obj):
+        try:
+            ba = obj.source_bank.single()
+            return ba.name if ba else None
+        except Exception:
+            return None
+
+    def get_destination_bank_name(self, obj):
+        try:
+            ba = obj.destination_bank.single()
+            return ba.name if ba else None
+        except Exception:
+            return None
+
+    def get_entry_id(self, obj):
+        try:
+            entry = obj.journal_entry.single()
+            return entry.entry_id if entry else None
+        except Exception:
+            return None
+
+    def validate(self, data):
+        txn_type = data.get('transaction_type')
+        if txn_type == 'TRANSFER':
+            if not data.get('destination_bank_id'):
+                raise serializers.ValidationError({'destination_bank_id': 'Required for TRANSFER.'})
+            if not data.get('transfer_amount'):
+                raise serializers.ValidationError({'transfer_amount': 'Required for TRANSFER.'})
+        else:
+            if not data.get('splits'):
+                raise serializers.ValidationError({'splits': 'At least one split is required for RECEIPT/PAYMENT.'})
+        return data
