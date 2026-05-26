@@ -35,7 +35,7 @@
           </tr>
         </thead>
         <tbody formArrayName="lines">
-          @for (line of lines.controls; track $index; let i = $index) {
+          @for (line of lines.controls; track line; let i = $index) {
             <tr [formGroupName]="i" style="border-top:1px solid #eee">
               <td style="padding:.5rem 1rem">
                 <select formControlName="account_id"

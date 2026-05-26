@@ -14,6 +14,7 @@ export class EntryListComponent implements OnInit {
   loading = true;
   error = '';
   activeTab: 'ALL' | 'DRAFT' | 'POSTED' | 'VOID' = 'ALL';
+  tabs: ('ALL' | 'DRAFT' | 'POSTED' | 'VOID')[] = ['ALL', 'DRAFT', 'POSTED', 'VOID'];
 
   constructor(private journalsService: JournalsService) {}
 
