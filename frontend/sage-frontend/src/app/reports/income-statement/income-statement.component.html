@@ -1,0 +1,97 @@
+<div style="max-width:800px">
+  <h2 style="margin:0 0 1.5rem">Income Statement</h2>
+
+  <div style="display:flex;gap:1rem;align-items:flex-end;margin-bottom:1rem;background:white;padding:1rem;border-radius:8px;box-shadow:0 1px 4px rgba(0,0,0,.1)">
+    <div>
+      <label style="display:block;font-size:.8rem;color:#555;margin-bottom:.25rem">From</label>
+      <input type="date" [(ngModel)]="dateFrom" style="padding:.5rem;border:1px solid #ccc;border-radius:4px" />
+    </div>
+    <div>
+      <label style="display:block;font-size:.8rem;color:#555;margin-bottom:.25rem">To</label>
+      <input type="date" [(ngModel)]="dateTo" style="padding:.5rem;border:1px solid #ccc;border-radius:4px" />
+    </div>
+    <button (click)="run()" [disabled]="loading || !dateFrom || !dateTo"
+      style="padding:.5rem 1.25rem;background:#1a1a2e;color:white;border:none;border-radius:4px;cursor:pointer">
+      {{ loading ? 'Loading…' : 'Run Report' }}
+    </button>
+    @if (data) {
+      <button (click)="exportPdf()"
+        style="padding:.5rem 1rem;background:#ef4444;color:white;border:none;border-radius:4px;cursor:pointer">Export PDF</button>
+      <button (click)="exportXlsx()"
+        style="padding:.5rem 1rem;background:#10b981;color:white;border:none;border-radius:4px;cursor:pointer">Export Excel</button>
+    }
+  </div>
+
+  @if (error) { <p style="color:red;margin-bottom:1rem">{{ error }}</p> }
+
+  @if (data) {
+    <div style="background:white;border-radius:8px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.1)">
+      <table style="width:100%;border-collapse:collapse">
+        <thead style="background:#1a1a2e;color:white">
+          <tr>
+            <th style="text-align:left;padding:.75rem 1rem">Account</th>
+            <th style="text-align:right;padding:.75rem 1rem">Amount (₦)</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr style="background:#e8e8f0">
+            <td colspan="2" style="padding:.5rem 1rem;font-weight:700;font-size:.8rem;text-transform:uppercase;letter-spacing:.05em">Revenue</td>
+          </tr>
+          @for (r of data.revenue; track r.account_id) {
+            <tr style="border-top:1px solid #eee">
+              <td style="padding:.625rem 1rem">{{ r.name }}</td>
+              <td style="padding:.625rem 1rem;text-align:right">{{ r.balance | number:'1.2-2' }}</td>
+            </tr>
+          }
+          @empty { <tr><td colspan="2" style="padding:.625rem 1rem;color:#888">No revenue accounts</td></tr> }
+          <tr style="background:#f0f0f5;font-weight:700;border-top:2px solid #e8e8f0">
+            <td style="padding:.625rem 1rem">Total Revenue</td>
+            <td style="padding:.625rem 1rem;text-align:right">{{ data.total_revenue | number:'1.2-2' }}</td>
+          </tr>
+
+          <tr style="background:#e8e8f0">
+            <td colspan="2" style="padding:.5rem 1rem;font-weight:700;font-size:.8rem;text-transform:uppercase;letter-spacing:.05em">Cost of Sales</td>
+          </tr>
+          @for (r of data.cost_of_sales; track r.account_id) {
+            <tr style="border-top:1px solid #eee">
+              <td style="padding:.625rem 1rem">{{ r.name }}</td>
+              <td style="padding:.625rem 1rem;text-align:right">{{ r.balance | number:'1.2-2' }}</td>
+            </tr>
+          }
+          @empty { <tr><td colspan="2" style="padding:.625rem 1rem;color:#888">No cost of sales accounts</td></tr> }
+          <tr style="background:#f0f0f5;font-weight:700;border-top:2px solid #e8e8f0">
+            <td style="padding:.625rem 1rem">Gross Profit</td>
+            <td style="padding:.625rem 1rem;text-align:right">{{ data.gross_profit | number:'1.2-2' }}</td>
+          </tr>
+
+          <tr style="background:#e8e8f0">
+            <td colspan="2" style="padding:.5rem 1rem;font-weight:700;font-size:.8rem;text-transform:uppercase;letter-spacing:.05em">Expenses</td>
+          </tr>
+          @for (r of data.expenses; track r.account_id) {
+            <tr style="border-top:1px solid #eee">
+              <td style="padding:.625rem 1rem">{{ r.name }}</td>
+              <td style="padding:.625rem 1rem;text-align:right">{{ r.balance | number:'1.2-2' }}</td>
+            </tr>
+          }
+          @empty { <tr><td colspan="2" style="padding:.625rem 1rem;color:#888">No expense accounts</td></tr> }
+          <tr style="background:#f0f0f5;font-weight:700;border-top:2px solid #e8e8f0">
+            <td style="padding:.625rem 1rem">Total Expenses</td>
+            <td style="padding:.625rem 1rem;text-align:right">{{ data.total_expenses | number:'1.2-2' }}</td>
+          </tr>
+        </tbody>
+        <tfoot>
+          <tr [style.background]="data.net_surplus >= 0 ? '#d1fae5' : '#fee2e2'"
+              style="border-top:2px solid #1a1a2e">
+            <td style="padding:.875rem 1rem;font-weight:700;font-size:1rem">
+              Net Surplus / (Deficit)
+            </td>
+            <td style="padding:.875rem 1rem;text-align:right;font-weight:700;font-size:1rem"
+                [style.color]="data.net_surplus >= 0 ? '#065f46' : '#991b1b'">
+              {{ data.net_surplus | number:'1.2-2' }}
+            </td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+  }
+</div>

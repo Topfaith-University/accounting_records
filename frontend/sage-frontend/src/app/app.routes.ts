@@ -44,6 +44,9 @@ export const routes: Routes = [
         path: 'reports/trial-balance',
         loadComponent: () => import('./reports/trial-balance/trial-balance.component').then(m => m.TrialBalanceComponent)
       },
+      { path: 'reports/income-statement', loadComponent: () => import('./reports/income-statement/income-statement.component').then(m => m.IncomeStatementComponent) },
+      { path: 'reports/balance-sheet', loadComponent: () => import('./reports/balance-sheet/balance-sheet.component').then(m => m.BalanceSheetComponent) },
+      { path: 'reports/gl-detail', loadComponent: () => import('./reports/gl-detail/gl-detail.component').then(m => m.GlDetailComponent) },
     ]
   },
   { path: '**', redirectTo: 'accounts' }
