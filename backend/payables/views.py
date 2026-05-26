@@ -3,14 +3,13 @@ from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from .models import Vendor, PurchaseInvoice, APPayment
-from .serializers import VendorSerializer, PurchaseInvoiceSerializer, APPaymentSerializer
+from .serializers import VendorSerializer, PurchaseInvoiceSerializer, APPaymentSerializer, PurchaseInvoiceLineSerializer
 from . import services
 
 
 def _serialize_invoice(invoice):
     data = PurchaseInvoiceSerializer(invoice).data
     lines = list(invoice.lines.all())
-    from .serializers import PurchaseInvoiceLineSerializer
     data['lines'] = PurchaseInvoiceLineSerializer(lines, many=True).data
     return data
 
@@ -99,8 +98,12 @@ class PurchaseInvoiceViewSet(viewsets.ViewSet):
             return Response({'detail': 'payment_date, amount, and bank_account_id are required.'},
                             status=status.HTTP_400_BAD_REQUEST)
         try:
+            amount = float(amount)
+        except (TypeError, ValueError):
+            return Response({'detail': 'amount must be a valid number.'}, status=status.HTTP_400_BAD_REQUEST)
+        try:
             payment = services.record_payment(
-                pk, payment_date, float(amount), reference, bank_account_id, request.user.username
+                pk, payment_date, amount, reference, bank_account_id, request.user.username
             )
         except Exception as e:
             return Response({'detail': str(e)}, status=status.HTTP_400_BAD_REQUEST)
