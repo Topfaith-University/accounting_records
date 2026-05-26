@@ -18,7 +18,6 @@ export class EntryFormComponent implements OnInit {
   saving = false;
   posting = false;
   error = '';
-  savedEntryId: string | null = null;
 
   get isManagerOrAdmin(): boolean {
     const user = this.auth.getCurrentUser();
@@ -84,7 +83,6 @@ export class EntryFormComponent implements OnInit {
     this.error = '';
     try {
       const entry = await this.journalsService.createEntry(this.form.value);
-      this.savedEntryId = entry.entry_id;
       this.router.navigate(['/journals', entry.entry_id]);
     } catch (e: any) {
       this.error = e.response?.data?.detail ?? JSON.stringify(e.response?.data) ?? 'Save failed.';
