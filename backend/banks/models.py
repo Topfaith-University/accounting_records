@@ -18,3 +18,19 @@ class BankAccount(StructuredNode):
     updated_at = DateTimeProperty(default_now=True)
 
     gl_account = RelationshipTo('accounts.models.Account', 'MAPS_TO_ACCOUNT', cardinality=One)
+
+
+class BankReconciliation(StructuredNode):
+    reconciliation_id = UniqueIdProperty()
+    period_start = DateProperty(required=True)
+    period_end = DateProperty(required=True)
+    statement_balance = FloatProperty(required=True)
+    status = StringProperty(
+        choices=[('DRAFT', 'Draft'), ('COMPLETED', 'Completed')], default='DRAFT'
+    )
+    created_by = StringProperty(required=True)
+    completed_at = DateTimeProperty()
+    created_at = DateTimeProperty(default_now=True)
+
+    bank_account = RelationshipTo('BankAccount', 'FOR_ACCOUNT', cardinality=One)
+    reconciled_lines = RelationshipTo('journals.models.JournalLine', 'RECONCILES')
