@@ -1,0 +1,59 @@
+<div class="page-header">
+  <h1 class="page-title">Bank Transactions</h1>
+  <a routerLink="/banks/transactions/new" class="btn-primary">+ New Transaction</a>
+</div>
+
+<div style="display:flex;align-items:center;gap:1rem;margin-bottom:1.25rem">
+  <label style="font-size:.85rem;color:var(--text-secondary);font-weight:600">Filter by bank:</label>
+  <select [(ngModel)]="selectedBankId" (ngModelChange)="filterByBank()"
+    style="padding:.45rem .75rem;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-family:var(--font-body);font-size:.875rem;background:var(--white);color:var(--text-primary)">
+    <option value="">All banks</option>
+    @for (bank of banks; track bank.bank_account_id) {
+      <option [value]="bank.bank_account_id">{{ bank.name }}</option>
+    }
+  </select>
+</div>
+
+@if (loading) { <p style="color:var(--text-muted)">Loading…</p> }
+@if (error) { <p style="color:var(--danger)">{{ error }}</p> }
+
+@if (!loading && !error) {
+  <div class="card">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Reference</th>
+          <th>Date</th>
+          <th>Bank</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th style="text-align:right">Amount (₦)</th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (txn of transactions; track txn.transaction_id) {
+          <tr>
+            <td class="mono">{{ txn.reference }}</td>
+            <td>{{ txn.date }}</td>
+            <td>{{ txn.source_bank_name }}</td>
+            <td>
+              <span [style.color]="typeColor(txn.transaction_type)"
+                style="font-weight:700;font-size:.8rem;text-transform:uppercase">
+                {{ txn.transaction_type }}
+              </span>
+            </td>
+            <td style="color:var(--text-secondary)">{{ txn.description }}</td>
+            <td class="mono" style="text-align:right">{{ txn.amount | number:'1.2-2' }}</td>
+          </tr>
+        }
+        @empty {
+          <tr>
+            <td colspan="6" style="text-align:center;color:var(--text-muted);padding:2rem">
+              No transactions found.
+            </td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  </div>
+}
