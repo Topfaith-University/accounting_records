@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  body { font-family: Arial, sans-serif; font-size: 11px; margin: 20px; color: #1a1a2e; }
+  h1 { font-size: 16px; margin: 0 0 4px; }
+  .subtitle { color: #555; margin: 0 0 16px; font-size: 10px; }
+  table { width: 100%; border-collapse: collapse; margin-bottom: 8px; }
+  th { background: #1a1a2e; color: white; padding: 6px 8px; text-align: left; font-size: 10px; }
+  th:last-child, td:last-child { text-align: right; }
+  td { padding: 5px 8px; border-bottom: 1px solid #eee; }
+  tr:nth-child(even) td { background: #f9f9fb; }
+  .section-header td { background: #e8e8f0; font-weight: bold; text-transform: uppercase; font-size: 10px; letter-spacing: .05em; }
+  .subtotal td { font-weight: bold; background: #f0f0f5; border-top: 1px solid #ccc; }
+  .net-positive td { font-weight: bold; background: #d1fae5; font-size: 12px; }
+  .net-negative td { font-weight: bold; background: #fee2e2; font-size: 12px; }
+</style>
+</head>
+<body>
+<h1>Income Statement</h1>
+<p class="subtitle">Period: {{ date_from }} to {{ date_to }}</p>
+<table>
+  <thead>
+    <tr><th>Account</th><th>Type</th><th>Amount (&#8358;)</th></tr>
+  </thead>
+  <tbody>
+    <tr class="section-header"><td colspan="3">Revenue</td></tr>
+    {% for r in revenue %}
+    <tr><td>{{ r.name }}</td><td>{{ r.account_type }}</td><td>{{ r.balance|floatformat:2 }}</td></tr>
+    {% endfor %}
+    <tr class="subtotal"><td colspan="2">Total Revenue</td><td>{{ total_revenue|floatformat:2 }}</td></tr>
+
+    <tr class="section-header"><td colspan="3">Cost of Sales</td></tr>
+    {% for r in cost_of_sales %}
+    <tr><td>{{ r.name }}</td><td>{{ r.account_type }}</td><td>{{ r.balance|floatformat:2 }}</td></tr>
+    {% endfor %}
+    <tr class="subtotal"><td colspan="2">Gross Profit</td><td>{{ gross_profit|floatformat:2 }}</td></tr>
+
+    <tr class="section-header"><td colspan="3">Expenses</td></tr>
+    {% for r in expenses %}
+    <tr><td>{{ r.name }}</td><td>{{ r.account_type }}</td><td>{{ r.balance|floatformat:2 }}</td></tr>
+    {% endfor %}
+    <tr class="subtotal"><td colspan="2">Total Expenses</td><td>{{ total_expenses|floatformat:2 }}</td></tr>
+
+    {% if net_surplus >= 0 %}
+    <tr class="net-positive">
+    {% else %}
+    <tr class="net-negative">
+    {% endif %}
+      <td colspan="2">Net Surplus / (Deficit)</td><td>{{ net_surplus|floatformat:2 }}</td>
+    </tr>
+  </tbody>
+</table>
+</body>
+</html>

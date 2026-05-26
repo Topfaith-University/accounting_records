@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  body { font-family: Arial, sans-serif; font-size: 11px; margin: 20px; color: #1a1a2e; }
+  h1 { font-size: 16px; margin: 0 0 4px; }
+  .subtitle { color: #555; margin: 0 0 16px; font-size: 10px; }
+  table { width: 100%; border-collapse: collapse; margin-bottom: 8px; }
+  th { background: #1a1a2e; color: white; padding: 6px 8px; text-align: left; font-size: 10px; }
+  th:last-child, td:last-child { text-align: right; }
+  td { padding: 5px 8px; border-bottom: 1px solid #eee; }
+  tr:nth-child(even) td { background: #f9f9fb; }
+  .section-header td { background: #e8e8f0; font-weight: bold; text-transform: uppercase; font-size: 10px; letter-spacing: .05em; }
+  .subtotal td { font-weight: bold; background: #f0f0f5; border-top: 1px solid #ccc; }
+  .balance-check { margin-top: 12px; font-size: 10px; padding: 6px 10px; border-radius: 4px; }
+  .balanced { background: #d1fae5; color: #065f46; }
+  .unbalanced { background: #fee2e2; color: #991b1b; }
+</style>
+</head>
+<body>
+<h1>Balance Sheet</h1>
+<p class="subtitle">As of {{ as_of_date }}</p>
+<table>
+  <thead>
+    <tr><th>Account</th><th>Type</th><th>Balance (&#8358;)</th></tr>
+  </thead>
+  <tbody>
+    <tr class="section-header"><td colspan="3">Assets</td></tr>
+    {% for r in assets %}
+    <tr><td>{{ r.name }}</td><td>{{ r.account_type }}</td><td>{{ r.balance|floatformat:2 }}</td></tr>
+    {% endfor %}
+    <tr class="subtotal"><td colspan="2">Total Assets</td><td>{{ total_assets|floatformat:2 }}</td></tr>
+
+    <tr class="section-header"><td colspan="3">Liabilities</td></tr>
+    {% for r in liabilities %}
+    <tr><td>{{ r.name }}</td><td>{{ r.account_type }}</td><td>{{ r.balance|floatformat:2 }}</td></tr>
+    {% endfor %}
+    <tr class="subtotal"><td colspan="2">Total Liabilities</td><td>{{ total_liabilities|floatformat:2 }}</td></tr>
+
+    <tr class="section-header"><td colspan="3">Equity</td></tr>
+    {% for r in equity %}
+    <tr><td>{{ r.name }}</td><td>{{ r.account_type }}</td><td>{{ r.balance|floatformat:2 }}</td></tr>
+    {% endfor %}
+    <tr class="subtotal"><td colspan="2">Total Equity</td><td>{{ total_equity|floatformat:2 }}</td></tr>
+  </tbody>
+</table>
+{% if is_balanced %}
+<div class="balance-check balanced">Assets = Liabilities + Equity (balanced)</div>
+{% else %}
+<div class="balance-check unbalanced">Warning: Balance sheet does not balance</div>
+{% endif %}
+</body>
+</html>
