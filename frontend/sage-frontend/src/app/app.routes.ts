@@ -16,6 +16,18 @@ export const routes: Routes = [
         path: 'accounts',
         loadComponent: () => import('./accounts/account-list/account-list.component').then(m => m.AccountListComponent)
       },
+      {
+        path: 'journals',
+        loadComponent: () => import('./journals/entry-list/entry-list.component').then(m => m.EntryListComponent)
+      },
+      {
+        path: 'journals/new',
+        loadComponent: () => import('./journals/entry-form/entry-form.component').then(m => m.EntryFormComponent)
+      },
+      {
+        path: 'journals/:id',
+        loadComponent: () => import('./journals/entry-detail/entry-detail.component').then(m => m.EntryDetailComponent)
+      },
     ]
   },
   { path: '**', redirectTo: 'accounts' }
