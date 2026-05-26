@@ -24,6 +24,8 @@ INSTALLED_APPS = [
     'accounts',
     'reports',
     'journals',
+    'payables',
+    'receivables',
     'django_neomodel',
 ]
 
