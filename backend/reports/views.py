@@ -1,12 +1,20 @@
 import io
 from django.http import JsonResponse, HttpResponse
-from django.template.loader import render_to_string
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from . import services
 
 
+def _parse_date(value: str, param_name: str):
+    from datetime import date
+    try:
+        return date.fromisoformat(value)
+    except ValueError:
+        return None
+
+
 def _pdf_response(template_name, context, filename):
+    from django.template.loader import render_to_string
     from weasyprint import HTML
     html = render_to_string(template_name, context)
     pdf = HTML(string=html).write_pdf()
@@ -35,6 +43,8 @@ def trial_balance(request):
     fmt = request.query_params.get('format', 'json')
     if not date_from or not date_to:
         return JsonResponse({'detail': 'date_from and date_to are required.'}, status=400)
+    if not _parse_date(date_from, 'date_from') or not _parse_date(date_to, 'date_to'):
+        return JsonResponse({'detail': 'Invalid date format. Use YYYY-MM-DD.'}, status=400)
 
     rows = services.compute_trial_balance(date_from, date_to)
     ctx = {
@@ -72,6 +82,8 @@ def income_statement(request):
     fmt = request.query_params.get('format', 'json')
     if not date_from or not date_to:
         return JsonResponse({'detail': 'date_from and date_to are required.'}, status=400)
+    if not _parse_date(date_from, 'date_from') or not _parse_date(date_to, 'date_to'):
+        return JsonResponse({'detail': 'Invalid date format. Use YYYY-MM-DD.'}, status=400)
 
     data = services.compute_income_statement(date_from, date_to)
 
@@ -110,6 +122,8 @@ def balance_sheet(request):
     fmt = request.query_params.get('format', 'json')
     if not as_of_date:
         return JsonResponse({'detail': 'as_of_date is required.'}, status=400)
+    if not _parse_date(as_of_date, 'as_of_date'):
+        return JsonResponse({'detail': 'Invalid date format. Use YYYY-MM-DD.'}, status=400)
 
     data = services.compute_balance_sheet(as_of_date)
 
@@ -146,6 +160,8 @@ def gl_detail(request):
     fmt = request.query_params.get('format', 'json')
     if not account_id or not date_from or not date_to:
         return JsonResponse({'detail': 'account_id, date_from, and date_to are required.'}, status=400)
+    if not _parse_date(date_from, 'date_from') or not _parse_date(date_to, 'date_to'):
+        return JsonResponse({'detail': 'Invalid date format. Use YYYY-MM-DD.'}, status=400)
 
     data = services.compute_gl_detail(account_id, date_from, date_to)
     if data is None:
