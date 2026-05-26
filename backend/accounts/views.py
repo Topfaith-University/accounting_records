@@ -64,8 +64,31 @@ class AccountViewSet(viewsets.ViewSet):
         account = Account.nodes.get_or_none(account_id=pk)
         if not account:
             return Response({'detail': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
-        return Response({'account_id': pk, 'balance': 0.0})
+        from .services import compute_account_balance
+        as_of_date = request.query_params.get('date')
+        bal = compute_account_balance(pk, as_of_date)
+        return Response({'account_id': pk, 'balance': bal})
 
     @action(detail=True, methods=['get'], url_path='ledger')
     def ledger(self, request, pk=None):
-        return Response({'account_id': pk, 'entries': []})
+        account = Account.nodes.get_or_none(account_id=pk)
+        if not account:
+            return Response({'detail': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
+        from neomodel import db
+        params = {'account_id': pk}
+        query = """
+            MATCH (e:JournalEntry)-[:HAS_LINE]->(l:JournalLine)-[:AFFECTS_ACCOUNT]->(a:Account {account_id: $account_id})
+            WHERE e.status = 'POSTED'
+            RETURN e.entry_id, e.reference, e.date, e.description, l.side, l.amount, l.description
+            ORDER BY e.date DESC
+        """
+        results, _ = db.cypher_query(query, params)
+        entries = [
+            {
+                'entry_id': r[0], 'reference': r[1], 'date': str(r[2]),
+                'entry_description': r[3], 'side': r[4],
+                'amount': r[5], 'line_description': r[6],
+            }
+            for r in results
+        ]
+        return Response({'account_id': pk, 'entries': entries})

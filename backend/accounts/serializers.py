@@ -18,8 +18,8 @@ class AccountSerializer(serializers.Serializer):
     updated_at = serializers.DateTimeField(read_only=True)
 
     def get_balance(self, obj):
-        # Phase 2 will compute this from JournalLines
-        return 0.0
+        from .services import compute_account_balance
+        return compute_account_balance(obj.account_id)
 
     def create(self, validated_data):
         parent_id = validated_data.pop('parent_id', None)
