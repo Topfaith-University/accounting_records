@@ -26,6 +26,7 @@ export class GlDetailComponent implements OnInit {
       const result = await this.accountsService.getAll();
       this.accounts = result.results ?? result;
     } catch {
+      this.error = 'Could not load accounts list.';
     }
   }
 
