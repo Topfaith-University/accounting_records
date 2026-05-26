@@ -45,9 +45,10 @@ class BankTransaction(StructuredNode):
     )
     date = DateProperty(required=True)
     amount = FloatProperty(required=True)
-    description = StringProperty(required=True)
+    description = StringProperty(default='')
     created_by = StringProperty(required=True)
     created_at = DateTimeProperty(default_now=True)
+    updated_at = DateTimeProperty(default_now=True)
 
     source_bank = RelationshipTo('BankAccount', 'FROM_BANK', cardinality=One)
     destination_bank = RelationshipTo('BankAccount', 'TO_BANK', cardinality=ZeroOrOne)
