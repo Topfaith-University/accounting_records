@@ -23,6 +23,7 @@ INSTALLED_APPS = [
     'banks',
     'accounts',
     'reports',
+    'journals',
     'django_neomodel',
 ]
 
