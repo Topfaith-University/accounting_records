@@ -1,7 +1,10 @@
-from django.urls import path
-from . import views
+from django.urls import path, include
+from rest_framework.routers import DefaultRouter
+from .views import BankAccountViewSet
+
+router = DefaultRouter()
+router.register('accounts', BankAccountViewSet, basename='bank-account')
 
 urlpatterns = [
-    path('', views.index, name='banks_index'),
-    path('create/', views.create_bank_account, name='create_bank_account'),
+    path('', include(router.urls)),
 ]

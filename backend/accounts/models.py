@@ -1,14 +1,21 @@
-from django.db import models
-from neomodel import StructuredNode, StringProperty, RelationshipTo, FloatProperty, DateTimeProperty, UniqueIdProperty
+from neomodel import (
+    StructuredNode, StringProperty, BooleanProperty,
+    DateTimeProperty, UniqueIdProperty, RelationshipTo, RelationshipFrom, ZeroOrOne
+)
 from .enums import AccountType
-
-# Create your models here.
 
 
 class Account(StructuredNode):
     account_id = UniqueIdProperty()
+    code = StringProperty(unique_index=True, required=True)
     name = StringProperty(required=True)
     account_type = StringProperty(choices=AccountType.choices(), required=True)
-    balance = FloatProperty(default=0.0)
+    normal_balance = StringProperty(choices=[('DEBIT', 'Debit'), ('CREDIT', 'Credit')], required=True)
+    description = StringProperty(default='')
+    is_active = BooleanProperty(default=True)
+    is_system = BooleanProperty(default=False)
     created_at = DateTimeProperty(default_now=True)
     updated_at = DateTimeProperty(default_now=True)
+
+    parent = RelationshipTo('Account', 'CHILD_OF', cardinality=ZeroOrOne)
+    children = RelationshipFrom('Account', 'CHILD_OF')

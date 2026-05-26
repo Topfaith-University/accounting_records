@@ -16,3 +16,14 @@ class AccountType(Enum):
     @classmethod
     def choices(cls):
         return [(key.value, key.name) for key in cls]
+
+    @classmethod
+    def normal_balance_for_type(cls, account_type_value):
+        debit_normal = {
+            cls.NON_CURRENT_ASSETS.value,
+            cls.CURRENT_ASSETS.value,
+            cls.COST_OF_SALES.value,
+            cls.EXPENSES.value,
+            cls.INCOME_TAX.value,
+        }
+        return 'DEBIT' if account_type_value in debit_normal else 'CREDIT'

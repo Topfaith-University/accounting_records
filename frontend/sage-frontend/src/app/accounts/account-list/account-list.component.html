@@ -1,0 +1,28 @@
+<h2 style="margin:0 0 1rem">Chart of Accounts</h2>
+@if (loading) { <p>Loading…</p> }
+@if (error) { <p style="color:red">{{ error }}</p> }
+@if (!loading && !error) {
+  <table style="width:100%;border-collapse:collapse;background:white;border-radius:8px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.1)">
+    <thead style="background:#f0f0f5">
+      <tr>
+        <th style="text-align:left;padding:.75rem 1rem">Code</th>
+        <th style="text-align:left;padding:.75rem 1rem">Name</th>
+        <th style="text-align:left;padding:.75rem 1rem">Type</th>
+        <th style="text-align:left;padding:.75rem 1rem">Normal Balance</th>
+      </tr>
+    </thead>
+    <tbody>
+      @for (account of accounts; track account.account_id) {
+        <tr style="border-top:1px solid #eee">
+          <td style="padding:.75rem 1rem;font-family:monospace">{{ account.code }}</td>
+          <td style="padding:.75rem 1rem">{{ account.name }}</td>
+          <td style="padding:.75rem 1rem">{{ account.account_type }}</td>
+          <td style="padding:.75rem 1rem">{{ account.normal_balance }}</td>
+        </tr>
+      }
+      @empty {
+        <tr><td colspan="4" style="padding:1rem;text-align:center;color:#888">No accounts yet.</td></tr>
+      }
+    </tbody>
+  </table>
+}

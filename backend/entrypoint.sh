@@ -15,4 +15,14 @@ if not User.objects.filter(username='${DJANGO_SUPERUSER_USERNAME}').exists():
     )
 EOF
 
+# Create Django Groups and assign superuser to Admin
+python manage.py shell <<'PYEOF'
+from django.contrib.auth.models import Group, User
+for group_name in ['Admin', 'Manager', 'Accountant']:
+    Group.objects.get_or_create(name=group_name)
+admin_group = Group.objects.get(name='Admin')
+for user in User.objects.filter(is_superuser=True):
+    user.groups.add(admin_group)
+PYEOF
+
 exec "$@"

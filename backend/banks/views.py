@@ -1,41 +1,38 @@
-from django.http import JsonResponse
+from rest_framework import viewsets, status
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
 from .models import BankAccount
-from datetime import datetime as dt
+from .serializers import BankAccountSerializer
 
 
-def index(request):
-    return JsonResponse({"message": "Welcome to the banks API!"})
+class BankAccountViewSet(viewsets.ViewSet):
+    permission_classes = [IsAuthenticated]
 
+    def list(self, request):
+        accounts = BankAccount.nodes.filter(is_active=True)
+        return Response(BankAccountSerializer(list(accounts), many=True).data)
 
-def create_bank_account(request):
-    # Placeholder logic for creating a bank account
+    def retrieve(self, request, pk=None):
+        account = BankAccount.nodes.get_or_none(bank_account_id=pk)
+        if not account:
+            return Response({'detail': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
+        return Response(BankAccountSerializer(account).data)
 
-    data = {
-        "name": request.GET.get("name", "Default Bank Account"),
-        "account_number": request.GET.get("account_number", "0000000000"),
-        "bank_name": request.GET.get("bank_name", "Default Bank"),
-        "opening_balance": float(request.GET.get("opening_balance", 0.0)),
-        "opening_balance_date": request.GET.get("opening_balance_date", None),
-    }
+    def create(self, request):
+        if not request.user.groups.filter(name__in=['Admin', 'Manager']).exists():
+            return Response({'detail': 'Forbidden.'}, status=status.HTTP_403_FORBIDDEN)
+        serializer = BankAccountSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        bank_account = serializer.save()
+        return Response(BankAccountSerializer(bank_account).data, status=status.HTTP_201_CREATED)
 
-    bank_account = BankAccount.nodes.first_or_none(
-        name=data["name"],
-        account_number=data["account_number"],
-        bank_name=data["bank_name"],
-        opening_balance=data["opening_balance"],
-    )
-
-    if not bank_account:
-        bank_account = BankAccount(
-            name=data["name"],
-            account_number=data["account_number"],
-            bank_name=data["bank_name"],
-            opening_balance=data["opening_balance"],
-            opening_balance_date=data["opening_balance_date"] if data["opening_balance_date"] else dt.now(
-            ),
-        )
-        bank_account.save()
-    else:
-        return JsonResponse({"message": "Bank account already exists!"}, status=400)
-
-    return JsonResponse({"message": "Bank account created successfully!", "data": data})
+    def partial_update(self, request, pk=None):
+        if not request.user.groups.filter(name__in=['Admin', 'Manager']).exists():
+            return Response({'detail': 'Forbidden.'}, status=status.HTTP_403_FORBIDDEN)
+        account = BankAccount.nodes.get_or_none(bank_account_id=pk)
+        if not account:
+            return Response({'detail': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
+        serializer = BankAccountSerializer(account, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        account = serializer.save()
+        return Response(BankAccountSerializer(account).data)
