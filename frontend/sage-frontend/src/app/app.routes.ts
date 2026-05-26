@@ -47,6 +47,16 @@ export const routes: Routes = [
       { path: 'reports/income-statement', loadComponent: () => import('./reports/income-statement/income-statement.component').then(m => m.IncomeStatementComponent) },
       { path: 'reports/balance-sheet', loadComponent: () => import('./reports/balance-sheet/balance-sheet.component').then(m => m.BalanceSheetComponent) },
       { path: 'reports/gl-detail', loadComponent: () => import('./reports/gl-detail/gl-detail.component').then(m => m.GlDetailComponent) },
+      // Payables
+      { path: 'payables/invoices/new', loadComponent: () => import('./payables/invoice-form/invoice-form.component').then(m => m.PurchaseInvoiceFormComponent) },
+      { path: 'payables/invoices/:id', loadComponent: () => import('./payables/invoice-detail/invoice-detail.component').then(m => m.InvoiceDetailComponent) },
+      { path: 'payables/invoices', loadComponent: () => import('./payables/invoice-list/invoice-list.component').then(m => m.InvoiceListComponent) },
+      { path: 'payables/vendors', loadComponent: () => import('./payables/vendor-list/vendor-list.component').then(m => m.VendorListComponent) },
+      // Receivables
+      { path: 'receivables/invoices/new', loadComponent: () => import('./receivables/invoice-form/invoice-form.component').then(m => m.SalesInvoiceFormComponent) },
+      { path: 'receivables/invoices/:id', loadComponent: () => import('./receivables/invoice-detail/invoice-detail.component').then(m => m.SalesInvoiceDetailComponent) },
+      { path: 'receivables/invoices', loadComponent: () => import('./receivables/invoice-list/invoice-list.component').then(m => m.SalesInvoiceListComponent) },
+      { path: 'receivables/customers', loadComponent: () => import('./receivables/customer-list/customer-list.component').then(m => m.CustomerListComponent) },
     ]
   },
   { path: '**', redirectTo: 'accounts' }
