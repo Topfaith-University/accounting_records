@@ -7,3 +7,4 @@ python-decouple
 gunicorn
 django-neomodel
 djangorestframework-simplejwt
+python-dateutil
