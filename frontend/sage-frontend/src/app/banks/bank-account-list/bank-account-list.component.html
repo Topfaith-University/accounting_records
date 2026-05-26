@@ -1,0 +1,85 @@
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem">
+  <h2 style="margin:0">Bank Accounts</h2>
+  @if (canCreate) {
+    <button (click)="toggleForm()"
+      style="background:#1a73e8;color:white;padding:.5rem 1rem;border:none;border-radius:4px;cursor:pointer;font-size:.875rem">
+      {{ showForm ? 'Cancel' : '+ New Bank Account' }}
+    </button>
+  }
+</div>
+
+@if (showForm) {
+  <div style="background:white;border-radius:8px;padding:1.25rem;box-shadow:0 1px 4px rgba(0,0,0,.1);margin-bottom:1.5rem">
+    <h3 style="margin:0 0 1rem;font-size:1rem">New Bank Account</h3>
+    @if (formError) { <p style="color:red;margin:0 0 .75rem;font-size:.875rem">{{ formError }}</p> }
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:1rem;margin-bottom:1rem">
+      <div>
+        <label style="display:block;font-size:.8rem;color:#555;margin-bottom:.25rem">Account Name *</label>
+        <input [(ngModel)]="form.name" placeholder="e.g. GTBank Current Account"
+          style="width:100%;padding:.5rem;border:1px solid #ccc;border-radius:4px;box-sizing:border-box" />
+      </div>
+      <div>
+        <label style="display:block;font-size:.8rem;color:#555;margin-bottom:.25rem">Account Number</label>
+        <input [(ngModel)]="form.account_number" placeholder="0123456789"
+          style="width:100%;padding:.5rem;border:1px solid #ccc;border-radius:4px;box-sizing:border-box;font-family:monospace" />
+      </div>
+      <div>
+        <label style="display:block;font-size:.8rem;color:#555;margin-bottom:.25rem">Bank Name *</label>
+        <input [(ngModel)]="form.bank_name" placeholder="e.g. GTBank"
+          style="width:100%;padding:.5rem;border:1px solid #ccc;border-radius:4px;box-sizing:border-box" />
+      </div>
+      <div>
+        <label style="display:block;font-size:.8rem;color:#555;margin-bottom:.25rem">Opening Balance (₦)</label>
+        <input [(ngModel)]="form.opening_balance" type="number" min="0" step="0.01"
+          style="width:100%;padding:.5rem;border:1px solid #ccc;border-radius:4px;box-sizing:border-box" />
+      </div>
+      <div>
+        <label style="display:block;font-size:.8rem;color:#555;margin-bottom:.25rem">Opening Balance Date *</label>
+        <input [(ngModel)]="form.opening_balance_date" type="date"
+          style="width:100%;padding:.5rem;border:1px solid #ccc;border-radius:4px;box-sizing:border-box" />
+      </div>
+      <div>
+        <label style="display:block;font-size:.8rem;color:#555;margin-bottom:.25rem">GL Account (Cash/Bank)</label>
+        <select [(ngModel)]="form.gl_account_id_input"
+          style="width:100%;padding:.5rem;border:1px solid #ccc;border-radius:4px;box-sizing:border-box">
+          <option value="">— none —</option>
+          @for (acct of glAccounts; track acct.account_id) {
+            <option [value]="acct.account_id">{{ acct.code }} — {{ acct.name }}</option>
+          }
+        </select>
+      </div>
+    </div>
+    <button (click)="submitCreate()" [disabled]="!form.name || !form.bank_name || !form.opening_balance_date || saving"
+      style="padding:.625rem 1.25rem;background:#1a73e8;color:white;border:none;border-radius:4px;cursor:pointer;font-size:.875rem">
+      {{ saving ? 'Creating…' : 'Create Bank Account' }}
+    </button>
+  </div>
+}
+
+@if (loading) { <p>Loading…</p> }
+@if (error) { <p style="color:red">{{ error }}</p> }
+@if (!loading && !error) {
+  <table style="width:100%;border-collapse:collapse;background:white;border-radius:8px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.1)">
+    <thead style="background:#f0f0f5">
+      <tr>
+        <th style="text-align:left;padding:.75rem 1rem">Name</th>
+        <th style="text-align:left;padding:.75rem 1rem">Bank</th>
+        <th style="text-align:left;padding:.75rem 1rem;font-family:monospace">Account No.</th>
+        <th style="text-align:right;padding:.75rem 1rem">Opening Balance</th>
+      </tr>
+    </thead>
+    <tbody>
+      @for (acct of accounts; track acct.bank_account_id) {
+        <tr style="border-top:1px solid #eee;cursor:pointer" [routerLink]="['/banks', acct.bank_account_id]">
+          <td style="padding:.75rem 1rem">{{ acct.name }}</td>
+          <td style="padding:.75rem 1rem">{{ acct.bank_name }}</td>
+          <td style="padding:.75rem 1rem;font-family:monospace">{{ acct.account_number }}</td>
+          <td style="padding:.75rem 1rem;text-align:right">₦{{ acct.opening_balance | number:'1.2-2' }}</td>
+        </tr>
+      }
+      @empty {
+        <tr><td colspan="4" style="padding:1rem;text-align:center;color:#888">No bank accounts yet.</td></tr>
+      }
+    </tbody>
+  </table>
+}
