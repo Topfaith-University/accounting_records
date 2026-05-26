@@ -3,12 +3,13 @@ from django.test import TestCase
 from rest_framework.exceptions import ValidationError
 
 
+
 class GenerateReferenceTest(TestCase):
 
     @patch('banks.services.db')
     def test_first_transaction_of_year(self, mock_db):
         from datetime import date
-        mock_db.cypher_query.return_value = ([[0]], None)
+        mock_db.cypher_query.return_value = ([[1]], None)
         from banks.services import generate_bank_transaction_reference
         year = date.today().year
         ref = generate_bank_transaction_reference()
@@ -17,7 +18,7 @@ class GenerateReferenceTest(TestCase):
     @patch('banks.services.db')
     def test_increments_count(self, mock_db):
         from datetime import date
-        mock_db.cypher_query.return_value = ([[5]], None)
+        mock_db.cypher_query.return_value = ([[6]], None)
         from banks.services import generate_bank_transaction_reference
         year = date.today().year
         ref = generate_bank_transaction_reference()
@@ -126,6 +127,64 @@ class CreateBankTransactionTest(TestCase):
                 source_bank_id='bank-no-gl',
                 destination_bank_id=None,
                 splits=[{'account_id': 'acct-1', 'amount': 100.0, 'description': ''}],
+                amount=None,
+                created_by='admin',
+            )
+
+    @patch('banks.services.generate_bank_transaction_reference', return_value='BT-2026-0003')
+    @patch('banks.services.BankTransaction')
+    @patch('banks.services.JournalLine')
+    @patch('banks.services.JournalEntry')
+    @patch('banks.services.BankAccount')
+    def test_payment_bank_gl_is_credited(self, MockBA, MockJE, MockJL, MockBT, mock_ref):
+        source_bank, source_gl = self._make_mock_bank('bank-1')
+        MockBA.nodes.get_or_none.return_value = source_bank
+        mock_entry = MagicMock()
+        MockJE.return_value = mock_entry
+        mock_txn = MagicMock()
+        MockBT.return_value = mock_txn
+
+        line_sides = []
+        def make_line(**kwargs):
+            m = MagicMock()
+            line_sides.append(kwargs.get('side'))
+            return m
+        MockJL.side_effect = make_line
+
+        with patch('banks.services.Account') as MockAcct:
+            MockAcct.nodes.get_or_none.return_value = MagicMock()
+            from banks.services import create_bank_transaction
+            from datetime import date
+            create_bank_transaction(
+                transaction_type='PAYMENT',
+                date=date(2026, 2, 1),
+                description='Supplier payment',
+                source_bank_id='bank-1',
+                destination_bank_id=None,
+                splits=[{'account_id': 'acct-1', 'amount': 20000.0, 'description': ''}],
+                amount=None,
+                created_by='admin',
+            )
+
+        # Bank GL must be CREDIT for PAYMENT
+        self.assertEqual(line_sides[0], 'CREDIT')
+        # Contra must be DEBIT
+        self.assertEqual(line_sides[1], 'DEBIT')
+
+    @patch('banks.services.BankAccount')
+    def test_invalid_transaction_type_raises(self, MockBA):
+        source_bank, _ = self._make_mock_bank('bank-1')
+        MockBA.nodes.get_or_none.return_value = source_bank
+        from banks.services import create_bank_transaction
+        from datetime import date
+        with self.assertRaises(ValidationError):
+            create_bank_transaction(
+                transaction_type='REFUND',
+                date=date(2026, 1, 1),
+                description='Test',
+                source_bank_id='bank-1',
+                destination_bank_id=None,
+                splits=[],
                 amount=None,
                 created_by='admin',
             )

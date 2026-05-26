@@ -1,4 +1,6 @@
 from neomodel import db
+from rest_framework.exceptions import ValidationError
+from datetime import datetime, date
 from .models import BankAccount, BankTransaction
 from journals.models import JournalEntry, JournalLine
 from accounts.models import Account
@@ -50,14 +52,19 @@ def get_bank_gl_lines(bank_account_id: str, recon_id: str = None) -> list:
 
 
 def generate_bank_transaction_reference() -> str:
-    from datetime import date
     year = date.today().year
+    prefix = f'BT-{year}-'
     results, _ = db.cypher_query(
-        "MATCH (t:BankTransaction) WHERE t.reference STARTS WITH $prefix RETURN count(t)",
-        {'prefix': f'BT-{year}-'}
+        """
+        MERGE (c:BankTxnCounter {year: $year})
+        ON CREATE SET c.seq = 1
+        ON MATCH SET c.seq = c.seq + 1
+        RETURN c.seq
+        """,
+        {'year': year}
     )
-    count = int(results[0][0]) if results else 0
-    return f'BT-{year}-{count + 1:04d}'
+    seq = int(results[0][0])
+    return f'{prefix}{seq:04d}'
 
 
 def create_bank_transaction(
@@ -70,8 +77,10 @@ def create_bank_transaction(
     amount,
     created_by: str,
 ):
-    from rest_framework.exceptions import ValidationError
-    from datetime import datetime
+    # Fix 3: Validate transaction_type before any processing
+    VALID_TYPES = {'RECEIPT', 'PAYMENT', 'TRANSFER'}
+    if transaction_type not in VALID_TYPES:
+        raise ValidationError(f"transaction_type must be one of {sorted(VALID_TYPES)}.")
 
     source_bank = BankAccount.nodes.get_or_none(bank_account_id=source_bank_id)
     if not source_bank:
@@ -79,6 +88,10 @@ def create_bank_transaction(
     source_gl = source_bank.gl_account.single()
     if not source_gl:
         raise ValidationError('Source bank account has no linked GL account.')
+
+    # Fix 7: Guard dest_bank/dest_gl as possibly unbound
+    dest_bank = None
+    dest_gl = None
 
     if transaction_type == 'TRANSFER':
         if not destination_bank_id:
@@ -91,16 +104,35 @@ def create_bank_transaction(
         dest_gl = dest_bank.gl_account.single()
         if not dest_gl:
             raise ValidationError('Destination bank account has no linked GL account.')
-        if not amount or float(amount) <= 0:
+        # Fix 4: Guard float() against non-numeric input for TRANSFER
+        try:
+            total_amount = float(amount)
+        except (TypeError, ValueError):
+            raise ValidationError('Amount must be a valid number for TRANSFER.')
+        if total_amount <= 0:
             raise ValidationError('Amount must be positive for TRANSFER.')
-        total_amount = float(amount)
     else:
         if not splits:
             raise ValidationError('At least one split is required.')
+        # Fix 1: Resolve all split accounts BEFORE any .save() calls
+        resolved_splits = []
         for split in splits:
-            if float(split['amount']) <= 0:
+            # Fix 4: Guard float() against non-numeric input for split amounts
+            try:
+                split_amount = float(split['amount'])
+            except (TypeError, ValueError):
+                raise ValidationError('Split amount must be a valid number.')
+            if split_amount <= 0:
                 raise ValidationError('Each split amount must be positive.')
-        total_amount = sum(float(s['amount']) for s in splits)
+            contra_acct = Account.nodes.get_or_none(account_id=split['account_id'])
+            if not contra_acct:
+                raise ValidationError(f"Account {split['account_id']} not found.")
+            resolved_splits.append({
+                'acct': contra_acct,
+                'amount': split_amount,
+                'description': split.get('description', ''),
+            })
+        total_amount = sum(s['amount'] for s in resolved_splits)
 
     reference = generate_bank_transaction_reference()
     now = datetime.utcnow()
@@ -137,17 +169,15 @@ def create_bank_transaction(
         entry.lines.connect(bank_line)
 
         contra_side = 'CREDIT' if transaction_type == 'RECEIPT' else 'DEBIT'
-        for split in splits:
-            contra_acct = Account.nodes.get_or_none(account_id=split['account_id'])
-            if not contra_acct:
-                raise ValidationError(f"Account {split['account_id']} not found.")
+        # Fix 1: Use pre-resolved splits — no further DB lookups, no orphan risk
+        for split in resolved_splits:
             split_line = JournalLine(
                 side=contra_side,
-                amount=float(split['amount']),
-                description=split.get('description', ''),
+                amount=split['amount'],
+                description=split['description'],
             )
             split_line.save()
-            split_line.account.connect(contra_acct)
+            split_line.account.connect(split['acct'])
             entry.lines.connect(split_line)
 
     txn = BankTransaction(
