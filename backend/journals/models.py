@@ -46,6 +46,7 @@ class JournalEntry(StructuredNode):
             ('BANK_RECON', 'Bank Reconciliation'),
             ('AP_PAYMENT', 'AP Payment'),
             ('AR_RECEIPT', 'AR Receipt'),
+            ('BANK_TRANSACTION', 'Bank Transaction'),
         ],
         default='MANUAL'
     )

@@ -1,7 +1,7 @@
 from neomodel import (
     StructuredNode, StringProperty, BooleanProperty,
     FloatProperty, DateProperty, DateTimeProperty,
-    UniqueIdProperty, RelationshipTo, One
+    UniqueIdProperty, RelationshipTo, One, ZeroOrOne
 )
 
 
@@ -34,3 +34,21 @@ class BankReconciliation(StructuredNode):
 
     bank_account = RelationshipTo('BankAccount', 'FOR_ACCOUNT', cardinality=One)
     reconciled_lines = RelationshipTo('journals.models.JournalLine', 'RECONCILES')
+
+
+class BankTransaction(StructuredNode):
+    transaction_id = UniqueIdProperty()
+    reference = StringProperty(unique_index=True, required=True)
+    transaction_type = StringProperty(
+        choices=[('RECEIPT', 'Receipt'), ('PAYMENT', 'Payment'), ('TRANSFER', 'Transfer')],
+        required=True
+    )
+    date = DateProperty(required=True)
+    amount = FloatProperty(required=True)
+    description = StringProperty(required=True)
+    created_by = StringProperty(required=True)
+    created_at = DateTimeProperty(default_now=True)
+
+    source_bank = RelationshipTo('BankAccount', 'FROM_BANK', cardinality=One)
+    destination_bank = RelationshipTo('BankAccount', 'TO_BANK', cardinality=ZeroOrOne)
+    journal_entry = RelationshipTo('journals.models.JournalEntry', 'GENERATES_ENTRY', cardinality=One)
