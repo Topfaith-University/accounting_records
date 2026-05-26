@@ -1,7 +1,7 @@
 from neomodel import (
-    StructuredNode, StringProperty, FloatProperty, BooleanProperty,
+    StructuredNode, StringProperty, FloatProperty,
     DateProperty, DateTimeProperty, IntegerProperty, UniqueIdProperty,
-    RelationshipTo, RelationshipFrom, ZeroOrOne, One, ZeroOrMore
+    RelationshipTo, RelationshipFrom, ZeroOrOne, One,
 )
 
 
