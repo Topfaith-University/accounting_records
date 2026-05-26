@@ -56,6 +56,8 @@
             <td style="padding:.75rem 1rem;color:#555">{{ line.description }}</td>
             <td style="padding:.75rem 1rem;text-align:right">{{ line.amount | number:'1.2-2' }}</td>
           </tr>
+        } @empty {
+          <tr><td colspan="3" style="padding:1rem;text-align:center;color:#888">No line items.</td></tr>
         }
       </tbody>
       <tfoot style="background:#f9f9fb;border-top:2px solid #eee">
@@ -88,6 +90,11 @@
                 style="width:100%;padding:.5rem;border:1px solid #ccc;border-radius:4px;box-sizing:border-box" />
             </div>
             <div>
+              <label style="display:block;font-size:.8rem;color:#555;margin-bottom:.25rem">Reference</label>
+              <input formControlName="reference" placeholder="Cheque/TXN ref"
+                style="width:100%;padding:.5rem;border:1px solid #ccc;border-radius:4px;box-sizing:border-box" />
+            </div>
+            <div>
               <label style="display:block;font-size:.8rem;color:#555;margin-bottom:.25rem">Bank Account *</label>
               <select formControlName="bank_account_id"
                 style="width:100%;padding:.5rem;border:1px solid #ccc;border-radius:4px">
@@ -96,11 +103,6 @@
                   <option [value]="ba.bank_account_id">{{ ba.account_name }}</option>
                 }
               </select>
-            </div>
-            <div>
-              <label style="display:block;font-size:.8rem;color:#555;margin-bottom:.25rem">Reference</label>
-              <input formControlName="reference" placeholder="Cheque/TXN ref"
-                style="width:100%;padding:.5rem;border:1px solid #ccc;border-radius:4px;box-sizing:border-box" />
             </div>
             <div style="grid-column:1/-1">
               <button type="submit" [disabled]="!payForm.valid || paying"
