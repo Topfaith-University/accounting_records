@@ -72,9 +72,19 @@ export class BankTransactionFormComponent implements OnInit {
 
   async submit() {
     if (this.form.invalid) return;
+    const val = this.form.value;
+    if (val.transaction_type === 'TRANSFER') {
+      if (!val.destination_bank_id) {
+        this.error = 'Please select a destination bank account.';
+        return;
+      }
+      if (!val.transfer_amount || Number(val.transfer_amount) <= 0) {
+        this.error = 'Please enter a transfer amount greater than 0.';
+        return;
+      }
+    }
     this.saving = true;
     this.error = '';
-    const val = this.form.value;
     const payload: any = {
       transaction_type: val.transaction_type,
       date: val.date,
