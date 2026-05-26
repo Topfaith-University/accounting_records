@@ -2,8 +2,8 @@ from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
-from .models import BankAccount
-from .serializers import BankAccountSerializer, BankReconciliationSerializer
+from .models import BankAccount, BankTransaction
+from .serializers import BankAccountSerializer, BankReconciliationSerializer, BankTransactionSerializer
 
 
 class BankAccountViewSet(viewsets.ViewSet):
@@ -186,3 +186,48 @@ class BankReconciliationViewSet(viewsets.ViewSet):
         recon.completed_at = datetime.utcnow()
         recon.save()
         return Response(BankReconciliationSerializer(recon).data)
+
+
+class BankTransactionViewSet(viewsets.ViewSet):
+    permission_classes = [IsAuthenticated]
+
+    def list(self, request):
+        bank_account_id = request.query_params.get('bank_account_id')
+        if bank_account_id:
+            from neomodel import db
+            results, _ = db.cypher_query(
+                "MATCH (t:BankTransaction)-[:FROM_BANK]->(ba:BankAccount {bank_account_id: $id}) "
+                "RETURN t.transaction_id ORDER BY t.created_at DESC",
+                {'id': bank_account_id}
+            )
+            txns = [BankTransaction.nodes.get_or_none(transaction_id=row[0]) for row in results]
+        else:
+            txns = list(BankTransaction.nodes.all())
+            txns = sorted(txns, key=lambda t: str(t.created_at), reverse=True)
+        return Response(BankTransactionSerializer([t for t in txns if t], many=True).data)
+
+    def retrieve(self, request, pk=None):
+        txn = BankTransaction.nodes.get_or_none(transaction_id=pk)
+        if not txn:
+            return Response({'detail': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
+        return Response(BankTransactionSerializer(txn).data)
+
+    def create(self, request):
+        serializer = BankTransactionSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+        from . import services
+        try:
+            txn = services.create_bank_transaction(
+                transaction_type=data['transaction_type'],
+                txn_date=data['date'],
+                description=data.get('description', ''),
+                source_bank_id=data['source_bank_id'],
+                destination_bank_id=data.get('destination_bank_id'),
+                splits=data.get('splits', []),
+                amount=data.get('transfer_amount'),
+                created_by=request.user.username,
+            )
+        except Exception as e:
+            return Response({'detail': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(BankTransactionSerializer(txn).data, status=status.HTTP_201_CREATED)
