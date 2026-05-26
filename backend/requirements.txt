@@ -8,3 +8,5 @@ gunicorn
 django-neomodel
 djangorestframework-simplejwt
 python-dateutil
+weasyprint
+openpyxl
