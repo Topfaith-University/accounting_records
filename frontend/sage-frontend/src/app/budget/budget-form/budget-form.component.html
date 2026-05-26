@@ -1,0 +1,68 @@
+<div style="max-width:900px">
+  <h2 style="margin:0 0 1.5rem">New Budget</h2>
+  @if (error) { <p style="color:red;margin-bottom:1rem">{{ error }}</p> }
+
+  <form [formGroup]="form">
+    <div style="background:white;padding:1.25rem;border-radius:8px;box-shadow:0 1px 4px rgba(0,0,0,.1);margin-bottom:1rem">
+      <div style="display:grid;grid-template-columns:2fr 1fr;gap:.75rem">
+        <div>
+          <label style="display:block;font-size:.8rem;color:#555;margin-bottom:.25rem">Budget Name *</label>
+          <input formControlName="name" placeholder="e.g. 2025/2026 Annual Budget"
+            style="width:100%;padding:.5rem;border:1px solid #ccc;border-radius:4px;box-sizing:border-box" />
+        </div>
+        <div>
+          <label style="display:block;font-size:.8rem;color:#555;margin-bottom:.25rem">Fiscal Year *</label>
+          <input formControlName="fiscal_year" placeholder="e.g. 2025/2026"
+            style="width:100%;padding:.5rem;border:1px solid #ccc;border-radius:4px;box-sizing:border-box" />
+        </div>
+      </div>
+    </div>
+
+    <div style="background:white;border-radius:8px;box-shadow:0 1px 4px rgba(0,0,0,.1);margin-bottom:1rem;overflow:hidden">
+      <table style="width:100%;border-collapse:collapse">
+        <thead style="background:#f0f0f5">
+          <tr>
+            <th style="text-align:left;padding:.75rem 1rem;font-size:.875rem">Account</th>
+            <th style="text-align:right;padding:.75rem 1rem;font-size:.875rem;width:180px">Annual Budget (&#8358;)</th>
+            <th style="width:40px"></th>
+          </tr>
+        </thead>
+        <tbody formArrayName="lines">
+          @for (line of lines.controls; track $index) {
+            <tr [formGroupName]="$index" style="border-top:1px solid #eee">
+              <td style="padding:.5rem 1rem">
+                <select formControlName="account_id"
+                  style="width:100%;padding:.375rem;border:1px solid #ccc;border-radius:4px">
+                  <option value="">— select account —</option>
+                  @for (a of accounts; track a.account_id) {
+                    <option [value]="a.account_id">{{ a.code }} — {{ a.name }}</option>
+                  }
+                </select>
+              </td>
+              <td style="padding:.5rem 1rem">
+                <input formControlName="budgeted_amount" type="number" min="0.01" step="0.01" placeholder="0.00"
+                  style="width:100%;padding:.375rem;border:1px solid #ccc;border-radius:4px;text-align:right;box-sizing:border-box" />
+              </td>
+              <td style="padding:.5rem;text-align:center">
+                <button type="button" (click)="removeLine($index)"
+                  style="background:none;border:none;color:#ef4444;cursor:pointer;font-size:1.1rem">&#x2715;</button>
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:.75rem 1rem;background:#f9f9fb;border-top:1px solid #eee">
+        <button type="button" (click)="addLine()"
+          style="background:none;border:1px dashed #aaa;padding:.375rem .75rem;border-radius:4px;cursor:pointer;color:#555;font-size:.875rem">
+          + Add account
+        </button>
+        <span style="font-size:.9rem;font-weight:600">Total: &#8358;{{ total | number:'1.2-2' }}</span>
+      </div>
+    </div>
+
+    <button type="button" (click)="save()" [disabled]="!form.valid || saving"
+      style="padding:.625rem 1.25rem;background:#1a73e8;color:white;border:none;border-radius:4px;cursor:pointer">
+      {{ saving ? 'Saving…' : 'Save as Draft' }}
+    </button>
+  </form>
+</div>

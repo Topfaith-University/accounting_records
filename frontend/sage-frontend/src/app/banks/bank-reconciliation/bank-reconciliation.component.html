@@ -14,7 +14,7 @@
     <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:1rem">
       <div>
         <div style="font-size:.75rem;color:#888;margin-bottom:.25rem">Bank Account</div>
-        <div style="font-family:monospace;font-size:.875rem">{{ recon.bank_account_id }}</div>
+        <div style="font-weight:500">{{ recon.bank_account_name || recon.bank_account_id }}</div>
       </div>
       <div>
         <div style="font-size:.75rem;color:#888;margin-bottom:.25rem">Period</div>
@@ -72,6 +72,10 @@
   <div style="background:white;border-radius:8px;padding:1.25rem;box-shadow:0 1px 4px rgba(0,0,0,.1);margin-bottom:1.5rem;max-width:400px;margin-left:auto">
     <h4 style="margin:0 0 .75rem;font-size:.95rem">Summary</h4>
     <div style="display:flex;justify-content:space-between;padding:.4rem 0;border-bottom:1px solid #f0f0f0">
+      <span style="font-size:.875rem;color:#555">Opening Balance</span>
+      <span style="font-family:monospace">₦{{ (recon.opening_balance ?? 0) | number:'1.2-2' }}</span>
+    </div>
+    <div style="display:flex;justify-content:space-between;padding:.4rem 0;border-bottom:1px solid #f0f0f0">
       <span style="font-size:.875rem;color:#555">Reconciled Debits</span>
       <span style="font-family:monospace">₦{{ reconciledDebits | number:'1.2-2' }}</span>
     </div>
@@ -80,8 +84,8 @@
       <span style="font-family:monospace">₦{{ reconciledCredits | number:'1.2-2' }}</span>
     </div>
     <div style="display:flex;justify-content:space-between;padding:.4rem 0;border-bottom:1px solid #f0f0f0">
-      <span style="font-size:.875rem;color:#555">Reconciled (net)</span>
-      <span style="font-family:monospace;font-weight:600">₦{{ (reconciledDebits - reconciledCredits) | number:'1.2-2' }}</span>
+      <span style="font-size:.875rem;color:#555">Book Balance</span>
+      <span style="font-family:monospace;font-weight:600">₦{{ ((recon.opening_balance ?? 0) + reconciledDebits - reconciledCredits) | number:'1.2-2' }}</span>
     </div>
     <div style="display:flex;justify-content:space-between;padding:.4rem 0;border-bottom:1px solid #f0f0f0">
       <span style="font-size:.875rem;color:#555">Statement Balance</span>

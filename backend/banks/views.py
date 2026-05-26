@@ -107,8 +107,12 @@ class BankReconciliationViewSet(viewsets.ViewSet):
         ba = recon.bank_account.single()
         if ba:
             from . import services
+            data['opening_balance'] = ba.opening_balance or 0.0
+            data['bank_account_name'] = ba.name
             data['lines'] = services.get_bank_gl_lines(ba.bank_account_id, recon_id=pk)
         else:
+            data['opening_balance'] = 0.0
+            data['bank_account_name'] = ''
             data['lines'] = []
         return Response(data)
 

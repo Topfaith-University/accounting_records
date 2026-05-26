@@ -1,0 +1,39 @@
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem">
+  <h2 style="margin:0">Budgets</h2>
+  <a routerLink="/budget/new"
+     style="background:#1a73e8;color:white;padding:.5rem 1rem;border-radius:4px;text-decoration:none;font-size:.875rem">
+    + New Budget
+  </a>
+</div>
+
+@if (loading) { <p>Loading…</p> }
+@if (error) { <p style="color:red">{{ error }}</p> }
+@if (!loading && !error) {
+  <table style="width:100%;border-collapse:collapse;background:white;border-radius:8px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.1)">
+    <thead style="background:#f0f0f5">
+      <tr>
+        <th style="text-align:left;padding:.75rem 1rem">Name</th>
+        <th style="text-align:left;padding:.75rem 1rem">Fiscal Year</th>
+        <th style="text-align:right;padding:.75rem 1rem">Total Budgeted (&#8358;)</th>
+        <th style="text-align:left;padding:.75rem 1rem">Status</th>
+        <th style="text-align:left;padding:.75rem 1rem">Created By</th>
+      </tr>
+    </thead>
+    <tbody>
+      @for (b of budgets; track b.budget_id) {
+        <tr style="border-top:1px solid #eee;cursor:pointer" [routerLink]="['/budget', b.budget_id]">
+          <td style="padding:.75rem 1rem;font-weight:500">{{ b.name }}</td>
+          <td style="padding:.75rem 1rem">{{ b.fiscal_year }}</td>
+          <td style="padding:.75rem 1rem;text-align:right;font-family:monospace">{{ b.total_budgeted | number:'1.2-2' }}</td>
+          <td style="padding:.75rem 1rem">
+            <span [style.color]="statusColor(b.status)" style="font-weight:600;font-size:.8rem">{{ b.status }}</span>
+          </td>
+          <td style="padding:.75rem 1rem;color:#888">{{ b.created_by }}</td>
+        </tr>
+      }
+      @empty {
+        <tr><td colspan="5" style="padding:1rem;text-align:center;color:#888">No budgets yet.</td></tr>
+      }
+    </tbody>
+  </table>
+}

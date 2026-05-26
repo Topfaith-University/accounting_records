@@ -10,6 +10,19 @@ import { AuthService } from '../services/auth.service';
   templateUrl: './shell.component.html',
 })
 export class ShellComponent {
+  open: Record<string, boolean> = {
+    gl: true,
+    reports: false,
+    payables: false,
+    receivables: false,
+    budget: false,
+  };
+
   constructor(public auth: AuthService, private router: Router) {}
+
+  toggle(section: string) {
+    this.open[section] = !this.open[section];
+  }
+
   logout() { this.auth.logout(); this.router.navigate(['/login']); }
 }

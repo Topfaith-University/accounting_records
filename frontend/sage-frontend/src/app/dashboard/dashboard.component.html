@@ -1,0 +1,60 @@
+<h2 style="margin:0 0 1.5rem">Dashboard</h2>
+
+@if (loading) { <p>Loading…</p> }
+@if (error) { <p style="color:red">{{ error }}</p> }
+
+@if (data) {
+  <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:1rem;margin-bottom:2rem">
+    <div style="background:white;border-radius:8px;padding:1.25rem;box-shadow:0 1px 4px rgba(0,0,0,.1);border-left:4px solid #1a73e8">
+      <div style="font-size:.75rem;color:#888;margin-bottom:.5rem;text-transform:uppercase;letter-spacing:.05em">Total Assets</div>
+      <div style="font-size:1.4rem;font-weight:700;font-family:monospace">&#8358;{{ data.total_assets | number:'1.2-2' }}</div>
+    </div>
+    <div style="background:white;border-radius:8px;padding:1.25rem;box-shadow:0 1px 4px rgba(0,0,0,.1);border-left:4px solid #ef4444">
+      <div style="font-size:.75rem;color:#888;margin-bottom:.5rem;text-transform:uppercase;letter-spacing:.05em">Total Liabilities</div>
+      <div style="font-size:1.4rem;font-weight:700;font-family:monospace">&#8358;{{ data.total_liabilities | number:'1.2-2' }}</div>
+    </div>
+    <div style="background:white;border-radius:8px;padding:1.25rem;box-shadow:0 1px 4px rgba(0,0,0,.1);border-left:4px solid #10b981">
+      <div style="font-size:.75rem;color:#888;margin-bottom:.5rem;text-transform:uppercase;letter-spacing:.05em">Net Equity</div>
+      <div style="font-size:1.4rem;font-weight:700;font-family:monospace">&#8358;{{ data.net_equity | number:'1.2-2' }}</div>
+    </div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:2rem">
+    <div style="background:white;border-radius:8px;padding:1.25rem;box-shadow:0 1px 4px rgba(0,0,0,.1)">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.75rem">
+        <span style="font-weight:600;font-size:.9rem">AP Outstanding</span>
+        <a routerLink="/payables/invoices" style="font-size:.8rem;color:#1a73e8;text-decoration:none">View all &#8594;</a>
+      </div>
+      <div style="font-size:1.25rem;font-weight:700;font-family:monospace;color:#ef4444">&#8358;{{ data.ap_outstanding | number:'1.2-2' }}</div>
+    </div>
+    <div style="background:white;border-radius:8px;padding:1.25rem;box-shadow:0 1px 4px rgba(0,0,0,.1)">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.75rem">
+        <span style="font-weight:600;font-size:.9rem">AR Outstanding</span>
+        <a routerLink="/receivables/invoices" style="font-size:.8rem;color:#1a73e8;text-decoration:none">View all &#8594;</a>
+      </div>
+      <div style="font-size:1.25rem;font-weight:700;font-family:monospace;color:#10b981">&#8358;{{ data.ar_outstanding | number:'1.2-2' }}</div>
+    </div>
+  </div>
+
+  <div style="background:white;border-radius:8px;box-shadow:0 1px 4px rgba(0,0,0,.1)">
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:1rem 1.25rem;border-bottom:1px solid #eee">
+      <span style="font-weight:600">Recent Posted Entries</span>
+      <a routerLink="/journals" style="font-size:.8rem;color:#1a73e8;text-decoration:none">View all &#8594;</a>
+    </div>
+    <table style="width:100%;border-collapse:collapse">
+      <tbody>
+        @for (entry of data.recent_entries; track entry.entry_id) {
+          <tr style="border-top:1px solid #eee;cursor:pointer" [routerLink]="['/journals', entry.entry_id]">
+            <td style="padding:.75rem 1rem;font-family:monospace;font-size:.8rem;color:#888">{{ entry.reference }}</td>
+            <td style="padding:.75rem 1rem;font-size:.875rem">{{ entry.description }}</td>
+            <td style="padding:.75rem 1rem;font-size:.875rem;color:#888">{{ entry.date }}</td>
+            <td style="padding:.75rem 1rem;text-align:right;font-family:monospace">&#8358;{{ entry.total_debit | number:'1.2-2' }}</td>
+          </tr>
+        }
+        @empty {
+          <tr><td colspan="4" style="padding:1rem;text-align:center;color:#888">No posted entries yet.</td></tr>
+        }
+      </tbody>
+    </table>
+  </div>
+}

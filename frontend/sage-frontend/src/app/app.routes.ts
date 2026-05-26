@@ -11,7 +11,8 @@ export const routes: Routes = [
     loadComponent: () => import('./shell/shell.component').then(m => m.ShellComponent),
     canActivate: [authGuard],
     children: [
-      { path: '', redirectTo: 'accounts', pathMatch: 'full' },
+      { path: '', redirectTo: 'dashboard', pathMatch: 'full' },
+      { path: 'dashboard', loadComponent: () => import('./dashboard/dashboard.component').then(m => m.DashboardComponent) },
       {
         path: 'accounts',
         loadComponent: () => import('./accounts/account-list/account-list.component').then(m => m.AccountListComponent)
@@ -63,6 +64,10 @@ export const routes: Routes = [
       { path: 'receivables/invoices/:id', loadComponent: () => import('./receivables/invoice-detail/invoice-detail.component').then(m => m.SalesInvoiceDetailComponent) },
       { path: 'receivables/invoices', loadComponent: () => import('./receivables/invoice-list/invoice-list.component').then(m => m.SalesInvoiceListComponent) },
       { path: 'receivables/customers', loadComponent: () => import('./receivables/customer-list/customer-list.component').then(m => m.CustomerListComponent) },
+      // Budget — /new before /:id to avoid "new" matching as param
+      { path: 'budget/new', loadComponent: () => import('./budget/budget-form/budget-form.component').then(m => m.BudgetFormComponent) },
+      { path: 'budget/:id', loadComponent: () => import('./budget/budget-detail/budget-detail.component').then(m => m.BudgetDetailComponent) },
+      { path: 'budget', loadComponent: () => import('./budget/budget-list/budget-list.component').then(m => m.BudgetListComponent) },
     ]
   },
   { path: '**', redirectTo: 'accounts' }

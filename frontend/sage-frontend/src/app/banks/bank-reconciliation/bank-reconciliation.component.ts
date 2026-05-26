@@ -58,7 +58,9 @@ export class BankReconciliationComponent implements OnInit {
   }
 
   get difference(): number {
-    return Math.abs(this.reconciledDebits - this.reconciledCredits - +(this.recon?.statement_balance ?? 0));
+    const openingBalance = +(this.recon?.opening_balance ?? 0);
+    const bookBalance = openingBalance + this.reconciledDebits - this.reconciledCredits;
+    return Math.abs(bookBalance - +(this.recon?.statement_balance ?? 0));
   }
 
   get isBalanced(): boolean {

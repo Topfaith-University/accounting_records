@@ -1,0 +1,112 @@
+@if (loading) { <p>Loading…</p> }
+@if (error) { <p style="color:red">{{ error }}</p> }
+
+@if (budget) {
+  <div style="max-width:1000px">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:1.5rem">
+      <div>
+        <h2 style="margin:0 0 .25rem">{{ budget.name }}</h2>
+        <span style="font-size:.875rem;color:#888">{{ budget.fiscal_year }}</span>
+        <span [style.color]="statusColor(budget.status)"
+          style="margin-left:1rem;font-weight:700;font-size:.875rem">&#9679; {{ budget.status }}</span>
+      </div>
+      @if (isManagerOrAdmin && budget.status === 'DRAFT') {
+        <button (click)="approve()" [disabled]="approving"
+          style="padding:.5rem 1rem;background:#10b981;color:white;border:none;border-radius:4px;cursor:pointer">
+          {{ approving ? 'Approving…' : 'Approve Budget' }}
+        </button>
+      }
+    </div>
+
+    @if (actionError) { <p style="color:red;margin-bottom:1rem">{{ actionError }}</p> }
+
+    <div style="display:flex;gap:.5rem;margin-bottom:1rem">
+      <button (click)="setTab('lines')"
+        [style.background]="activeTab === 'lines' ? '#1a1a2e' : 'white'"
+        [style.color]="activeTab === 'lines' ? 'white' : '#555'"
+        style="padding:.375rem .875rem;border:1px solid #ccc;border-radius:4px;cursor:pointer;font-size:.875rem">
+        Budget Lines
+      </button>
+      <button (click)="setTab('variance')"
+        [style.background]="activeTab === 'variance' ? '#1a1a2e' : 'white'"
+        [style.color]="activeTab === 'variance' ? 'white' : '#555'"
+        style="padding:.375rem .875rem;border:1px solid #ccc;border-radius:4px;cursor:pointer;font-size:.875rem">
+        Variance Report
+      </button>
+    </div>
+
+    @if (activeTab === 'lines') {
+      <table style="width:100%;border-collapse:collapse;background:white;border-radius:8px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.1)">
+        <thead style="background:#f0f0f5">
+          <tr>
+            <th style="text-align:left;padding:.75rem 1rem">Account</th>
+            <th style="text-align:left;padding:.75rem 1rem">Type</th>
+            <th style="text-align:right;padding:.75rem 1rem">Annual Budget (&#8358;)</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (line of budget.lines; track line.line_id) {
+            <tr style="border-top:1px solid #eee">
+              <td style="padding:.75rem 1rem">
+                <span style="font-family:monospace;font-size:.8rem;color:#888;margin-right:.5rem">{{ line.account_code }}</span>
+                {{ line.account_name }}
+              </td>
+              <td style="padding:.75rem 1rem;color:#888;font-size:.875rem">{{ line.account_type }}</td>
+              <td style="padding:.75rem 1rem;text-align:right;font-family:monospace">{{ line.budgeted_amount | number:'1.2-2' }}</td>
+            </tr>
+          }
+          @empty {
+            <tr><td colspan="3" style="padding:1rem;text-align:center;color:#888">No budget lines.</td></tr>
+          }
+        </tbody>
+        <tfoot style="background:#f9f9fb;border-top:2px solid #eee">
+          <tr>
+            <td colspan="2" style="padding:.75rem 1rem;font-weight:700">Total</td>
+            <td style="padding:.75rem 1rem;text-align:right;font-weight:700;font-family:monospace">&#8358;{{ budget.total_budgeted | number:'1.2-2' }}</td>
+          </tr>
+        </tfoot>
+      </table>
+    }
+
+    @if (activeTab === 'variance') {
+      @if (!variance && !actionError) { <p style="color:#888">Loading variance…</p> }
+      @if (actionError) { <p style="color:red">{{ actionError }}</p> }
+      @if (variance) {
+        <table style="width:100%;border-collapse:collapse;background:white;border-radius:8px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.1)">
+          <thead style="background:#f0f0f5">
+            <tr>
+              <th style="text-align:left;padding:.75rem 1rem">Account</th>
+              <th style="text-align:right;padding:.75rem 1rem">Budget (&#8358;)</th>
+              <th style="text-align:right;padding:.75rem 1rem">Actual (&#8358;)</th>
+              <th style="text-align:right;padding:.75rem 1rem">Variance (&#8358;)</th>
+              <th style="text-align:right;padding:.75rem 1rem">Variance %</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (line of variance.lines; track line.account_id) {
+              <tr style="border-top:1px solid #eee">
+                <td style="padding:.75rem 1rem">
+                  <span style="font-family:monospace;font-size:.8rem;color:#888;margin-right:.5rem">{{ line.code }}</span>
+                  {{ line.name }}
+                </td>
+                <td style="padding:.75rem 1rem;text-align:right;font-family:monospace">{{ line.budgeted | number:'1.2-2' }}</td>
+                <td style="padding:.75rem 1rem;text-align:right;font-family:monospace">{{ line.actual | number:'1.2-2' }}</td>
+                <td style="padding:.75rem 1rem;text-align:right;font-family:monospace"
+                  [style.color]="varianceColor(line.variance)">
+                  {{ line.variance | number:'1.2-2' }}
+                </td>
+                <td style="padding:.75rem 1rem;text-align:right"
+                  [style.color]="varianceColor(line.variance)">
+                  {{ line.variance_pct !== null ? (line.variance_pct | number:'1.1-1') + '%' : '—' }}
+                </td>
+              </tr>
+            }
+            @empty {
+              <tr><td colspan="5" style="padding:1rem;text-align:center;color:#888">No variance data.</td></tr>
+            }
+          </tbody>
+        </table>
+      }
+    }
+  </div>
+}

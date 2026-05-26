@@ -187,3 +187,77 @@ def gl_detail(request):
         ws.append(['', '', '', 'CLOSING BALANCE', '', data['closing_balance']])
         return _xlsx_response(wb, f'gl-detail-{data["account_code"]}-{date_from}-{date_to}.xlsx')
     return JsonResponse(data)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def dashboard(request):
+    from neomodel import db
+
+    # Balances per account type (group by type and normal_balance)
+    results, _ = db.cypher_query("""
+        MATCH (a:Account) WHERE a.is_active = true
+        OPTIONAL MATCH (e:JournalEntry)-[:HAS_LINE]->(l:JournalLine)-[:AFFECTS_ACCOUNT]->(a)
+        WHERE e.status = 'POSTED'
+        RETURN a.account_type, a.normal_balance,
+               coalesce(sum(CASE WHEN l.side = 'DEBIT' THEN l.amount ELSE 0 END), 0) AS debits,
+               coalesce(sum(CASE WHEN l.side = 'CREDIT' THEN l.amount ELSE 0 END), 0) AS credits
+    """, {})
+
+    ASSET_TYPES = {'Current Assets', 'Non-Current Assets'}
+    LIABILITY_TYPES = {'Current Liabilities', 'Non-Current Liabilities'}
+
+    total_assets = 0.0
+    total_liabilities = 0.0
+
+    for acc_type, normal_balance, debits, credits in results:
+        if normal_balance == 'DEBIT':
+            balance = (debits or 0.0) - (credits or 0.0)
+        else:
+            balance = (credits or 0.0) - (debits or 0.0)
+        if acc_type in ASSET_TYPES:
+            total_assets += balance
+        elif acc_type in LIABILITY_TYPES:
+            total_liabilities += balance
+
+    # AP outstanding: POSTED or PARTIAL PurchaseInvoices
+    ap_results, _ = db.cypher_query(
+        "MATCH (inv:PurchaseInvoice) WHERE inv.status IN ['POSTED', 'PARTIAL'] "
+        "RETURN coalesce(sum(inv.total_amount - inv.amount_paid), 0.0)",
+        {}
+    )
+    ap_outstanding = float(ap_results[0][0]) if ap_results else 0.0
+
+    # AR outstanding: POSTED or PARTIAL SalesInvoices
+    ar_results, _ = db.cypher_query(
+        "MATCH (inv:SalesInvoice) WHERE inv.status IN ['POSTED', 'PARTIAL'] "
+        "RETURN coalesce(sum(inv.total_amount - inv.amount_received), 0.0)",
+        {}
+    )
+    ar_outstanding = float(ar_results[0][0]) if ar_results else 0.0
+
+    # Recent 10 POSTED journal entries
+    je_results, _ = db.cypher_query("""
+        MATCH (e:JournalEntry) WHERE e.status = 'POSTED'
+        RETURN e.entry_id, e.reference, e.date, e.description, e.total_debit
+        ORDER BY e.date DESC, e.created_at DESC LIMIT 10
+    """, {})
+    recent_entries = [
+        {
+            'entry_id': r[0],
+            'reference': r[1],
+            'date': str(r[2]),
+            'description': r[3],
+            'total_debit': r[4] or 0.0,
+        }
+        for r in je_results
+    ]
+
+    return JsonResponse({
+        'total_assets': round(total_assets, 2),
+        'total_liabilities': round(total_liabilities, 2),
+        'net_equity': round(total_assets - total_liabilities, 2),
+        'ap_outstanding': round(ap_outstanding, 2),
+        'ar_outstanding': round(ar_outstanding, 2),
+        'recent_entries': recent_entries,
+    })
