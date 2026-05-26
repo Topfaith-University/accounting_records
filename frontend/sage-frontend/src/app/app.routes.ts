@@ -40,6 +40,10 @@ export const routes: Routes = [
         path: 'banks/:id',
         loadComponent: () => import('./banks/bank-account-detail/bank-account-detail.component').then(m => m.BankAccountDetailComponent)
       },
+      {
+        path: 'reports/trial-balance',
+        loadComponent: () => import('./reports/trial-balance/trial-balance.component').then(m => m.TrialBalanceComponent)
+      },
     ]
   },
   { path: '**', redirectTo: 'accounts' }
