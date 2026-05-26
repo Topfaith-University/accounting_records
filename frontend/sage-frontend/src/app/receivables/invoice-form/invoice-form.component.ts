@@ -1,7 +1,7 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ReactiveFormsModule, FormBuilder, FormGroup, FormArray, Validators } from '@angular/forms';
-import { Router } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { ReceivablesService } from '../../services/receivables.service';
 import { AccountsService } from '../../services/accounts.service';
 
@@ -17,6 +17,7 @@ export class SalesInvoiceFormComponent implements OnInit {
   accounts: any[] = [];
   saving = false;
   error = '';
+  invoiceId: string | null = null;
 
   get lines(): FormArray { return this.form.get('lines') as FormArray; }
 
@@ -24,10 +25,15 @@ export class SalesInvoiceFormComponent implements OnInit {
     return this.lines.controls.reduce((sum, l) => sum + (Number(l.value.amount) || 0), 0);
   }
 
+  get isEditMode(): boolean {
+    return !!this.invoiceId;
+  }
+
   constructor(
     private fb: FormBuilder,
     private receivables: ReceivablesService,
     private accountsService: AccountsService,
+    private route: ActivatedRoute,
     private router: Router,
   ) {}
 
@@ -48,6 +54,28 @@ export class SalesInvoiceFormComponent implements OnInit {
       ]);
       this.customers = customerData.results ?? customerData;
       this.accounts = accountData.results ?? accountData;
+      this.invoiceId = this.route.snapshot.paramMap.get('id');
+      if (this.invoiceId) {
+        const invoice = await this.receivables.getInvoice(this.invoiceId);
+        this.form.patchValue({
+          date: invoice.date ?? '',
+          due_date: invoice.due_date ?? '',
+          description: invoice.description ?? '',
+          customer_id: invoice.customer_id ?? '',
+          ar_account_id: invoice.ar_account_id ?? '',
+        });
+        this.lines.clear();
+        for (const line of (invoice.lines ?? [])) {
+          this.lines.push(this.fb.group({
+            revenue_account_id: [line.revenue_account_id ?? '', Validators.required],
+            description: [line.description ?? ''],
+            amount: [line.amount ?? null, [Validators.required, Validators.min(0.01)]],
+          }));
+        }
+        if (this.lines.length === 0) {
+          this.addLine();
+        }
+      }
     } catch {
       this.error = 'Failed to load form data. Please refresh.';
     }
@@ -70,7 +98,9 @@ export class SalesInvoiceFormComponent implements OnInit {
     this.saving = true;
     this.error = '';
     try {
-      const invoice = await this.receivables.createInvoice(this.form.value);
+      const invoice = this.invoiceId
+        ? await this.receivables.updateInvoice(this.invoiceId, this.form.value)
+        : await this.receivables.createInvoice(this.form.value);
       this.router.navigate(['/receivables/invoices', invoice.invoice_id]);
     } catch (e: any) {
       this.error = e.response?.data?.detail ?? (e.response?.data ? JSON.stringify(e.response.data) : 'Save failed.');

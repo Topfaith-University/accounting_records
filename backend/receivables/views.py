@@ -11,6 +11,13 @@ def _serialize_invoice(invoice):
     data = SalesInvoiceSerializer(invoice).data
     lines = list(invoice.lines.all())
     data['lines'] = SalesInvoiceLineSerializer(lines, many=True).data
+    customer = invoice.customer.single()
+    ar_account = invoice.ar_account.single()
+    data['customer_id'] = customer.customer_id if customer else None
+    data['ar_account_id'] = ar_account.account_id if ar_account else None
+    for idx, line in enumerate(lines):
+        revenue_account = line.revenue_account.single()
+        data['lines'][idx]['revenue_account_id'] = revenue_account.account_id if revenue_account else None
     return data
 
 
@@ -42,6 +49,14 @@ class CustomerViewSet(viewsets.ViewSet):
         customer = serializer.save()
         return Response(CustomerSerializer(customer).data)
 
+    def destroy(self, request, pk=None):
+        customer = Customer.nodes.get_or_none(customer_id=pk)
+        if not customer:
+            return Response({'detail': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
+        customer.is_active = False
+        customer.save()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
 
 class SalesInvoiceViewSet(viewsets.ViewSet):
     permission_classes = [IsAuthenticated]
@@ -67,6 +82,38 @@ class SalesInvoiceViewSet(viewsets.ViewSet):
         serializer.is_valid(raise_exception=True)
         invoice = serializer.save(created_by=request.user.username)
         return Response(_serialize_invoice(invoice), status=status.HTTP_201_CREATED)
+
+    def partial_update(self, request, pk=None):
+        invoice = SalesInvoice.nodes.get_or_none(invoice_id=pk)
+        if not invoice:
+            return Response({'detail': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
+        if invoice.status != 'DRAFT':
+            return Response({'detail': 'Only draft invoices can be edited.'}, status=status.HTTP_400_BAD_REQUEST)
+        serializer = SalesInvoiceSerializer(invoice, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        invoice = serializer.save()
+        return Response(_serialize_invoice(invoice))
+
+    def destroy(self, request, pk=None):
+        invoice = SalesInvoice.nodes.get_or_none(invoice_id=pk)
+        if not invoice:
+            return Response({'detail': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
+        if invoice.status != 'DRAFT':
+            return Response({'detail': 'Only draft invoices can be deleted.'}, status=status.HTTP_400_BAD_REQUEST)
+        for line in list(invoice.lines.all()):
+            invoice.lines.disconnect(line)
+            revenue_account = line.revenue_account.single()
+            if revenue_account:
+                line.revenue_account.disconnect(revenue_account)
+            line.delete()
+        customer = invoice.customer.single()
+        if customer:
+            invoice.customer.disconnect(customer)
+        ar_account = invoice.ar_account.single()
+        if ar_account:
+            invoice.ar_account.disconnect(ar_account)
+        invoice.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
     @action(detail=True, methods=['post'], url_path='post')
     def post_invoice(self, request, pk=None):

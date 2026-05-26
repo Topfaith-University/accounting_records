@@ -17,6 +17,7 @@ export class VendorListComponent implements OnInit {
   saving = false;
   formError = '';
   form!: FormGroup;
+  editingVendorId: string | null = null;
 
   constructor(private payables: PayablesService, private fb: FormBuilder) {}
 
@@ -44,12 +45,46 @@ export class VendorListComponent implements OnInit {
     this.saving = true;
     this.formError = '';
     try {
-      await this.payables.createVendor(this.form.value);
+      if (this.editingVendorId) {
+        await this.payables.updateVendor(this.editingVendorId, this.form.value);
+      } else {
+        await this.payables.createVendor(this.form.value);
+      }
       this.form.reset();
+      this.editingVendorId = null;
       this.showForm = false;
       await this.load();
     } catch (e: any) {
       this.formError = e.response?.data?.detail ?? (e.response?.data ? JSON.stringify(e.response.data) : 'Save failed.');
     } finally { this.saving = false; }
+  }
+
+  startEdit(vendor: any) {
+    this.editingVendorId = vendor.vendor_id;
+    this.showForm = true;
+    this.formError = '';
+    this.form.patchValue({
+      name: vendor.name ?? '',
+      email: vendor.email ?? '',
+      phone: vendor.phone ?? '',
+      address: vendor.address ?? '',
+    });
+  }
+
+  cancelForm() {
+    this.showForm = false;
+    this.editingVendorId = null;
+    this.formError = '';
+    this.form.reset();
+  }
+
+  async deleteVendor(vendor: any) {
+    if (!confirm(`Delete vendor "${vendor.name}"?`)) return;
+    try {
+      await this.payables.deleteVendor(vendor.vendor_id);
+      await this.load();
+    } catch (e: any) {
+      this.error = e.response?.data?.detail ?? 'Failed to delete vendor.';
+    }
   }
 }

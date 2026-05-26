@@ -1,7 +1,7 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ReactiveFormsModule, FormBuilder, FormGroup, Validators } from '@angular/forms';
-import { ActivatedRoute } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { PayablesService } from '../../services/payables.service';
 import { AuthService } from '../../services/auth.service';
 import { BanksService } from '../../services/banks.service';
@@ -38,6 +38,7 @@ export class InvoiceDetailComponent implements OnInit {
     private auth: AuthService,
     private banks: BanksService,
     private fb: FormBuilder,
+    private router: Router,
   ) {}
 
   async ngOnInit() {
@@ -75,6 +76,20 @@ export class InvoiceDetailComponent implements OnInit {
       this.actionError = '';
     } catch (e: any) {
       this.actionError = e.response?.data?.detail ?? 'Void failed.';
+    }
+  }
+
+  editInvoice() {
+    this.router.navigate(['/payables/invoices', this.invoice.invoice_id, 'edit']);
+  }
+
+  async deleteInvoice() {
+    if (!confirm('Delete this draft invoice? This cannot be undone.')) return;
+    try {
+      await this.payables.deleteInvoice(this.invoice.invoice_id);
+      this.router.navigate(['/payables/invoices']);
+    } catch (e: any) {
+      this.actionError = e.response?.data?.detail ?? 'Delete failed.';
     }
   }
 

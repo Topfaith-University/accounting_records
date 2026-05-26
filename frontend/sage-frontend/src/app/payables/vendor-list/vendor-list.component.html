@@ -1,6 +1,6 @@
 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem">
   <h2 style="margin:0">Vendors</h2>
-  <button (click)="showForm=!showForm"
+  <button (click)="showForm ? cancelForm() : (showForm = true)"
     style="background:#1a73e8;color:white;padding:.5rem 1rem;border:none;border-radius:4px;cursor:pointer;font-size:.875rem">
     {{ showForm ? 'Cancel' : '+ New Vendor' }}
   </button>
@@ -8,7 +8,7 @@
 
 @if (showForm) {
   <div style="background:white;border-radius:8px;padding:1.25rem;box-shadow:0 1px 4px rgba(0,0,0,.1);margin-bottom:1rem">
-    <h3 style="margin:0 0 1rem;font-size:1rem">New Vendor</h3>
+    <h3 style="margin:0 0 1rem;font-size:1rem">{{ editingVendorId ? 'Edit Vendor' : 'New Vendor' }}</h3>
     @if (formError) { <p style="color:red;margin-bottom:.75rem">{{ formError }}</p> }
     <form [formGroup]="form" (ngSubmit)="submit()" style="display:grid;grid-template-columns:1fr 1fr;gap:.75rem">
       <div style="grid-column:1/-1">
@@ -34,7 +34,7 @@
       <div style="grid-column:1/-1">
         <button type="submit" [disabled]="!form.valid || saving"
           style="padding:.5rem 1.25rem;background:#1a73e8;color:white;border:none;border-radius:4px;cursor:pointer">
-          {{ saving ? 'Saving…' : 'Save Vendor' }}
+          {{ saving ? 'Saving…' : (editingVendorId ? 'Update Vendor' : 'Save Vendor') }}
         </button>
       </div>
     </form>
@@ -50,6 +50,7 @@
         <th style="text-align:left;padding:.75rem 1rem">Name</th>
         <th style="text-align:left;padding:.75rem 1rem">Email</th>
         <th style="text-align:left;padding:.75rem 1rem">Phone</th>
+        <th style="text-align:right;padding:.75rem 1rem">Actions</th>
       </tr>
     </thead>
     <tbody>
@@ -58,9 +59,19 @@
           <td style="padding:.75rem 1rem;font-weight:500">{{ vendor.name }}</td>
           <td style="padding:.75rem 1rem;color:#555">{{ vendor.email }}</td>
           <td style="padding:.75rem 1rem;color:#555">{{ vendor.phone }}</td>
+          <td style="padding:.75rem 1rem;text-align:right">
+            <button (click)="startEdit(vendor)"
+              style="margin-right:.5rem;padding:.35rem .75rem;background:none;border:1px solid #ccc;border-radius:4px;cursor:pointer">
+              Edit
+            </button>
+            <button (click)="deleteVendor(vendor)"
+              style="padding:.35rem .75rem;background:#fff1f2;color:#b42318;border:1px solid #fecdca;border-radius:4px;cursor:pointer">
+              Delete
+            </button>
+          </td>
         </tr>
       } @empty {
-        <tr><td colspan="3" style="padding:1rem;text-align:center;color:#888">No vendors yet.</td></tr>
+        <tr><td colspan="4" style="padding:1rem;text-align:center;color:#888">No vendors yet.</td></tr>
       }
     </tbody>
   </table>

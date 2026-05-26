@@ -17,6 +17,7 @@ export class CustomerListComponent implements OnInit {
   saving = false;
   formError = '';
   form!: FormGroup;
+  editingCustomerId: string | null = null;
 
   constructor(private receivables: ReceivablesService, private fb: FormBuilder) {}
 
@@ -45,12 +46,47 @@ export class CustomerListComponent implements OnInit {
     this.saving = true;
     this.formError = '';
     try {
-      await this.receivables.createCustomer(this.form.value);
+      if (this.editingCustomerId) {
+        await this.receivables.updateCustomer(this.editingCustomerId, this.form.value);
+      } else {
+        await this.receivables.createCustomer(this.form.value);
+      }
       this.form.reset({ customer_type: 'EXTERNAL' });
+      this.editingCustomerId = null;
       this.showForm = false;
       await this.load();
     } catch (e: any) {
       this.formError = e.response?.data?.detail ?? (e.response?.data ? JSON.stringify(e.response.data) : 'Save failed.');
     } finally { this.saving = false; }
+  }
+
+  startEdit(customer: any) {
+    this.editingCustomerId = customer.customer_id;
+    this.showForm = true;
+    this.formError = '';
+    this.form.patchValue({
+      name: customer.name ?? '',
+      customer_type: customer.customer_type ?? 'EXTERNAL',
+      email: customer.email ?? '',
+      phone: customer.phone ?? '',
+      address: customer.address ?? '',
+    });
+  }
+
+  cancelForm() {
+    this.showForm = false;
+    this.editingCustomerId = null;
+    this.formError = '';
+    this.form.reset({ customer_type: 'EXTERNAL' });
+  }
+
+  async deleteCustomer(customer: any) {
+    if (!confirm(`Delete customer "${customer.name}"?`)) return;
+    try {
+      await this.receivables.deleteCustomer(customer.customer_id);
+      await this.load();
+    } catch (e: any) {
+      this.error = e.response?.data?.detail ?? 'Failed to delete customer.';
+    }
   }
 }
