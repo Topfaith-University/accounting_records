@@ -58,7 +58,7 @@ class CreateBankTransactionTest(TestCase):
             from datetime import date
             result = create_bank_transaction(
                 transaction_type='RECEIPT',
-                date=date(2026, 1, 15),
+                txn_date=date(2026, 1, 15),
                 description='Tuition fee receipt',
                 source_bank_id='bank-1',
                 destination_bank_id=None,
@@ -98,7 +98,7 @@ class CreateBankTransactionTest(TestCase):
         from datetime import date
         create_bank_transaction(
             transaction_type='TRANSFER',
-            date=date(2026, 1, 20),
+            txn_date=date(2026, 1, 20),
             description='Transfer to petty cash',
             source_bank_id='bank-1',
             destination_bank_id='bank-2',
@@ -122,7 +122,7 @@ class CreateBankTransactionTest(TestCase):
         with self.assertRaises(ValidationError):
             create_bank_transaction(
                 transaction_type='PAYMENT',
-                date=date(2026, 1, 10),
+                txn_date=date(2026, 1, 10),
                 description='Test',
                 source_bank_id='bank-no-gl',
                 destination_bank_id=None,
@@ -157,7 +157,7 @@ class CreateBankTransactionTest(TestCase):
             from datetime import date
             create_bank_transaction(
                 transaction_type='PAYMENT',
-                date=date(2026, 2, 1),
+                txn_date=date(2026, 2, 1),
                 description='Supplier payment',
                 source_bank_id='bank-1',
                 destination_bank_id=None,
@@ -180,7 +180,7 @@ class CreateBankTransactionTest(TestCase):
         with self.assertRaises(ValidationError):
             create_bank_transaction(
                 transaction_type='REFUND',
-                date=date(2026, 1, 1),
+                txn_date=date(2026, 1, 1),
                 description='Test',
                 source_bank_id='bank-1',
                 destination_bank_id=None,

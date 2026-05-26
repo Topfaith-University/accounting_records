@@ -51,6 +51,8 @@ def get_bank_gl_lines(bank_account_id: str, recon_id: str = None) -> list:
     ]
 
 
+# Note: the MERGE counter increments atomically but is not rolled back if the
+# subsequent entry.save() fails. Reference gaps are possible under hard failures.
 def generate_bank_transaction_reference() -> str:
     year = date.today().year
     prefix = f'BT-{year}-'
@@ -69,7 +71,7 @@ def generate_bank_transaction_reference() -> str:
 
 def create_bank_transaction(
     transaction_type: str,
-    date,
+    txn_date,
     description: str,
     source_bank_id: str,
     destination_bank_id,
@@ -139,7 +141,7 @@ def create_bank_transaction(
 
     entry = JournalEntry(
         reference=reference,
-        date=date,
+        date=txn_date,
         description=description,
         status='POSTED',
         entry_type='BANK_TRANSACTION',
@@ -183,7 +185,7 @@ def create_bank_transaction(
     txn = BankTransaction(
         reference=reference,
         transaction_type=transaction_type,
-        date=date,
+        date=txn_date,
         amount=total_amount,
         description=description,
         created_by=created_by,
