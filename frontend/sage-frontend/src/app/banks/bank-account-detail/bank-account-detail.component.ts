@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { RouterModule, ActivatedRoute, Router } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { BanksService } from '../../services/banks.service';
+import { BankTransactionsService } from '../../services/bank-transactions.service';
 
 @Component({
   selector: 'app-bank-account-detail',
@@ -13,8 +14,11 @@ import { BanksService } from '../../services/banks.service';
 export class BankAccountDetailComponent implements OnInit {
   account: any = null;
   reconciliations: any[] = [];
+  transactions: any[] = [];
   loading = true;
+  txnLoading = false;
   error = '';
+  activeTab: 'reconciliations' | 'transactions' = 'reconciliations';
   showForm = false;
   formPeriodStart = '';
   formPeriodEnd = '';
@@ -28,6 +32,7 @@ export class BankAccountDetailComponent implements OnInit {
     private route: ActivatedRoute,
     private router: Router,
     private banksService: BanksService,
+    private txnService: BankTransactionsService,
   ) {}
 
   async ngOnInit() {
@@ -44,6 +49,26 @@ export class BankAccountDetailComponent implements OnInit {
     } finally {
       this.loading = false;
     }
+  }
+
+  async setTab(tab: 'reconciliations' | 'transactions') {
+    this.activeTab = tab;
+    if (tab === 'transactions' && this.transactions.length === 0) {
+      this.txnLoading = true;
+      try {
+        const data = await this.txnService.getAll(this.id);
+        this.transactions = data.results ?? data;
+      } catch {
+        // leave empty; user can retry by switching tabs
+      } finally {
+        this.txnLoading = false;
+      }
+    }
+  }
+
+  typeColor(type: string): string {
+    const map: Record<string, string> = { RECEIPT: '#10b981', PAYMENT: '#ef4444', TRANSFER: '#3b82f6' };
+    return map[type] ?? '#888';
   }
 
   toggleForm() {

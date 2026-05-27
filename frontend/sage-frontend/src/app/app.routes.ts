@@ -38,6 +38,14 @@ export const routes: Routes = [
         loadComponent: () => import('./banks/bank-account-list/bank-account-list.component').then(m => m.BankAccountListComponent)
       },
       {
+        path: 'banks/transactions/new',
+        loadComponent: () => import('./banks/bank-transaction-form/bank-transaction-form.component').then(m => m.BankTransactionFormComponent)
+      },
+      {
+        path: 'banks/transactions',
+        loadComponent: () => import('./banks/bank-transaction-list/bank-transaction-list.component').then(m => m.BankTransactionListComponent)
+      },
+      {
         path: 'banks/reconciliations/:id',
         loadComponent: () => import('./banks/bank-reconciliation/bank-reconciliation.component').then(m => m.BankReconciliationComponent)
       },

@@ -1,76 +1,79 @@
-<div class="page-transition" style="display:flex;height:100vh">
-  <nav class="nav-sidebar" style="display:flex;flex-direction:column;overflow-y:auto">
-    <h3 style="margin-bottom:1.25rem">Sage</h3>
+<div style="display:flex;height:100vh">
+  <nav class="nav-sidebar">
+    <!-- Brand -->
+    <div class="nav-brand">
+      <div class="nav-brand-wordmark">Sa<span>ge</span></div>
+      <div class="nav-brand-sub">Topfaith University Finance</div>
+    </div>
 
-    <a routerLink="/dashboard" routerLinkActive="active-link" [routerLinkActiveOptions]="{exact:true}"
-       class="nav-link">Dashboard</a>
+    <!-- Scrollable nav body -->
+    <div class="nav-body">
+      <a routerLink="/dashboard" routerLinkActive="active-link" [routerLinkActiveOptions]="{exact:true}"
+         class="nav-link">Dashboard</a>
 
-    <!-- General Ledger -->
-    <button (click)="toggle('gl')"
-      style="display:flex;justify-content:space-between;align-items:center;width:100%;background:none;border:none;cursor:pointer;padding:.5rem;border-radius:4px;color:#b0b0c8;font-size:.8rem;font-weight:600;text-transform:uppercase;letter-spacing:.08em;margin-top:.5rem">
-      General Ledger
-      <span style="font-size:.7rem;transition:transform .2s" [style.transform]="open['gl'] ? 'rotate(90deg)' : 'rotate(0deg)'">&#9654;</span>
-    </button>
-    @if (open['gl']) {
-      <a routerLink="/accounts" routerLinkActive="active-link" class="nav-link" style="padding-left:1rem">Chart of Accounts</a>
-      <a routerLink="/journals" routerLinkActive="active-link" class="nav-link" style="padding-left:1rem">Journal Entries</a>
-      <a routerLink="/banks" routerLinkActive="active-link" class="nav-link" style="padding-left:1rem">Bank Accounts</a>
-    }
+      <!-- General Ledger -->
+      <button class="nav-section-btn" (click)="toggle('gl')">
+        General Ledger
+        <span class="nav-chevron" [style.transform]="open['gl'] ? 'rotate(90deg)' : 'rotate(0deg)'">&#9654;</span>
+      </button>
+      @if (open['gl']) {
+        <a routerLink="/accounts" routerLinkActive="active-link" class="nav-child-link">Chart of Accounts</a>
+        <a routerLink="/journals" routerLinkActive="active-link" class="nav-child-link">Journal Entries</a>
+        <a routerLink="/banks" routerLinkActive="active-link" class="nav-child-link">Bank Accounts</a>
+        <a routerLink="/banks/transactions" routerLinkActive="active-link" class="nav-child-link">Transactions</a>
+      }
 
-    <!-- Reports -->
-    <button (click)="toggle('reports')"
-      style="display:flex;justify-content:space-between;align-items:center;width:100%;background:none;border:none;cursor:pointer;padding:.5rem;border-radius:4px;color:#b0b0c8;font-size:.8rem;font-weight:600;text-transform:uppercase;letter-spacing:.08em;margin-top:.5rem">
-      Reports
-      <span style="font-size:.7rem;transition:transform .2s" [style.transform]="open['reports'] ? 'rotate(90deg)' : 'rotate(0deg)'">&#9654;</span>
-    </button>
-    @if (open['reports']) {
-      <a routerLink="/reports/trial-balance" routerLinkActive="active-link" class="nav-link" style="padding-left:1rem">Trial Balance</a>
-      <a routerLink="/reports/income-statement" routerLinkActive="active-link" class="nav-link" style="padding-left:1rem">Income Statement</a>
-      <a routerLink="/reports/balance-sheet" routerLinkActive="active-link" class="nav-link" style="padding-left:1rem">Balance Sheet</a>
-      <a routerLink="/reports/gl-detail" routerLinkActive="active-link" class="nav-link" style="padding-left:1rem">GL Detail</a>
-    }
+      <!-- Reports -->
+      <button class="nav-section-btn" (click)="toggle('reports')">
+        Reports
+        <span class="nav-chevron" [style.transform]="open['reports'] ? 'rotate(90deg)' : 'rotate(0deg)'">&#9654;</span>
+      </button>
+      @if (open['reports']) {
+        <a routerLink="/reports/trial-balance" routerLinkActive="active-link" class="nav-child-link">Trial Balance</a>
+        <a routerLink="/reports/income-statement" routerLinkActive="active-link" class="nav-child-link">Income Statement</a>
+        <a routerLink="/reports/balance-sheet" routerLinkActive="active-link" class="nav-child-link">Balance Sheet</a>
+        <a routerLink="/reports/gl-detail" routerLinkActive="active-link" class="nav-child-link">GL Detail</a>
+      }
 
-    <!-- Payables -->
-    <button (click)="toggle('payables')"
-      style="display:flex;justify-content:space-between;align-items:center;width:100%;background:none;border:none;cursor:pointer;padding:.5rem;border-radius:4px;color:#b0b0c8;font-size:.8rem;font-weight:600;text-transform:uppercase;letter-spacing:.08em;margin-top:.5rem">
-      Payables
-      <span style="font-size:.7rem;transition:transform .2s" [style.transform]="open['payables'] ? 'rotate(90deg)' : 'rotate(0deg)'">&#9654;</span>
-    </button>
-    @if (open['payables']) {
-      <a routerLink="/payables/invoices" routerLinkActive="active-link" class="nav-link" style="padding-left:1rem">AP Invoices</a>
-      <a routerLink="/payables/vendors" routerLinkActive="active-link" class="nav-link" style="padding-left:1rem">Vendors</a>
-    }
+      <!-- Payables -->
+      <button class="nav-section-btn" (click)="toggle('payables')">
+        Payables
+        <span class="nav-chevron" [style.transform]="open['payables'] ? 'rotate(90deg)' : 'rotate(0deg)'">&#9654;</span>
+      </button>
+      @if (open['payables']) {
+        <a routerLink="/payables/invoices" routerLinkActive="active-link" class="nav-child-link">AP Invoices</a>
+        <a routerLink="/payables/vendors" routerLinkActive="active-link" class="nav-child-link">Vendors</a>
+      }
 
-    <!-- Receivables -->
-    <button (click)="toggle('receivables')"
-      style="display:flex;justify-content:space-between;align-items:center;width:100%;background:none;border:none;cursor:pointer;padding:.5rem;border-radius:4px;color:#b0b0c8;font-size:.8rem;font-weight:600;text-transform:uppercase;letter-spacing:.08em;margin-top:.5rem">
-      Receivables
-      <span style="font-size:.7rem;transition:transform .2s" [style.transform]="open['receivables'] ? 'rotate(90deg)' : 'rotate(0deg)'">&#9654;</span>
-    </button>
-    @if (open['receivables']) {
-      <a routerLink="/receivables/invoices" routerLinkActive="active-link" class="nav-link" style="padding-left:1rem">AR Invoices</a>
-      <a routerLink="/receivables/customers" routerLinkActive="active-link" class="nav-link" style="padding-left:1rem">Customers</a>
-    }
+      <!-- Receivables -->
+      <button class="nav-section-btn" (click)="toggle('receivables')">
+        Receivables
+        <span class="nav-chevron" [style.transform]="open['receivables'] ? 'rotate(90deg)' : 'rotate(0deg)'">&#9654;</span>
+      </button>
+      @if (open['receivables']) {
+        <a routerLink="/receivables/invoices" routerLinkActive="active-link" class="nav-child-link">AR Invoices</a>
+        <a routerLink="/receivables/customers" routerLinkActive="active-link" class="nav-child-link">Customers</a>
+      }
 
-    <!-- Budget -->
-    <button (click)="toggle('budget')"
-      style="display:flex;justify-content:space-between;align-items:center;width:100%;background:none;border:none;cursor:pointer;padding:.5rem;border-radius:4px;color:#b0b0c8;font-size:.8rem;font-weight:600;text-transform:uppercase;letter-spacing:.08em;margin-top:.5rem">
-      Budget
-      <span style="font-size:.7rem;transition:transform .2s" [style.transform]="open['budget'] ? 'rotate(90deg)' : 'rotate(0deg)'">&#9654;</span>
-    </button>
-    @if (open['budget']) {
-      <a routerLink="/budget" routerLinkActive="active-link" class="nav-link" style="padding-left:1rem">Budgets</a>
-    }
+      <!-- Budget -->
+      <button class="nav-section-btn" (click)="toggle('budget')">
+        Budget
+        <span class="nav-chevron" [style.transform]="open['budget'] ? 'rotate(90deg)' : 'rotate(0deg)'">&#9654;</span>
+      </button>
+      @if (open['budget']) {
+        <a routerLink="/budget" routerLinkActive="active-link" class="nav-child-link">Budgets</a>
+      }
+    </div>
 
-    <div style="margin-top:auto;padding-top:1rem">
-      <button (click)="logout()"
-        class="btn-secondary lift-on-hover"
-        style="width:100%;">
+    <!-- Footer -->
+    <div class="nav-footer">
+      <button (click)="logout()" class="btn-secondary" style="width:100%">
         Sign Out
       </button>
     </div>
   </nav>
-  <main class="flex-1 overflow-auto" style="flex:1;overflow:auto;padding:2rem;background:var(--cream);">
+
+  <main class="main-content">
     <router-outlet></router-outlet>
   </main>
 </div>
