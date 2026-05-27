@@ -1,6 +1,12 @@
-from datetime import datetime
+from datetime import datetime, date as _date
 from rest_framework.exceptions import ValidationError
 from .models import PurchaseInvoice, APPayment
+
+
+def _to_date(val):
+    if isinstance(val, _date):
+        return val
+    return _date.fromisoformat(str(val))
 
 
 def post_invoice(invoice_id: str, approver: str) -> PurchaseInvoice:
@@ -22,7 +28,7 @@ def post_invoice(invoice_id: str, approver: str) -> PurchaseInvoice:
     from journals.models import JournalEntry, JournalLine
     entry = JournalEntry(
         reference=f'AP-{invoice.invoice_number}',
-        date=invoice.date,
+        date=_to_date(invoice.date),
         description=f'Purchase Invoice {invoice.invoice_number}',
         status='POSTED',
         entry_type='AP_PAYMENT',
@@ -99,7 +105,7 @@ def record_payment(invoice_id: str, payment_date, amount: float,
     from journals.models import JournalEntry, JournalLine
     entry = JournalEntry(
         reference=f'APPay-{invoice.invoice_number}',
-        date=payment_date,
+        date=_to_date(payment_date),
         description=f'Payment for {invoice.invoice_number}',
         status='POSTED',
         entry_type='AP_PAYMENT',
@@ -122,7 +128,7 @@ def record_payment(invoice_id: str, payment_date, amount: float,
     cr.account.connect(bank_gl)
 
     payment = APPayment(
-        payment_date=payment_date,
+        payment_date=_to_date(payment_date),
         amount=amount,
         reference=reference,
         created_by=username,

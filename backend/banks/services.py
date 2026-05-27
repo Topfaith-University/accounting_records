@@ -1,9 +1,15 @@
 from neomodel import db
 from rest_framework.exceptions import ValidationError
-from datetime import datetime, date
+from datetime import datetime, date as _date
 from .models import BankAccount, BankTransaction
 from journals.models import JournalEntry, JournalLine
 from accounts.models import Account
+
+
+def _to_date(val):
+    if isinstance(val, _date):
+        return val
+    return _date.fromisoformat(str(val))
 
 
 def get_bank_gl_lines(bank_account_id: str, recon_id: str = None) -> list:
@@ -54,7 +60,7 @@ def get_bank_gl_lines(bank_account_id: str, recon_id: str = None) -> list:
 # Note: the MERGE counter increments atomically but is not rolled back if the
 # subsequent entry.save() fails. Reference gaps are possible under hard failures.
 def generate_bank_transaction_reference() -> str:
-    year = date.today().year
+    year = _date.today().year
     prefix = f'BT-{year}-'
     results, _ = db.cypher_query(
         """
@@ -141,7 +147,7 @@ def create_bank_transaction(
 
     entry = JournalEntry(
         reference=reference,
-        date=txn_date,
+        date=_to_date(txn_date),
         description=description,
         status='POSTED',
         entry_type='BANK_TRANSACTION',
@@ -185,7 +191,7 @@ def create_bank_transaction(
     txn = BankTransaction(
         reference=reference,
         transaction_type=transaction_type,
-        date=txn_date,
+        date=_to_date(txn_date),
         amount=total_amount,
         description=description,
         created_by=created_by,

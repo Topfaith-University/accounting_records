@@ -1,6 +1,12 @@
-from datetime import datetime
+from datetime import datetime, date as _date
 from rest_framework.exceptions import ValidationError
 from .models import SalesInvoice, ARReceipt
+
+
+def _to_date(val):
+    if isinstance(val, _date):
+        return val
+    return _date.fromisoformat(str(val))
 
 
 def post_invoice(invoice_id: str, approver: str) -> SalesInvoice:
@@ -22,7 +28,7 @@ def post_invoice(invoice_id: str, approver: str) -> SalesInvoice:
     from journals.models import JournalEntry, JournalLine
     entry = JournalEntry(
         reference=f'AR-{invoice.invoice_number}',
-        date=invoice.date,
+        date=_to_date(invoice.date),
         description=f'Sales Invoice {invoice.invoice_number}',
         status='POSTED',
         entry_type='AR_RECEIPT',
@@ -99,7 +105,7 @@ def record_receipt(invoice_id: str, receipt_date, amount: float,
     from journals.models import JournalEntry, JournalLine
     entry = JournalEntry(
         reference=f'ARRec-{invoice.invoice_number}',
-        date=receipt_date,
+        date=_to_date(receipt_date),
         description=f'Receipt for {invoice.invoice_number}',
         status='POSTED',
         entry_type='AR_RECEIPT',
@@ -122,7 +128,7 @@ def record_receipt(invoice_id: str, receipt_date, amount: float,
     cr.account.connect(ar_acct)
 
     receipt = ARReceipt(
-        receipt_date=receipt_date,
+        receipt_date=_to_date(receipt_date),
         amount=amount,
         reference=reference,
         created_by=username,
