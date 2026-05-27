@@ -89,6 +89,7 @@
             <th>Name</th>
             <th>Type</th>
             <th>Normal Balance</th>
+            <th style="text-align:right">Balance (₦)</th>
             @if (canManage) {
               <th style="width:180px;">Actions</th>
             }
@@ -98,9 +99,18 @@
           @for (account of accounts; track account.account_id) {
             <tr class="lift-on-hover">
               <td style="font-family:monospace;font-weight:500;">{{ account.code }}</td>
-              <td>{{ account.name }}</td>
+              <td>
+                <a [routerLink]="['/accounts', account.account_id]"
+                   style="color:var(--navy-primary);text-decoration:none;font-weight:500;">
+                  {{ account.name }}
+                </a>
+              </td>
               <td>{{ account.account_type }}</td>
               <td>{{ account.normal_balance }}</td>
+              <td style="text-align:right;font-family:var(--font-mono);font-size:.875rem"
+                  [style.color]="account.balance >= 0 ? 'var(--navy-primary)' : 'var(--danger)'">
+                {{ account.balance | number:'1.2-2' }}
+              </td>
               @if (canManage) {
                 <td>
                   <div style="display:flex;gap:0.5rem;">
@@ -125,7 +135,7 @@
           }
           @empty {
             <tr>
-              <td [attr.colspan]="canManage ? 5 : 4" style="padding:2rem;text-align:center;color:var(--charcoal-light);font-style:italic;">
+              <td [attr.colspan]="canManage ? 6 : 5" style="padding:2rem;text-align:center;color:var(--charcoal-light);font-style:italic;">
                 No accounts yet. Click "+ New" to add your first account.
               </td>
             </tr>

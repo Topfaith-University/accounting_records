@@ -79,7 +79,7 @@ class AccountViewSet(viewsets.ViewSet):
         query = """
             MATCH (e:JournalEntry)-[:HAS_LINE]->(l:JournalLine)-[:AFFECTS_ACCOUNT]->(a:Account {account_id: $account_id})
             WHERE e.status = 'POSTED'
-            RETURN e.entry_id, e.reference, e.date, e.description, l.side, l.amount, l.description
+            RETURN e.entry_id, e.reference, e.date, e.description, l.side, l.amount, l.description, e.entry_type
             ORDER BY e.date DESC
         """
         results, _ = db.cypher_query(query, params)
@@ -88,6 +88,7 @@ class AccountViewSet(viewsets.ViewSet):
                 'entry_id': r[0], 'reference': r[1], 'date': str(r[2]),
                 'entry_description': r[3], 'side': r[4],
                 'amount': r[5], 'line_description': r[6],
+                'entry_type': r[7],
             }
             for r in results
         ]

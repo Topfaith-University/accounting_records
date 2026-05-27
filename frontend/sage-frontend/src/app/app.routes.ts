@@ -18,6 +18,10 @@ export const routes: Routes = [
         loadComponent: () => import('./accounts/account-list/account-list.component').then(m => m.AccountListComponent)
       },
       {
+        path: 'accounts/:id',
+        loadComponent: () => import('./accounts/account-detail/account-detail.component').then(m => m.AccountDetailComponent)
+      },
+      {
         path: 'journals',
         loadComponent: () => import('./journals/entry-list/entry-list.component').then(m => m.EntryListComponent)
       },

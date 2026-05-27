@@ -28,4 +28,8 @@ export class AccountsService {
   getTypes() {
     return axios.get(this.baseUrl + 'types/').then(r => r.data);
   }
+
+  getLedger(id: string) {
+    return axios.get(this.baseUrl + id + '/ledger/').then(r => r.data);
+  }
 }

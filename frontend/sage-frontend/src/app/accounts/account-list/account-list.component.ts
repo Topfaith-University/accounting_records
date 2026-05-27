@@ -1,6 +1,7 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { RouterModule } from '@angular/router';
 import { AccountsService } from '../../services/accounts.service';
 import { AuthService } from '../../services/auth.service';
 
@@ -11,7 +12,7 @@ const DEBIT_NORMAL_TYPES = new Set([
 @Component({
   selector: 'app-account-list',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, RouterModule],
   templateUrl: './account-list.component.html',
 })
 export class AccountListComponent implements OnInit {
