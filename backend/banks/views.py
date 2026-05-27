@@ -196,8 +196,8 @@ class BankTransactionViewSet(viewsets.ViewSet):
         if bank_account_id:
             from neomodel import db
             results, _ = db.cypher_query(
-                "MATCH (t:BankTransaction)-[:FROM_BANK]->(ba:BankAccount {bank_account_id: $id}) "
-                "RETURN t.transaction_id ORDER BY t.created_at DESC",
+                "MATCH (t:BankTransaction)-[:FROM_BANK|TO_BANK]->(ba:BankAccount {bank_account_id: $id}) "
+                "RETURN DISTINCT t.transaction_id, t.created_at ORDER BY t.created_at DESC",
                 {'id': bank_account_id}
             )
             txns = [BankTransaction.nodes.get_or_none(transaction_id=row[0]) for row in results]

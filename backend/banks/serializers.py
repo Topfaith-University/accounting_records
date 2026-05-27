@@ -104,6 +104,7 @@ class BankTransactionSerializer(serializers.Serializer):
     source_bank_name = serializers.SerializerMethodField()
     destination_bank_name = serializers.SerializerMethodField()
     entry_id = serializers.SerializerMethodField()
+    lines = serializers.SerializerMethodField()
 
     def get_source_bank_name(self, obj):
         try:
@@ -125,6 +126,16 @@ class BankTransactionSerializer(serializers.Serializer):
             return entry.entry_id if entry else None
         except Exception:
             return None
+
+    def get_lines(self, obj):
+        try:
+            from journals.serializers import JournalLineSerializer
+            entry = obj.journal_entry.single()
+            if not entry:
+                return []
+            return JournalLineSerializer(list(entry.lines.all()), many=True).data
+        except Exception:
+            return []
 
     def validate(self, data):
         txn_type = data.get('transaction_type')

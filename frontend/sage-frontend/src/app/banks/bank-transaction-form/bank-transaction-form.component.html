@@ -11,7 +11,7 @@
       <p style="font-size:.75rem;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:var(--text-muted);margin-bottom:.75rem">Transaction Type</p>
       <div style="display:flex;gap:.5rem">
         @for (type of ['RECEIPT','PAYMENT','TRANSFER']; track type) {
-          <button type="button" (click)="form.get('transaction_type')!.setValue(type)"
+          <button type="button" (click)="changeType(type)"
             [style.background]="transactionType === type ? 'var(--navy-primary)' : 'var(--white)'"
             [style.color]="transactionType === type ? '#fff' : 'var(--text-secondary)'"
             [style.borderColor]="transactionType === type ? 'var(--navy-primary)' : 'var(--border)'"

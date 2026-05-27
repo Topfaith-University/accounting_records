@@ -66,6 +66,15 @@ export class BankTransactionFormComponent implements OnInit {
     }));
   }
 
+  changeType(type: string) {
+    this.form.get('transaction_type')!.setValue(type);
+    if (type === 'TRANSFER') {
+      while (this.splits.length > 0) this.splits.removeAt(0);
+    } else if (this.splits.length === 0) {
+      this.addSplit();
+    }
+  }
+
   removeSplit(i: number) {
     if (this.splits.length > 1) this.splits.removeAt(i);
   }
