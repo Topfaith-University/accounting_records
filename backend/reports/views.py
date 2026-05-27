@@ -178,13 +178,13 @@ def gl_detail(request):
         wb = Workbook()
         ws = wb.active
         ws.title = f'GL {data["account_code"]}'
-        ws.append(['Date', 'Reference', 'Description', 'Side', 'Amount (N)', 'Running Balance (N)'])
+        ws.append(['Date', 'Reference', 'Description', 'Type', 'Side', 'Amount (N)', 'Running Balance (N)'])
         for cell in ws[1]:
             cell.font = Font(bold=True)
         for line in data['lines']:
             ws.append([line['date'], line['reference'], line['entry_description'],
-                       line['side'], line['amount'], line['running_balance']])
-        ws.append(['', '', '', 'CLOSING BALANCE', '', data['closing_balance']])
+                       line['entry_type'] or 'MANUAL', line['side'], line['amount'], line['running_balance']])
+        ws.append(['', '', '', '', 'CLOSING BALANCE', '', data['closing_balance']])
         return _xlsx_response(wb, f'gl-detail-{data["account_code"]}-{date_from}-{date_to}.xlsx')
     return JsonResponse(data)
 

@@ -51,4 +51,19 @@ export class GlDetailComponent implements OnInit {
   exportXlsx() {
     window.open(this.reports.exportUrl('gl-detail', { account_id: this.accountId, date_from: this.dateFrom, date_to: this.dateTo }, 'xlsx'));
   }
+
+  entryTypeBadgeStyle(type: string): Record<string, string> {
+    const styles: Record<string, Record<string, string>> = {
+      MANUAL:           { background: '#F3F4F6', color: '#6B7280' },
+      BANK_TRANSACTION: { background: '#EFF6FF', color: '#1D4ED8' },
+      AP_PAYMENT:       { background: '#FFF7ED', color: '#C2410C' },
+      AR_RECEIPT:       { background: '#F0FDF4', color: '#15803D' },
+    };
+    return {
+      ...(styles[type] ?? styles['MANUAL']),
+      display: 'inline-block', padding: '.15rem .5rem',
+      borderRadius: '4px', fontSize: '.75rem', fontWeight: '700',
+      textTransform: 'uppercase', letterSpacing: '.04em',
+    };
+  }
 }

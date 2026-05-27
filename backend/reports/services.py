@@ -160,7 +160,7 @@ def compute_gl_detail(account_id: str, date_from: str, date_to: str) -> dict:
         MATCH (e:JournalEntry)-[:HAS_LINE]->(l:JournalLine)-[:AFFECTS_ACCOUNT]->(a)
         WHERE e.status = 'POSTED' AND e.date >= date($date_from) AND e.date <= date($date_to)
         RETURN l.line_id, e.entry_id, e.reference, e.date, e.description,
-               l.side, l.amount, l.description
+               l.side, l.amount, l.description, e.entry_type
         ORDER BY e.date ASC, e.reference ASC
     """
     results, _ = db.cypher_query(lines_query, {
@@ -170,7 +170,7 @@ def compute_gl_detail(account_id: str, date_from: str, date_to: str) -> dict:
     running_balance = 0.0
     lines = []
     for r in results:
-        line_id, entry_id, reference, date, entry_desc, side, amount, line_desc = r
+        line_id, entry_id, reference, date, entry_desc, side, amount, line_desc, entry_type = r
         amount = float(amount or 0)
         if normal_balance == 'DEBIT':
             running_balance += amount if side == 'DEBIT' else -amount
@@ -185,6 +185,7 @@ def compute_gl_detail(account_id: str, date_from: str, date_to: str) -> dict:
             'side': side,
             'amount': round(amount, 2),
             'line_description': line_desc,
+            'entry_type': entry_type,
             'running_balance': round(running_balance, 2),
         })
 
