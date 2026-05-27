@@ -46,6 +46,17 @@
         <div style="font-size:.75rem;color:#888;margin-bottom:.25rem">GL Account</div>
         <div style="font-family:monospace;font-size:.875rem">{{ account.gl_account_id ?? '—' }}</div>
       </div>
+      <div style="grid-column:1/-1;border-top:1px solid #f0f0f0;padding-top:1rem;margin-top:.25rem">
+        <div style="font-size:.75rem;color:#888;margin-bottom:.35rem;text-transform:uppercase;letter-spacing:.06em;font-weight:700">Current Balance</div>
+        @if (account.current_balance == null) {
+          <div style="font-size:1.25rem;font-weight:700;color:#aaa">— (no GL account linked)</div>
+        } @else {
+          <div style="font-size:1.5rem;font-weight:800;font-family:var(--font-mono)"
+            [style.color]="account.current_balance >= 0 ? 'var(--navy-primary)' : 'var(--danger)'">
+            ₦{{ account.current_balance | number:'1.2-2' }}
+          </div>
+        }
+      </div>
     </div>
   </div>
 

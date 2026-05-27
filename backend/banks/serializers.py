@@ -13,6 +13,7 @@ class BankAccountSerializer(serializers.Serializer):
     is_active = serializers.BooleanField(default=True)
     gl_account_id_input = serializers.CharField(write_only=True, required=False, allow_null=True)
     gl_account_id = serializers.SerializerMethodField()
+    current_balance = serializers.SerializerMethodField()
     created_at = serializers.DateTimeField(read_only=True)
     updated_at = serializers.DateTimeField(read_only=True)
 
@@ -20,6 +21,16 @@ class BankAccountSerializer(serializers.Serializer):
         try:
             acct = obj.gl_account.single()
             return acct.account_id if acct else None
+        except Exception:
+            return None
+
+    def get_current_balance(self, obj):
+        try:
+            acct = obj.gl_account.single()
+            if not acct:
+                return None
+            from accounts.services import compute_account_balance
+            return compute_account_balance(acct.account_id)
         except Exception:
             return None
 
