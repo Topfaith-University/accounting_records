@@ -29,12 +29,22 @@ export class ReportsService {
     }).then(r => r.data);
   }
 
-  exportUrl(
+  async exportFile(
     report: 'trial-balance' | 'income-statement' | 'balance-sheet' | 'gl-detail',
     params: Record<string, string>,
     format: 'pdf' | 'xlsx',
-  ): string {
-    const q = new URLSearchParams({ ...params, format }).toString();
-    return `${this.base}${report}/?${q}`;
+    filename: string,
+  ): Promise<void> {
+    const response = await axios.get(this.base + report + '/', {
+      params: { ...params, format },
+      responseType: 'blob',
+    });
+    const blob = new Blob([response.data], { type: response.headers['content-type'] });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
   }
 }

@@ -33,11 +33,11 @@ export class TrialBalanceComponent {
   }
 
   exportPdf() {
-    window.open(this.reports.exportUrl('trial-balance', { date_from: this.dateFrom, date_to: this.dateTo }, 'pdf'));
+    this.reports.exportFile('trial-balance', { date_from: this.dateFrom, date_to: this.dateTo }, 'pdf', `trial-balance-${this.dateFrom}-${this.dateTo}.pdf`);
   }
 
   exportXlsx() {
-    window.open(this.reports.exportUrl('trial-balance', { date_from: this.dateFrom, date_to: this.dateTo }, 'xlsx'));
+    this.reports.exportFile('trial-balance', { date_from: this.dateFrom, date_to: this.dateTo }, 'xlsx', `trial-balance-${this.dateFrom}-${this.dateTo}.xlsx`);
   }
 
   get grandTotalDebits(): number {

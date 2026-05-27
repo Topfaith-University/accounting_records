@@ -32,10 +32,10 @@ export class BalanceSheetComponent {
   }
 
   exportPdf() {
-    window.open(this.reports.exportUrl('balance-sheet', { as_of_date: this.asOfDate }, 'pdf'));
+    this.reports.exportFile('balance-sheet', { as_of_date: this.asOfDate }, 'pdf', `balance-sheet-${this.asOfDate}.pdf`);
   }
 
   exportXlsx() {
-    window.open(this.reports.exportUrl('balance-sheet', { as_of_date: this.asOfDate }, 'xlsx'));
+    this.reports.exportFile('balance-sheet', { as_of_date: this.asOfDate }, 'xlsx', `balance-sheet-${this.asOfDate}.xlsx`);
   }
 }

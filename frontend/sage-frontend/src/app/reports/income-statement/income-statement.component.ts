@@ -33,10 +33,10 @@ export class IncomeStatementComponent {
   }
 
   exportPdf() {
-    window.open(this.reports.exportUrl('income-statement', { date_from: this.dateFrom, date_to: this.dateTo }, 'pdf'));
+    this.reports.exportFile('income-statement', { date_from: this.dateFrom, date_to: this.dateTo }, 'pdf', `income-statement-${this.dateFrom}-${this.dateTo}.pdf`);
   }
 
   exportXlsx() {
-    window.open(this.reports.exportUrl('income-statement', { date_from: this.dateFrom, date_to: this.dateTo }, 'xlsx'));
+    this.reports.exportFile('income-statement', { date_from: this.dateFrom, date_to: this.dateTo }, 'xlsx', `income-statement-${this.dateFrom}-${this.dateTo}.xlsx`);
   }
 }

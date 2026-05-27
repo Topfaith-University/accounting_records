@@ -45,11 +45,11 @@ export class GlDetailComponent implements OnInit {
   }
 
   exportPdf() {
-    window.open(this.reports.exportUrl('gl-detail', { account_id: this.accountId, date_from: this.dateFrom, date_to: this.dateTo }, 'pdf'));
+    this.reports.exportFile('gl-detail', { account_id: this.accountId, date_from: this.dateFrom, date_to: this.dateTo }, 'pdf', `gl-detail-${this.dateFrom}-${this.dateTo}.pdf`);
   }
 
   exportXlsx() {
-    window.open(this.reports.exportUrl('gl-detail', { account_id: this.accountId, date_from: this.dateFrom, date_to: this.dateTo }, 'xlsx'));
+    this.reports.exportFile('gl-detail', { account_id: this.accountId, date_from: this.dateFrom, date_to: this.dateTo }, 'xlsx', `gl-detail-${this.dateFrom}-${this.dateTo}.xlsx`);
   }
 
   entryTypeBadgeStyle(type: string): Record<string, string> {
