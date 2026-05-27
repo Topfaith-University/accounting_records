@@ -18,7 +18,7 @@ def compute_trial_balance(date_from: str, date_to: str) -> list:
     query = """
         MATCH (a:Account {is_active: true})
         OPTIONAL MATCH (e:JournalEntry)-[:HAS_LINE]->(l:JournalLine)-[:AFFECTS_ACCOUNT]->(a)
-        WHERE e.status = 'POSTED' AND e.date >= date($date_from) AND e.date <= date($date_to)
+        WHERE e.status = 'POSTED' AND e.date >= $date_from AND e.date <= $date_to
         RETURN
             a.account_id AS account_id,
             a.code AS code,
@@ -54,7 +54,7 @@ def compute_income_statement(date_from: str, date_to: str) -> dict:
         MATCH (a:Account {is_active: true})
         WHERE a.account_type IN $types
         OPTIONAL MATCH (e:JournalEntry)-[:HAS_LINE]->(l:JournalLine)-[:AFFECTS_ACCOUNT]->(a)
-        WHERE e.status = 'POSTED' AND e.date >= date($date_from) AND e.date <= date($date_to)
+        WHERE e.status = 'POSTED' AND e.date >= $date_from AND e.date <= $date_to
         RETURN
             a.account_id, a.code, a.name, a.account_type, a.normal_balance,
             coalesce(sum(CASE WHEN l.side = 'DEBIT' THEN l.amount ELSE 0 END), 0) AS debits,
@@ -107,7 +107,7 @@ def compute_balance_sheet(as_of_date: str) -> dict:
         MATCH (a:Account {is_active: true})
         WHERE a.account_type IN $types
         OPTIONAL MATCH (e:JournalEntry)-[:HAS_LINE]->(l:JournalLine)-[:AFFECTS_ACCOUNT]->(a)
-        WHERE e.status = 'POSTED' AND e.date <= date($as_of_date)
+        WHERE e.status = 'POSTED' AND e.date <= $as_of_date
         RETURN
             a.account_id, a.code, a.name, a.account_type, a.normal_balance,
             coalesce(sum(CASE WHEN l.side = 'DEBIT' THEN l.amount ELSE 0 END), 0) AS debits,
@@ -158,7 +158,7 @@ def compute_gl_detail(account_id: str, date_from: str, date_to: str) -> dict:
     lines_query = """
         MATCH (a:Account {account_id: $account_id})
         MATCH (e:JournalEntry)-[:HAS_LINE]->(l:JournalLine)-[:AFFECTS_ACCOUNT]->(a)
-        WHERE e.status = 'POSTED' AND e.date >= date($date_from) AND e.date <= date($date_to)
+        WHERE e.status = 'POSTED' AND e.date >= $date_from AND e.date <= $date_to
         RETURN l.line_id, e.entry_id, e.reference, e.date, e.description,
                l.side, l.amount, l.description, e.entry_type
         ORDER BY e.date ASC, e.reference ASC
