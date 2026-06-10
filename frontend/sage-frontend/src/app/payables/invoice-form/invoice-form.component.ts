@@ -5,16 +5,18 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { PayablesService } from '../../services/payables.service';
 import { AccountsService } from '../../services/accounts.service';
 import { AccountSelectComponent } from '../../shared/account-select/account-select.component';
+import { VendorSelectComponent } from '../../shared/vendor-select/vendor-select.component';
 
 @Component({
   selector: 'app-purchase-invoice-form',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, AccountSelectComponent],
+  imports: [CommonModule, ReactiveFormsModule, AccountSelectComponent, VendorSelectComponent],
   templateUrl: './invoice-form.component.html',
 })
 export class PurchaseInvoiceFormComponent implements OnInit {
   form!: FormGroup;
   vendors: any[] = [];
+  allVendors: any[] = [];
   accounts: any[] = [];
   allAccounts: any[] = [];
   items: any[] = [];
@@ -57,6 +59,7 @@ export class PurchaseInvoiceFormComponent implements OnInit {
         this.payables.getItems(),
       ]);
       this.vendors = vendorData.results ?? vendorData;
+      this.allVendors = [...this.vendors];
       this.accounts = accountData.results ?? accountData;
       this.allAccounts = [...this.accounts];
       this.items = itemData.results ?? itemData;

@@ -17,15 +17,14 @@
         </div>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:.75rem;margin-bottom:.75rem">
-        <div>
-          <label style="display:block;font-size:.8rem;color:#555;margin-bottom:.25rem">Customer *</label>
-          <select formControlName="customer_id"
-            style="width:100%;padding:.5rem;border:1px solid #ccc;border-radius:4px">
-            <option value="">— select customer —</option>
-            @for (c of customers; track c.customer_id) {
-              <option [value]="c.customer_id">{{ c.name }}</option>
-            }
-          </select>
+        <div style="overflow:visible">
+          <label style="display:block;font-size:.8rem;font-weight:700;color:var(--text-muted);margin-bottom:.3rem">Customer *</label>
+          <app-customer-select
+            formControlName="customer_id"
+            [allCustomers]="allCustomers"
+            (customersChanged)="allCustomers = $event"
+            placeholder="Search or create customer…"
+          ></app-customer-select>
         </div>
         <div>
           <label style="display:block;font-size:.8rem;font-weight:700;color:var(--text-muted);margin-bottom:.3rem">AR Account *</label>

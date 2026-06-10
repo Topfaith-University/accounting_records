@@ -5,11 +5,12 @@ import { RouterModule } from '@angular/router';
 import { PayablesService } from '../../services/payables.service';
 import { AccountsService } from '../../services/accounts.service';
 import { AccountSelectComponent } from '../../shared/account-select/account-select.component';
+import { VendorSelectComponent } from '../../shared/vendor-select/vendor-select.component';
 
 @Component({
   selector: 'app-item-list',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, RouterModule, AccountSelectComponent],
+  imports: [CommonModule, ReactiveFormsModule, RouterModule, AccountSelectComponent, VendorSelectComponent],
   templateUrl: './item-list.component.html',
 })
 export class ItemListComponent implements OnInit {

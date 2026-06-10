@@ -6,16 +6,18 @@ import { ReceivablesService } from '../../services/receivables.service';
 import { AccountsService } from '../../services/accounts.service';
 import { PayablesService } from '../../services/payables.service';
 import { AccountSelectComponent } from '../../shared/account-select/account-select.component';
+import { CustomerSelectComponent } from '../../shared/customer-select/customer-select.component';
 
 @Component({
   selector: 'app-sales-invoice-form',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, AccountSelectComponent],
+  imports: [CommonModule, ReactiveFormsModule, AccountSelectComponent, CustomerSelectComponent],
   templateUrl: './invoice-form.component.html',
 })
 export class SalesInvoiceFormComponent implements OnInit {
   form!: FormGroup;
   customers: any[] = [];
+  allCustomers: any[] = [];
   accounts: any[] = [];
   allAccounts: any[] = [];
   items: any[] = [];
@@ -59,6 +61,7 @@ export class SalesInvoiceFormComponent implements OnInit {
         this.payables.getItems(),
       ]);
       this.customers = customerData.results ?? customerData;
+      this.allCustomers = [...this.customers];
       this.accounts = accountData.results ?? accountData;
       this.allAccounts = [...this.accounts];
       this.items = itemData.results ?? itemData;
