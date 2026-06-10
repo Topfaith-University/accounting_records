@@ -23,7 +23,6 @@ export class BankTransactionFormComponent implements OnInit {
 
   get splits(): FormArray { return this.form.get('splits') as FormArray; }
   get transactionType(): string { return this.form.get('transaction_type')?.value ?? ''; }
-  get sourceBankId(): string { return this.form.get('source_bank_id')?.value ?? ''; }
   get totalSplits(): number {
     return this.splits.controls.reduce((sum, c) => sum + (Number(c.value.amount) || 0), 0);
   }
@@ -42,10 +41,8 @@ export class BankTransactionFormComponent implements OnInit {
     this.form = this.fb.group({
       transaction_type: ['RECEIPT', Validators.required],
       source_bank_id: [preBankId, Validators.required],
-      destination_bank_id: [''],
       date: [new Date().toISOString().slice(0, 10), Validators.required],
       description: [''],
-      transfer_amount: [null],
       splits: this.fb.array([]),
     });
     this.addSplit();
@@ -71,9 +68,7 @@ export class BankTransactionFormComponent implements OnInit {
 
   changeType(type: string) {
     this.form.get('transaction_type')!.setValue(type);
-    if (type === 'TRANSFER') {
-      while (this.splits.length > 0) this.splits.removeAt(0);
-    } else if (this.splits.length === 0) {
+    if (this.splits.length === 0) {
       this.addSplit();
     }
   }
@@ -85,10 +80,6 @@ export class BankTransactionFormComponent implements OnInit {
   async submit() {
     if (this.form.invalid) return;
     const val = this.form.value;
-    if (val.transaction_type === 'TRANSFER') {
-      if (!val.destination_bank_id) { this.error = 'Please select a destination bank account.'; return; }
-      if (!val.transfer_amount || Number(val.transfer_amount) <= 0) { this.error = 'Please enter a transfer amount greater than 0.'; return; }
-    }
     this.saving = true;
     this.error = '';
     const payload: any = {
@@ -96,17 +87,12 @@ export class BankTransactionFormComponent implements OnInit {
       date: val.date,
       description: val.description,
       source_bank_id: val.source_bank_id,
-    };
-    if (val.transaction_type === 'TRANSFER') {
-      payload.destination_bank_id = val.destination_bank_id;
-      payload.transfer_amount = Number(val.transfer_amount);
-    } else {
-      payload.splits = val.splits.map((s: any) => ({
+      splits: val.splits.map((s: any) => ({
         account_id: s.account_id,
         amount: Number(s.amount),
         description: s.description,
-      }));
-    }
+      })),
+    };
     try {
       await this.txnService.create(payload);
       this.router.navigate(['/banks', val.source_bank_id]);

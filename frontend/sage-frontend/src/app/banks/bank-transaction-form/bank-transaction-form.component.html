@@ -10,7 +10,7 @@
     <div class="card" style="padding:1.25rem;margin-bottom:1rem">
       <p style="font-size:.75rem;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:var(--text-muted);margin-bottom:.75rem">Transaction Type</p>
       <div style="display:flex;gap:.5rem">
-        @for (type of ['RECEIPT','PAYMENT','TRANSFER']; track type) {
+        @for (type of ['RECEIPT','PAYMENT']; track type) {
           <button type="button" (click)="changeType(type)"
             [style.background]="transactionType === type ? 'var(--navy-primary)' : 'var(--white)'"
             [style.color]="transactionType === type ? '#fff' : 'var(--text-secondary)'"
@@ -26,7 +26,7 @@
     <div class="card" style="padding:1.25rem;margin-bottom:1rem;overflow:visible">
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1rem">
         <div>
-          <label style="display:block;font-size:.8rem;color:var(--text-muted);font-weight:700;margin-bottom:.3rem">Source Bank Account *</label>
+          <label style="display:block;font-size:.8rem;color:var(--text-muted);font-weight:700;margin-bottom:.3rem">Bank Account *</label>
           <app-bank-select
             formControlName="source_bank_id"
             [allBanks]="allBanks"
@@ -34,19 +34,6 @@
             placeholder="Search or create bank account…"
           ></app-bank-select>
         </div>
-
-        @if (transactionType === 'TRANSFER') {
-          <div>
-            <label style="display:block;font-size:.8rem;color:var(--text-muted);font-weight:700;margin-bottom:.3rem">Destination Bank Account *</label>
-            <app-bank-select
-              formControlName="destination_bank_id"
-              [allBanks]="allBanks"
-              [excludeId]="sourceBankId"
-              (banksChanged)="allBanks = $event"
-              placeholder="Search or create bank account…"
-            ></app-bank-select>
-          </div>
-        }
       </div>
 
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem">
@@ -63,16 +50,7 @@
       </div>
     </div>
 
-    @if (transactionType === 'TRANSFER') {
-      <div class="card" style="padding:1.25rem;margin-bottom:1rem">
-        <label style="display:block;font-size:.8rem;color:var(--text-muted);font-weight:700;margin-bottom:.3rem">Amount (₦) *</label>
-        <input formControlName="transfer_amount" type="number" min="0.01" step="0.01" placeholder="0.00"
-          style="width:240px;padding:.5rem;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-family:var(--font-mono);font-size:.875rem;text-align:right;box-sizing:border-box" />
-      </div>
-    }
-
-    @if (transactionType !== 'TRANSFER') {
-      <div class="card" style="margin-bottom:1rem;overflow:visible">
+    <div class="card" style="margin-bottom:1rem;overflow:visible">
         <table style="width:100%;border-collapse:collapse">
           <thead style="background:var(--navy-subtle)">
             <tr>
@@ -121,7 +99,6 @@
           </span>
         </div>
       </div>
-    }
 
     <div style="display:flex;gap:.75rem">
       <button type="button" (click)="submit()" [disabled]="form.invalid || saving" class="btn-primary">
