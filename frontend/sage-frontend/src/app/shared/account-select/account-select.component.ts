@@ -14,6 +14,10 @@ interface Account {
   normal_balance?: string;
 }
 
+const DEBIT_NORMAL_TYPES = new Set([
+  'Cost of Sales', 'Expenses', 'Income Tax', 'Non-Current Assets', 'Current Assets'
+]);
+
 @Component({
   selector: 'app-account-select',
   standalone: true,
@@ -38,7 +42,7 @@ export class AccountSelectComponent implements OnInit, ControlValueAccessor {
   filteredAccounts: Account[] = [];
 
   newAccount = { name: '', account_type: '', description: '' };
-  accountTypes = ['Assets', 'Liabilities', 'Equity', 'Revenue', 'Expenses', 'Cost of Sales'];
+  accountTypes: string[] = [];
   creatingAccount = false;
   createError = '';
 
@@ -53,21 +57,20 @@ export class AccountSelectComponent implements OnInit, ControlValueAccessor {
   ) {}
 
   async ngOnInit() {
-    if (this.allAccounts.length === 0) {
-      try {
+    try {
+      if (this.allAccounts.length === 0) {
         const data = await this.accountsService.getAll();
         this.allAccounts = data.results ?? data;
-      } catch { /* parent may pass allAccounts directly */ }
-    }
+      }
+      const typeData = await this.accountsService.getTypes();
+      this.accountTypes = typeData.account_types ?? [];
+    } catch { /* parent may pass allAccounts directly */ }
     this.filteredAccounts = [...this.allAccounts];
   }
 
   get normalBalancePreview(): string {
-    const map: Record<string, string> = {
-      Assets: 'DEBIT', Expenses: 'DEBIT', 'Cost of Sales': 'DEBIT',
-      Liabilities: 'CREDIT', Equity: 'CREDIT', Revenue: 'CREDIT',
-    };
-    return this.newAccount.account_type ? (map[this.newAccount.account_type] ?? '') : '';
+    if (!this.newAccount.account_type) return '';
+    return DEBIT_NORMAL_TYPES.has(this.newAccount.account_type) ? 'DEBIT' : 'CREDIT';
   }
 
   writeValue(id: string) {
@@ -114,6 +117,7 @@ export class AccountSelectComponent implements OnInit, ControlValueAccessor {
       const created: Account = await this.accountsService.create({
         name: this.newAccount.name,
         account_type: this.newAccount.account_type,
+        normal_balance: DEBIT_NORMAL_TYPES.has(this.newAccount.account_type) ? 'DEBIT' : 'CREDIT',
         description: this.newAccount.description,
       });
       this.allAccounts = [...this.allAccounts, created];
@@ -122,7 +126,8 @@ export class AccountSelectComponent implements OnInit, ControlValueAccessor {
       this.selectAccount(created);
       this.showModal = false;
     } catch (e: any) {
-      this.createError = e.response?.data?.name?.[0] ?? e.response?.data?.detail ?? 'Failed to create account.';
+      this.createError = e.response?.data?.detail
+        ?? (e.response?.data ? JSON.stringify(e.response.data) : 'Failed to create account.');
     } finally {
       this.creatingAccount = false;
     }
