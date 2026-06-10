@@ -23,29 +23,28 @@
     </div>
 
     <!-- Header fields -->
-    <div class="card" style="padding:1.25rem;margin-bottom:1rem">
+    <div class="card" style="padding:1.25rem;margin-bottom:1rem;overflow:visible">
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1rem">
         <div>
           <label style="display:block;font-size:.8rem;color:var(--text-muted);font-weight:700;margin-bottom:.3rem">Source Bank Account *</label>
-          <select formControlName="source_bank_id"
-            style="width:100%;padding:.5rem;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-family:var(--font-body);font-size:.875rem;box-sizing:border-box">
-            <option value="">— select bank —</option>
-            @for (bank of banks; track bank.bank_account_id) {
-              <option [value]="bank.bank_account_id">{{ bank.name }}</option>
-            }
-          </select>
+          <app-bank-select
+            formControlName="source_bank_id"
+            [allBanks]="allBanks"
+            (banksChanged)="allBanks = $event"
+            placeholder="Search or create bank account…"
+          ></app-bank-select>
         </div>
 
         @if (transactionType === 'TRANSFER') {
           <div>
             <label style="display:block;font-size:.8rem;color:var(--text-muted);font-weight:700;margin-bottom:.3rem">Destination Bank Account *</label>
-            <select formControlName="destination_bank_id"
-              style="width:100%;padding:.5rem;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-family:var(--font-body);font-size:.875rem;box-sizing:border-box">
-              <option value="">— select bank —</option>
-              @for (bank of banks; track bank.bank_account_id) {
-                <option [value]="bank.bank_account_id">{{ bank.name }}</option>
-              }
-            </select>
+            <app-bank-select
+              formControlName="destination_bank_id"
+              [allBanks]="allBanks"
+              [excludeId]="sourceBankId"
+              (banksChanged)="allBanks = $event"
+              placeholder="Search or create bank account…"
+            ></app-bank-select>
           </div>
         }
       </div>
@@ -64,7 +63,6 @@
       </div>
     </div>
 
-    <!-- Transfer amount (TRANSFER only) -->
     @if (transactionType === 'TRANSFER') {
       <div class="card" style="padding:1.25rem;margin-bottom:1rem">
         <label style="display:block;font-size:.8rem;color:var(--text-muted);font-weight:700;margin-bottom:.3rem">Amount (₦) *</label>
@@ -73,9 +71,8 @@
       </div>
     }
 
-    <!-- Splits table (RECEIPT / PAYMENT only) -->
     @if (transactionType !== 'TRANSFER') {
-      <div class="card" style="margin-bottom:1rem;overflow:hidden">
+      <div class="card" style="margin-bottom:1rem;overflow:visible">
         <table style="width:100%;border-collapse:collapse">
           <thead style="background:var(--navy-subtle)">
             <tr>
@@ -88,14 +85,13 @@
           <tbody formArrayName="splits">
             @for (split of splits.controls; track $index) {
               <tr [formGroupName]="$index" style="border-top:1px solid var(--border)">
-                <td style="padding:.5rem 1rem">
-                  <select formControlName="account_id"
-                    style="width:100%;padding:.4rem;border:1.5px solid var(--border);border-radius:var(--radius-xs);font-family:var(--font-body);font-size:.84rem">
-                    <option value="">— select account —</option>
-                    @for (acct of accounts; track acct.account_id) {
-                      <option [value]="acct.account_id">{{ acct.code }} — {{ acct.name }}</option>
-                    }
-                  </select>
+                <td style="padding:.5rem 1rem;overflow:visible">
+                  <app-account-select
+                    formControlName="account_id"
+                    [allAccounts]="allAccounts"
+                    (accountsChanged)="allAccounts = $event"
+                    placeholder="Search account…"
+                  ></app-account-select>
                 </td>
                 <td style="padding:.5rem 1rem">
                   <input formControlName="amount" type="number" min="0.01" step="0.01" placeholder="0.00"
@@ -127,10 +123,8 @@
       </div>
     }
 
-    <!-- Actions -->
     <div style="display:flex;gap:.75rem">
-      <button type="button" (click)="submit()" [disabled]="form.invalid || saving"
-        class="btn-primary">
+      <button type="button" (click)="submit()" [disabled]="form.invalid || saving" class="btn-primary">
         {{ saving ? 'Posting…' : 'Post Transaction' }}
       </button>
       <a routerLink="/banks/transactions" class="btn-secondary">Cancel</a>

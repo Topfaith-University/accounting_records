@@ -4,17 +4,19 @@ import { ReactiveFormsModule, FormBuilder, FormGroup, FormArray, Validators } fr
 import { ActivatedRoute, Router } from '@angular/router';
 import { PayablesService } from '../../services/payables.service';
 import { AccountsService } from '../../services/accounts.service';
+import { AccountSelectComponent } from '../../shared/account-select/account-select.component';
 
 @Component({
   selector: 'app-purchase-invoice-form',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule],
+  imports: [CommonModule, ReactiveFormsModule, AccountSelectComponent],
   templateUrl: './invoice-form.component.html',
 })
 export class PurchaseInvoiceFormComponent implements OnInit {
   form!: FormGroup;
   vendors: any[] = [];
   accounts: any[] = [];
+  allAccounts: any[] = [];
   saving = false;
   error = '';
   invoiceId: string | null = null;
@@ -54,6 +56,7 @@ export class PurchaseInvoiceFormComponent implements OnInit {
       ]);
       this.vendors = vendorData.results ?? vendorData;
       this.accounts = accountData.results ?? accountData;
+      this.allAccounts = [...this.accounts];
       this.invoiceId = this.route.snapshot.paramMap.get('id');
       if (this.invoiceId) {
         const invoice = await this.payables.getInvoice(this.invoiceId);

@@ -5,16 +5,18 @@ import { RouterModule } from '@angular/router';
 import { BanksService } from '../../services/banks.service';
 import { AccountsService } from '../../services/accounts.service';
 import { AuthService } from '../../services/auth.service';
+import { AccountSelectComponent } from '../../shared/account-select/account-select.component';
 
 @Component({
   selector: 'app-bank-account-list',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterModule],
+  imports: [CommonModule, FormsModule, RouterModule, AccountSelectComponent],
   templateUrl: './bank-account-list.component.html',
 })
 export class BankAccountListComponent implements OnInit {
   accounts: any[] = [];
   glAccounts: any[] = [];
+  allAccounts: any[] = [];
   loading = true;
   error = '';
 
@@ -59,6 +61,7 @@ export class BankAccountListComponent implements OnInit {
       ]);
       this.accounts = bankData.results ?? bankData;
       this.glAccounts = glData.results ?? glData;
+      this.allAccounts = [...this.glAccounts];
     } catch {
       this.error = 'Failed to load bank accounts.';
     } finally {
@@ -128,6 +131,10 @@ export class BankAccountListComponent implements OnInit {
     } finally {
       this.saving = false;
     }
+  }
+
+  onGlAccountChange(id: string) {
+    this.form.gl_account_id_input = id;
   }
 
   async deleteAccount(account: any) {

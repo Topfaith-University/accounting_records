@@ -1,0 +1,82 @@
+<div style="position:relative">
+  <input
+    type="text"
+    [(ngModel)]="searchText"
+    (input)="onInput()"
+    (focus)="showDropdown = true"
+    [placeholder]="placeholder"
+    autocomplete="off"
+    style="width:100%;padding:.5rem .75rem;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-family:var(--font-body);font-size:.875rem;box-sizing:border-box;background:var(--white)"
+  />
+
+  @if (showDropdown) {
+    <div style="position:absolute;z-index:1000;top:100%;left:0;right:0;background:var(--white);border:1.5px solid var(--border);border-radius:var(--radius-sm);box-shadow:0 4px 16px rgba(0,0,0,.12);max-height:220px;overflow-y:auto;margin-top:2px">
+      @for (acct of filteredAccounts; track acct.account_id) {
+        <div
+          (mousedown)="selectAccount(acct)"
+          style="padding:.5rem .75rem;cursor:pointer;font-size:.875rem;border-bottom:1px solid var(--border)"
+          onmouseover="this.style.background='var(--navy-subtle)'"
+          onmouseout="this.style.background=''"
+        >
+          <span style="font-family:var(--font-mono);color:var(--text-muted);font-size:.8rem">{{ acct.code }}</span>
+          &nbsp;{{ acct.name }}
+          <span style="float:right;font-size:.75rem;color:var(--text-muted)">{{ acct.account_type }}</span>
+        </div>
+      }
+      @if (filteredAccounts.length === 0) {
+        <div style="padding:.5rem .75rem;font-size:.875rem;color:var(--text-muted);font-style:italic">No accounts match "{{ searchText }}"</div>
+      }
+      <div
+        (mousedown)="openCreateModal()"
+        style="padding:.5rem .75rem;cursor:pointer;font-size:.875rem;color:var(--navy-primary);font-weight:700;border-top:1.5px solid var(--border)"
+        onmouseover="this.style.background='var(--navy-subtle)'"
+        onmouseout="this.style.background=''"
+      >
+        + Create account…
+      </div>
+    </div>
+  }
+</div>
+
+@if (showModal) {
+  <div style="position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:2000;display:flex;align-items:center;justify-content:center" (click)="showModal = false">
+    <div style="background:var(--white);border-radius:var(--radius-lg);padding:1.5rem;width:420px;max-width:95vw;box-shadow:0 8px 32px rgba(0,0,0,.18)" (click)="$event.stopPropagation()">
+      <h3 style="margin:0 0 1.25rem;font-size:1.05rem;font-weight:700;color:var(--navy-deep)">New Account</h3>
+      @if (createError) {
+        <p style="color:var(--danger);font-size:.85rem;margin:0 0 .75rem;padding:.5rem;background:rgba(239,68,68,.08);border-radius:var(--radius-sm)">{{ createError }}</p>
+      }
+      <div style="display:flex;flex-direction:column;gap:.75rem">
+        <div>
+          <label style="display:block;font-size:.8rem;font-weight:600;color:var(--text-muted);margin-bottom:.25rem">Name *</label>
+          <input [(ngModel)]="newAccount.name" placeholder="Account name" style="width:100%;padding:.5rem .75rem;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-family:var(--font-body);font-size:.875rem;box-sizing:border-box" />
+        </div>
+        <div>
+          <label style="display:block;font-size:.8rem;font-weight:600;color:var(--text-muted);margin-bottom:.25rem">Type *</label>
+          <select [(ngModel)]="newAccount.account_type" style="width:100%;padding:.5rem .75rem;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-family:var(--font-body);font-size:.875rem;box-sizing:border-box">
+            <option value="">— select type —</option>
+            @for (t of accountTypes; track t) {
+              <option [value]="t">{{ t }}</option>
+            }
+          </select>
+        </div>
+        <div>
+          <label style="display:block;font-size:.8rem;font-weight:600;color:var(--text-muted);margin-bottom:.25rem">Normal Balance</label>
+          <div style="padding:.5rem .75rem;background:var(--navy-subtle);border-radius:var(--radius-sm);font-size:.875rem;color:var(--navy-deep);font-weight:600">
+            {{ normalBalancePreview || '— pick a type —' }}
+          </div>
+        </div>
+        <div>
+          <label style="display:block;font-size:.8rem;font-weight:600;color:var(--text-muted);margin-bottom:.25rem">Description</label>
+          <input [(ngModel)]="newAccount.description" placeholder="Optional" style="width:100%;padding:.5rem .75rem;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-family:var(--font-body);font-size:.875rem;box-sizing:border-box" />
+        </div>
+      </div>
+      <div style="display:flex;gap:.75rem;margin-top:1.25rem">
+        <button (click)="createAndSelect()" [disabled]="!newAccount.name || !newAccount.account_type || creatingAccount"
+          style="flex:1;padding:.625rem;background:var(--navy-primary);color:#fff;border:none;border-radius:var(--radius-sm);cursor:pointer;font-weight:700;font-size:.875rem;font-family:var(--font-body)">
+          {{ creatingAccount ? 'Creating…' : 'Create Account' }}
+        </button>
+        <button (click)="showModal = false" style="padding:.625rem 1rem;border:1.5px solid var(--border);background:var(--white);border-radius:var(--radius-sm);cursor:pointer;font-size:.875rem;font-family:var(--font-body)">Cancel</button>
+      </div>
+    </div>
+  </div>
+}

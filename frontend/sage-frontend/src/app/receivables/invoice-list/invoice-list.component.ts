@@ -37,4 +37,19 @@ export class SalesInvoiceListComponent implements OnInit {
   statusColor(s: string) {
     return { DRAFT: '#f59e0b', POSTED: '#1a73e8', PAID: '#10b981', VOID: '#ef4444' }[s] ?? '#888';
   }
+
+  statusBadgeStyle(status: string): Record<string, string> {
+    const map: Record<string, Record<string, string>> = {
+      DRAFT:  { background: '#F3F4F6', color: '#6B7280' },
+      POSTED: { background: '#EFF6FF', color: '#1D4ED8' },
+      PAID:   { background: '#F0FDF4', color: '#15803D' },
+      VOID:   { background: '#FFF1F2', color: '#B91C1C' },
+    };
+    return {
+      ...(map[status] ?? map['DRAFT']),
+      display: 'inline-block', padding: '.15rem .5rem',
+      borderRadius: '4px', fontSize: '.75rem', fontWeight: '700',
+      textTransform: 'uppercase', letterSpacing: '.04em',
+    };
+  }
 }

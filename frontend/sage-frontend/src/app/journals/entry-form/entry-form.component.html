@@ -1,96 +1,94 @@
-<div style="max-width:900px">
-  <h2 style="margin:0 0 1.5rem">{{ isEditMode ? 'Edit Journal Entry' : 'New Journal Entry' }}</h2>
-  @if (error) { <p style="color:red;margin-bottom:1rem">{{ error }}</p> }
+<div style="max-width:960px">
+  <h2 style="margin:0 0 1.5rem;font-family:var(--font-serif);color:var(--navy-deep)">{{ isEditMode ? 'Edit Journal Entry' : 'New Journal Entry' }}</h2>
+  @if (error) { <p style="color:var(--danger);margin-bottom:1rem;font-size:.875rem">{{ error }}</p> }
 
   <form [formGroup]="form">
     <!-- Header fields -->
-    <div style="display:grid;grid-template-columns:1fr 2fr;gap:1rem;margin-bottom:1.5rem;background:white;padding:1.25rem;border-radius:8px;box-shadow:0 1px 4px rgba(0,0,0,.1)">
-      <div>
-        <label style="display:block;font-size:.8rem;color:#555;margin-bottom:.25rem">Date *</label>
-        <input formControlName="date" type="date"
-          style="width:100%;padding:.5rem;border:1px solid #ccc;border-radius:4px;box-sizing:border-box" />
-      </div>
-      <div>
-        <label style="display:block;font-size:.8rem;color:#555;margin-bottom:.25rem">Description *</label>
-        <input formControlName="description" placeholder="Entry description"
-          style="width:100%;padding:.5rem;border:1px solid #ccc;border-radius:4px;box-sizing:border-box" />
+    <div class="card" style="padding:1.25rem;margin-bottom:1rem">
+      <div style="display:grid;grid-template-columns:1fr 2fr;gap:1rem">
+        <div>
+          <label style="display:block;font-size:.8rem;font-weight:700;color:var(--text-muted);margin-bottom:.3rem">Date *</label>
+          <input formControlName="date" type="date"
+            style="width:100%;padding:.5rem .75rem;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-family:var(--font-body);font-size:.875rem;box-sizing:border-box" />
+        </div>
+        <div>
+          <label style="display:block;font-size:.8rem;font-weight:700;color:var(--text-muted);margin-bottom:.3rem">Description *</label>
+          <input formControlName="description" placeholder="Entry description"
+            style="width:100%;padding:.5rem .75rem;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-family:var(--font-body);font-size:.875rem;box-sizing:border-box" />
+        </div>
       </div>
     </div>
 
-    <!-- Lines -->
-    <div style="background:white;border-radius:8px;box-shadow:0 1px 4px rgba(0,0,0,.1);margin-bottom:1rem;overflow:hidden">
+    <!-- Lines table -->
+    <div class="card" style="margin-bottom:1rem;overflow:visible">
       <table style="width:100%;border-collapse:collapse">
-        <thead style="background:#f0f0f5">
+        <thead style="background:var(--navy-subtle)">
           <tr>
-            <th style="text-align:left;padding:.75rem 1rem;font-size:.875rem">Account</th>
-            <th style="text-align:left;padding:.75rem 1rem;font-size:.875rem;width:100px">Side</th>
-            <th style="text-align:right;padding:.75rem 1rem;font-size:.875rem;width:130px">Amount (₦)</th>
-            <th style="text-align:left;padding:.75rem 1rem;font-size:.875rem">Memo</th>
+            <th style="text-align:left;padding:.75rem 1rem;font-size:.8rem;font-weight:700;color:var(--navy-deep)">Account</th>
+            <th style="text-align:right;padding:.75rem 1rem;font-size:.8rem;font-weight:700;color:var(--navy-deep);width:150px">Debit (₦)</th>
+            <th style="text-align:right;padding:.75rem 1rem;font-size:.8rem;font-weight:700;color:var(--navy-deep);width:150px">Credit (₦)</th>
+            <th style="text-align:left;padding:.75rem 1rem;font-size:.8rem;font-weight:700;color:var(--navy-deep)">Memo</th>
             <th style="width:40px"></th>
           </tr>
         </thead>
         <tbody formArrayName="lines">
-          @for (line of lines.controls; track line) {
-            <tr [formGroupName]="$index" style="border-top:1px solid #eee">
-              <td style="padding:.5rem 1rem">
-                <select formControlName="account_id"
-                  style="width:100%;padding:.375rem;border:1px solid #ccc;border-radius:4px">
-                  <option value="">— select account —</option>
-                  @for (acct of accounts; track acct.account_id) {
-                    <option [value]="acct.account_id">{{ acct.code }} — {{ acct.name }}</option>
-                  }
-                </select>
+          @for (line of lines.controls; track $index) {
+            <tr [formGroupName]="$index" style="border-top:1px solid var(--border)">
+              <td style="padding:.5rem 1rem;overflow:visible">
+                <app-account-select
+                  formControlName="account_id"
+                  [allAccounts]="allAccounts"
+                  (accountsChanged)="allAccounts = $event"
+                  placeholder="Search account…"
+                ></app-account-select>
               </td>
               <td style="padding:.5rem 1rem">
-                <select formControlName="side"
-                  style="width:100%;padding:.375rem;border:1px solid #ccc;border-radius:4px">
-                  <option value="DEBIT">Debit</option>
-                  <option value="CREDIT">Credit</option>
-                </select>
+                <input formControlName="debit_amount" type="number" min="0.01" step="0.01" placeholder="0.00"
+                  style="width:100%;padding:.4rem .5rem;border:1.5px solid var(--border);border-radius:var(--radius-xs);font-family:var(--font-mono);font-size:.875rem;text-align:right;box-sizing:border-box" />
               </td>
               <td style="padding:.5rem 1rem">
-                <input formControlName="amount" type="number" min="0.01" step="0.01" placeholder="0.00"
-                  style="width:100%;padding:.375rem;border:1px solid #ccc;border-radius:4px;text-align:right;box-sizing:border-box" />
+                <input formControlName="credit_amount" type="number" min="0.01" step="0.01" placeholder="0.00"
+                  style="width:100%;padding:.4rem .5rem;border:1.5px solid var(--border);border-radius:var(--radius-xs);font-family:var(--font-mono);font-size:.875rem;text-align:right;box-sizing:border-box" />
               </td>
               <td style="padding:.5rem 1rem">
                 <input formControlName="description" placeholder="optional"
-                  style="width:100%;padding:.375rem;border:1px solid #ccc;border-radius:4px;box-sizing:border-box" />
+                  style="width:100%;padding:.4rem .5rem;border:1.5px solid var(--border);border-radius:var(--radius-xs);font-family:var(--font-body);font-size:.875rem;box-sizing:border-box" />
               </td>
               <td style="padding:.5rem;text-align:center">
-                <button type="button" (click)="removeLine($index)"
-                  style="background:none;border:none;color:#ef4444;cursor:pointer;font-size:1.1rem"
-                  title="Remove line">✕</button>
+                <button type="button" (click)="removeLine($index)" [disabled]="lines.length <= 2"
+                  [style.opacity]="lines.length <= 2 ? '0.3' : '1'"
+                  style="background:none;border:none;color:var(--danger);cursor:pointer;font-size:1rem;line-height:1">✕</button>
               </td>
             </tr>
           }
         </tbody>
       </table>
 
-      <div style="display:flex;justify-content:space-between;align-items:center;padding:.75rem 1rem;background:#f9f9fb;border-top:1px solid #eee">
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:.75rem 1rem;background:var(--navy-subtle);border-top:1px solid var(--border)">
         <button type="button" (click)="addLine()"
-          style="background:none;border:1px dashed #aaa;padding:.375rem .75rem;border-radius:4px;cursor:pointer;color:#555;font-size:.875rem">
+          style="background:none;border:1.5px dashed var(--border-strong);padding:.375rem .875rem;border-radius:var(--radius-sm);cursor:pointer;color:var(--text-secondary);font-size:.875rem;font-family:var(--font-body)">
           + Add line
         </button>
-        <div style="display:flex;gap:2rem;font-size:.9rem">
+        <div style="display:flex;gap:2rem;font-size:.9rem;font-family:var(--font-mono)">
           <span>Debit: <strong>₦{{ totalDebit | number:'1.2-2' }}</strong></span>
           <span>Credit: <strong>₦{{ totalCredit | number:'1.2-2' }}</strong></span>
-          <span [style.color]="isBalanced ? '#10b981' : '#ef4444'" style="font-weight:700">
+          <span [style.color]="isBalanced ? '#10b981' : 'var(--danger)'" style="font-weight:700">
             {{ isBalanced ? '✓ Balanced' : '✗ Unbalanced' }}
           </span>
         </div>
       </div>
     </div>
 
-    <!-- Action buttons -->
+    <!-- Actions -->
     <div style="display:flex;gap:.75rem">
       <button type="button" (click)="save()" [disabled]="!form.valid || !isBalanced || saving"
-        style="padding:.625rem 1.25rem;background:#f0f0f5;border:1px solid #ccc;border-radius:4px;cursor:pointer">
+        class="btn-secondary" style="padding:.625rem 1.25rem">
         {{ saving ? 'Saving…' : (isEditMode ? 'Save Changes' : 'Save as Draft') }}
       </button>
       @if (isManagerOrAdmin) {
         <button type="button" (click)="saveAndPost()" [disabled]="!form.valid || !isBalanced || posting"
-          style="padding:.625rem 1.25rem;background:#1a73e8;color:white;border:none;border-radius:4px;cursor:pointer">
-          {{ posting ? 'Posting…' : (isEditMode ? 'Save & Post' : 'Save & Post') }}
+          class="btn-primary" style="padding:.625rem 1.25rem">
+          {{ posting ? 'Posting…' : 'Save & Post' }}
         </button>
       }
     </div>

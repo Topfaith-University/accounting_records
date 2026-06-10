@@ -1,0 +1,90 @@
+<div style="position:relative">
+  <input
+    type="text"
+    [(ngModel)]="searchText"
+    (input)="onInput()"
+    (focus)="showDropdown = true"
+    [placeholder]="placeholder"
+    autocomplete="off"
+    style="width:100%;padding:.5rem .75rem;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-family:var(--font-body);font-size:.875rem;box-sizing:border-box;background:var(--white)"
+  />
+
+  @if (showDropdown) {
+    <div style="position:absolute;z-index:1000;top:100%;left:0;right:0;background:var(--white);border:1.5px solid var(--border);border-radius:var(--radius-sm);box-shadow:0 4px 16px rgba(0,0,0,.12);max-height:200px;overflow-y:auto;margin-top:2px">
+      @for (bank of filteredBanks; track bank.bank_account_id) {
+        <div
+          (mousedown)="selectBank(bank)"
+          style="padding:.5rem .75rem;cursor:pointer;font-size:.875rem;border-bottom:1px solid var(--border)"
+          onmouseover="this.style.background='var(--navy-subtle)'"
+          onmouseout="this.style.background=''"
+        >
+          {{ bank.name }}
+          <span style="float:right;font-size:.75rem;color:var(--text-muted)">{{ bank.bank_name }}</span>
+        </div>
+      }
+      @if (filteredBanks.length === 0) {
+        <div style="padding:.5rem .75rem;font-size:.875rem;color:var(--text-muted);font-style:italic">No bank accounts match "{{ searchText }}"</div>
+      }
+      <div
+        (mousedown)="openCreateModal()"
+        style="padding:.5rem .75rem;cursor:pointer;font-size:.875rem;color:var(--navy-primary);font-weight:700;border-top:1.5px solid var(--border)"
+        onmouseover="this.style.background='var(--navy-subtle)'"
+        onmouseout="this.style.background=''"
+      >
+        + Create bank account…
+      </div>
+    </div>
+  }
+</div>
+
+@if (showModal) {
+  <div style="position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:2000;display:flex;align-items:center;justify-content:center" (click)="showModal = false">
+    <div style="background:var(--white);border-radius:var(--radius-lg);padding:1.5rem;width:460px;max-width:95vw;box-shadow:0 8px 32px rgba(0,0,0,.18)" (click)="$event.stopPropagation()">
+      <h3 style="margin:0 0 1.25rem;font-size:1.05rem;font-weight:700;color:var(--navy-deep)">New Bank Account</h3>
+      @if (createError) {
+        <p style="color:var(--danger);font-size:.85rem;margin:0 0 .75rem;padding:.5rem;background:rgba(239,68,68,.08);border-radius:var(--radius-sm)">{{ createError }}</p>
+      }
+      <div style="display:flex;flex-direction:column;gap:.75rem">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:.75rem">
+          <div>
+            <label style="display:block;font-size:.8rem;font-weight:600;color:var(--text-muted);margin-bottom:.25rem">Account Name *</label>
+            <input [(ngModel)]="newBank.name" placeholder="e.g. GTBank Current" style="width:100%;padding:.5rem .75rem;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-family:var(--font-body);font-size:.875rem;box-sizing:border-box" />
+          </div>
+          <div>
+            <label style="display:block;font-size:.8rem;font-weight:600;color:var(--text-muted);margin-bottom:.25rem">Bank Name *</label>
+            <input [(ngModel)]="newBank.bank_name" placeholder="e.g. GTBank" style="width:100%;padding:.5rem .75rem;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-family:var(--font-body);font-size:.875rem;box-sizing:border-box" />
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:.75rem">
+          <div>
+            <label style="display:block;font-size:.8rem;font-weight:600;color:var(--text-muted);margin-bottom:.25rem">Account Number</label>
+            <input [(ngModel)]="newBank.account_number" placeholder="0123456789" style="width:100%;padding:.5rem .75rem;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-family:var(--font-mono);font-size:.875rem;box-sizing:border-box" />
+          </div>
+          <div>
+            <label style="display:block;font-size:.8rem;font-weight:600;color:var(--text-muted);margin-bottom:.25rem">Opening Balance (₦)</label>
+            <input [(ngModel)]="newBank.opening_balance" type="number" min="0" step="0.01" style="width:100%;padding:.5rem .75rem;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-family:var(--font-mono);font-size:.875rem;box-sizing:border-box" />
+          </div>
+        </div>
+        <div>
+          <label style="display:block;font-size:.8rem;font-weight:600;color:var(--text-muted);margin-bottom:.25rem">Opening Balance Date *</label>
+          <input [(ngModel)]="newBank.opening_balance_date" type="date" style="width:100%;padding:.5rem .75rem;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-family:var(--font-body);font-size:.875rem;box-sizing:border-box" />
+        </div>
+        <div>
+          <label style="display:block;font-size:.8rem;font-weight:600;color:var(--text-muted);margin-bottom:.25rem">GL Account (Cash/Bank)</label>
+          <app-account-select
+            [ngModel]="newBank.gl_account_id"
+            (ngModelChange)="onGlAccountChange($event)"
+            placeholder="Search GL account (optional)…"
+          ></app-account-select>
+        </div>
+      </div>
+      <div style="display:flex;gap:.75rem;margin-top:1.25rem">
+        <button (click)="createAndSelect()" [disabled]="!newBank.name || !newBank.bank_name || !newBank.opening_balance_date || creatingBank"
+          style="flex:1;padding:.625rem;background:var(--navy-primary);color:#fff;border:none;border-radius:var(--radius-sm);cursor:pointer;font-weight:700;font-size:.875rem;font-family:var(--font-body)">
+          {{ creatingBank ? 'Creating…' : 'Create Bank Account' }}
+        </button>
+        <button (click)="showModal = false" style="padding:.625rem 1rem;border:1.5px solid var(--border);background:var(--white);border-radius:var(--radius-sm);cursor:pointer;font-size:.875rem;font-family:var(--font-body)">Cancel</button>
+      </div>
+    </div>
+  </div>
+}

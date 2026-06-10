@@ -56,13 +56,13 @@
           </div>
           <div class="form-full">
             <label style="display:block;font-size:0.85rem;color:var(--charcoal-light);margin-bottom:0.25rem;font-weight:500;">GL Account (Cash/Bank)</label>
-            <select [(ngModel)]="form.gl_account_id_input"
-              style="width:100%;padding:0.75rem;border:1px solid var(--gray-light);border-radius:var(--radius-sm);box-sizing:border-box;font-family:var(--font-sans);">
-              <option value="">— none —</option>
-              @for (acct of glAccounts; track acct.account_id) {
-                <option [value]="acct.account_id">{{ acct.code }} — {{ acct.name }}</option>
-              }
-            </select>
+            <app-account-select
+              [ngModel]="form.gl_account_id_input"
+              (ngModelChange)="onGlAccountChange($event)"
+              [allAccounts]="allAccounts"
+              (accountsChanged)="allAccounts = $event"
+              placeholder="Search GL account (optional)…"
+            ></app-account-select>
           </div>
         </div>
         <div style="display:flex;gap:0.75rem;margin-top:1rem;">

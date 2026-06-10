@@ -5,16 +5,17 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { JournalsService } from '../../services/journals.service';
 import { AccountsService } from '../../services/accounts.service';
 import { AuthService } from '../../services/auth.service';
+import { AccountSelectComponent } from '../../shared/account-select/account-select.component';
 
 @Component({
   selector: 'app-entry-form',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule],
+  imports: [CommonModule, ReactiveFormsModule, AccountSelectComponent],
   templateUrl: './entry-form.component.html',
 })
 export class EntryFormComponent implements OnInit {
   form!: FormGroup;
-  accounts: any[] = [];
+  allAccounts: any[] = [];
   saving = false;
   posting = false;
   error = '';
@@ -25,22 +26,15 @@ export class EntryFormComponent implements OnInit {
     return user?.roles.some((r: string) => ['Manager', 'Admin'].includes(r)) ?? false;
   }
 
-  get isEditMode(): boolean {
-    return !!this.entryId;
-  }
-
+  get isEditMode(): boolean { return !!this.entryId; }
   get lines(): FormArray { return this.form.get('lines') as FormArray; }
 
   get totalDebit(): number {
-    return this.lines.controls
-      .filter(l => l.value.side === 'DEBIT')
-      .reduce((sum, l) => sum + (Number(l.value.amount) || 0), 0);
+    return this.lines.controls.reduce((sum, l) => sum + (Number(l.value.debit_amount) || 0), 0);
   }
 
   get totalCredit(): number {
-    return this.lines.controls
-      .filter(l => l.value.side === 'CREDIT')
-      .reduce((sum, l) => sum + (Number(l.value.amount) || 0), 0);
+    return this.lines.controls.reduce((sum, l) => sum + (Number(l.value.credit_amount) || 0), 0);
   }
 
   get isBalanced(): boolean {
@@ -65,7 +59,7 @@ export class EntryFormComponent implements OnInit {
     });
     try {
       const data = await this.accountsService.getAll();
-      this.accounts = data.results ?? data;
+      this.allAccounts = data.results ?? data;
       this.entryId = this.route.snapshot.paramMap.get('id');
       if (this.entryId) {
         const entry = await this.journalsService.getEntry(this.entryId);
@@ -78,8 +72,8 @@ export class EntryFormComponent implements OnInit {
         for (const line of (entry.lines ?? [])) {
           this.lines.push(this.fb.group({
             account_id: [line.account_id ?? '', Validators.required],
-            side: [line.side ?? 'DEBIT', Validators.required],
-            amount: [line.amount ?? null, [Validators.required, Validators.min(0.01)]],
+            debit_amount: [line.side === 'DEBIT' ? line.amount : null],
+            credit_amount: [line.side === 'CREDIT' ? line.amount : null],
             description: [line.description ?? ''],
           }));
         }
@@ -96,8 +90,8 @@ export class EntryFormComponent implements OnInit {
   addLine(side: 'DEBIT' | 'CREDIT' = 'DEBIT') {
     this.lines.push(this.fb.group({
       account_id: ['', Validators.required],
-      side: [side, Validators.required],
-      amount: [null, [Validators.required, Validators.min(0.01)]],
+      debit_amount: [null],
+      credit_amount: [null],
       description: [''],
     }));
   }
@@ -106,14 +100,31 @@ export class EntryFormComponent implements OnInit {
     if (this.lines.length > 2) this.lines.removeAt(i);
   }
 
+  private buildPayload() {
+    const val = this.form.value;
+    return {
+      date: val.date,
+      description: val.description,
+      entry_type: val.entry_type,
+      lines: val.lines
+        .filter((l: any) => Number(l.debit_amount) > 0 || Number(l.credit_amount) > 0)
+        .map((l: any) => ({
+          account_id: l.account_id,
+          side: Number(l.debit_amount) > 0 ? 'DEBIT' : 'CREDIT',
+          amount: Number(l.debit_amount) > 0 ? Number(l.debit_amount) : Number(l.credit_amount),
+          description: l.description,
+        })),
+    };
+  }
+
   async save() {
     if (!this.form.valid || !this.isBalanced) return;
     this.saving = true;
     this.error = '';
     try {
       const entry = this.entryId
-        ? await this.journalsService.updateEntry(this.entryId, this.form.value)
-        : await this.journalsService.createEntry(this.form.value);
+        ? await this.journalsService.updateEntry(this.entryId, this.buildPayload())
+        : await this.journalsService.createEntry(this.buildPayload());
       this.router.navigate(['/journals', entry.entry_id]);
     } catch (e: any) {
       this.error = e.response?.data?.detail ?? (e.response?.data ? JSON.stringify(e.response.data) : 'Save failed.');
@@ -126,8 +137,8 @@ export class EntryFormComponent implements OnInit {
     this.error = '';
     try {
       const entry = this.entryId
-        ? await this.journalsService.updateEntry(this.entryId, this.form.value)
-        : await this.journalsService.createEntry(this.form.value);
+        ? await this.journalsService.updateEntry(this.entryId, this.buildPayload())
+        : await this.journalsService.createEntry(this.buildPayload());
       await this.journalsService.postEntry(entry.entry_id);
       this.router.navigate(['/journals', entry.entry_id]);
     } catch (e: any) {

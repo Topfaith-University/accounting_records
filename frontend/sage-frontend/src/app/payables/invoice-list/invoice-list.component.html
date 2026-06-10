@@ -42,11 +42,17 @@
           <td style="padding:.75rem 1rem;text-align:right">{{ inv.total_amount | number:'1.2-2' }}</td>
           <td style="padding:.75rem 1rem;text-align:right">{{ inv.amount_paid | number:'1.2-2' }}</td>
           <td style="padding:.75rem 1rem">
-            <span [style.color]="statusColor(inv.status)" style="font-weight:600;font-size:.8rem">{{ inv.status }}</span>
+            <span [ngStyle]="statusBadgeStyle(inv.status)">{{ inv.status }}</span>
           </td>
         </tr>
       } @empty {
-        <tr><td colspan="7" style="padding:1rem;text-align:center;color:#888">No invoices found.</td></tr>
+        <tr>
+          <td colspan="7" style="padding:2.5rem;text-align:center;color:var(--text-muted)">
+            No invoices found.
+            <br><br>
+            <a routerLink="/payables/invoices/new" class="btn-primary" style="padding:.5rem 1.25rem;font-size:.875rem;text-decoration:none">+ Create first invoice</a>
+          </td>
+        </tr>
       }
     </tbody>
   </table>

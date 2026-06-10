@@ -5,22 +5,25 @@ import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import { BankTransactionsService } from '../../services/bank-transactions.service';
 import { BanksService } from '../../services/banks.service';
 import { AccountsService } from '../../services/accounts.service';
+import { AccountSelectComponent } from '../../shared/account-select/account-select.component';
+import { BankSelectComponent } from '../../shared/bank-select/bank-select.component';
 
 @Component({
   selector: 'app-bank-transaction-form',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, RouterModule],
+  imports: [CommonModule, ReactiveFormsModule, RouterModule, AccountSelectComponent, BankSelectComponent],
   templateUrl: './bank-transaction-form.component.html',
 })
 export class BankTransactionFormComponent implements OnInit {
   form!: FormGroup;
-  banks: any[] = [];
-  accounts: any[] = [];
+  allBanks: any[] = [];
+  allAccounts: any[] = [];
   saving = false;
   error = '';
 
   get splits(): FormArray { return this.form.get('splits') as FormArray; }
   get transactionType(): string { return this.form.get('transaction_type')?.value ?? ''; }
+  get sourceBankId(): string { return this.form.get('source_bank_id')?.value ?? ''; }
   get totalSplits(): number {
     return this.splits.controls.reduce((sum, c) => sum + (Number(c.value.amount) || 0), 0);
   }
@@ -51,8 +54,8 @@ export class BankTransactionFormComponent implements OnInit {
         this.banksService.getAccounts(),
         this.accountsService.getAll(),
       ]);
-      this.banks = banks.results ?? banks;
-      this.accounts = accounts.results ?? accounts;
+      this.allBanks = banks.results ?? banks;
+      this.allAccounts = accounts.results ?? accounts;
     } catch {
       this.error = 'Failed to load reference data.';
     }
@@ -83,14 +86,8 @@ export class BankTransactionFormComponent implements OnInit {
     if (this.form.invalid) return;
     const val = this.form.value;
     if (val.transaction_type === 'TRANSFER') {
-      if (!val.destination_bank_id) {
-        this.error = 'Please select a destination bank account.';
-        return;
-      }
-      if (!val.transfer_amount || Number(val.transfer_amount) <= 0) {
-        this.error = 'Please enter a transfer amount greater than 0.';
-        return;
-      }
+      if (!val.destination_bank_id) { this.error = 'Please select a destination bank account.'; return; }
+      if (!val.transfer_amount || Number(val.transfer_amount) <= 0) { this.error = 'Please enter a transfer amount greater than 0.'; return; }
     }
     this.saving = true;
     this.error = '';

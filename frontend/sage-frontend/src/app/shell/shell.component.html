@@ -11,14 +11,22 @@
       <a routerLink="/dashboard" routerLinkActive="active-link" [routerLinkActiveOptions]="{exact:true}"
          class="nav-link">Dashboard</a>
 
-      <!-- General Ledger -->
+      <!-- Ledger -->
       <button class="nav-section-btn" (click)="toggle('gl')">
-        General Ledger
+        Ledger
         <span class="nav-chevron" [style.transform]="open['gl'] ? 'rotate(90deg)' : 'rotate(0deg)'">&#9654;</span>
       </button>
       @if (open['gl']) {
         <a routerLink="/accounts" routerLinkActive="active-link" class="nav-child-link">Chart of Accounts</a>
         <a routerLink="/journals" routerLinkActive="active-link" class="nav-child-link">Journal Entries</a>
+      }
+
+      <!-- Banking -->
+      <button class="nav-section-btn" (click)="toggle('banking')" style="margin-top:.25rem">
+        Banking
+        <span class="nav-chevron" [style.transform]="open['banking'] ? 'rotate(90deg)' : 'rotate(0deg)'">&#9654;</span>
+      </button>
+      @if (open['banking']) {
         <a routerLink="/banks" routerLinkActive="active-link" class="nav-child-link">Bank Accounts</a>
         <a routerLink="/banks/transactions" routerLinkActive="active-link" class="nav-child-link">Transactions</a>
       }

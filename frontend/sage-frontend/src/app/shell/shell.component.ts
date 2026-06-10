@@ -12,6 +12,7 @@ import { AuthService } from '../services/auth.service';
 export class ShellComponent {
   open: Record<string, boolean> = {
     gl: true,
+    banking: false,
     reports: false,
     payables: false,
     receivables: false,

@@ -71,7 +71,13 @@
           </td>
         </tr>
       } @empty {
-        <tr><td colspan="4" style="padding:1rem;text-align:center;color:#888">No vendors yet.</td></tr>
+        <tr>
+          <td colspan="4" style="padding:2.5rem;text-align:center;color:var(--text-muted)">
+            No vendors yet.
+            <br><br>
+            <button (click)="showForm = true" class="btn-primary" style="padding:.5rem 1.25rem;font-size:.875rem">+ Add first vendor</button>
+          </td>
+        </tr>
       }
     </tbody>
   </table>
