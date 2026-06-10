@@ -17,6 +17,7 @@ export class PurchaseInvoiceFormComponent implements OnInit {
   vendors: any[] = [];
   accounts: any[] = [];
   allAccounts: any[] = [];
+  items: any[] = [];
   saving = false;
   error = '';
   invoiceId: string | null = null;
@@ -50,13 +51,15 @@ export class PurchaseInvoiceFormComponent implements OnInit {
     });
     this.addLine();
     try {
-      const [vendorData, accountData] = await Promise.all([
+      const [vendorData, accountData, itemData] = await Promise.all([
         this.payables.getVendors(),
         this.accountsService.getAll(),
+        this.payables.getItems(),
       ]);
       this.vendors = vendorData.results ?? vendorData;
       this.accounts = accountData.results ?? accountData;
       this.allAccounts = [...this.accounts];
+      this.items = itemData.results ?? itemData;
       this.invoiceId = this.route.snapshot.paramMap.get('id');
       if (this.invoiceId) {
         const invoice = await this.payables.getInvoice(this.invoiceId);
@@ -94,6 +97,16 @@ export class PurchaseInvoiceFormComponent implements OnInit {
 
   removeLine(i: number) {
     if (this.lines.length > 1) this.lines.removeAt(i);
+  }
+
+  applyItem(index: number, itemId: string) {
+    const item = this.items.find(i => i.item_id === itemId);
+    if (!item) return;
+    this.lines.at(index).patchValue({
+      expense_account_id: item.expense_account_id ?? '',
+      description: item.name,
+      amount: item.unit_price ?? null,
+    });
   }
 
   async save() {

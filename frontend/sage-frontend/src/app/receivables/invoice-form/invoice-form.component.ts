@@ -4,6 +4,7 @@ import { ReactiveFormsModule, FormBuilder, FormGroup, FormArray, Validators } fr
 import { ActivatedRoute, Router } from '@angular/router';
 import { ReceivablesService } from '../../services/receivables.service';
 import { AccountsService } from '../../services/accounts.service';
+import { PayablesService } from '../../services/payables.service';
 import { AccountSelectComponent } from '../../shared/account-select/account-select.component';
 
 @Component({
@@ -17,6 +18,7 @@ export class SalesInvoiceFormComponent implements OnInit {
   customers: any[] = [];
   accounts: any[] = [];
   allAccounts: any[] = [];
+  items: any[] = [];
   saving = false;
   error = '';
   invoiceId: string | null = null;
@@ -35,6 +37,7 @@ export class SalesInvoiceFormComponent implements OnInit {
     private fb: FormBuilder,
     private receivables: ReceivablesService,
     private accountsService: AccountsService,
+    private payables: PayablesService,
     private route: ActivatedRoute,
     private router: Router,
   ) {}
@@ -50,13 +53,15 @@ export class SalesInvoiceFormComponent implements OnInit {
     });
     this.addLine();
     try {
-      const [customerData, accountData] = await Promise.all([
+      const [customerData, accountData, itemData] = await Promise.all([
         this.receivables.getCustomers(),
         this.accountsService.getAll(),
+        this.payables.getItems(),
       ]);
       this.customers = customerData.results ?? customerData;
       this.accounts = accountData.results ?? accountData;
       this.allAccounts = [...this.accounts];
+      this.items = itemData.results ?? itemData;
       this.invoiceId = this.route.snapshot.paramMap.get('id');
       if (this.invoiceId) {
         const invoice = await this.receivables.getInvoice(this.invoiceId);
@@ -94,6 +99,16 @@ export class SalesInvoiceFormComponent implements OnInit {
 
   removeLine(i: number) {
     if (this.lines.length > 1) this.lines.removeAt(i);
+  }
+
+  applyItem(index: number, itemId: string) {
+    const item = this.items.find(i => i.item_id === itemId);
+    if (!item) return;
+    this.lines.at(index).patchValue({
+      revenue_account_id: item.revenue_account_id ?? '',
+      description: item.name,
+      amount: item.unit_price ?? null,
+    });
   }
 
   async save() {

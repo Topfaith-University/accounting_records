@@ -19,4 +19,10 @@ export class PayablesService {
   postInvoice(id: string) { return axios.post(this.base + `invoices/${id}/post/`).then(r => r.data); }
   voidInvoice(id: string) { return axios.post(this.base + `invoices/${id}/void/`).then(r => r.data); }
   payInvoice(id: string, data: object) { return axios.post(this.base + `invoices/${id}/pay/`, data).then(r => r.data); }
+
+  getItems() { return axios.get(this.base + 'items/').then(r => r.data); }
+  getItem(id: string) { return axios.get(this.base + `items/${id}/`).then(r => r.data); }
+  createItem(data: object) { return axios.post(this.base + 'items/', data).then(r => r.data); }
+  updateItem(id: string, data: object) { return axios.patch(this.base + `items/${id}/`, data).then(r => r.data); }
+  deleteItem(id: string) { return axios.delete(this.base + `items/${id}/`).then(r => r.data); }
 }

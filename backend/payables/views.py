@@ -2,9 +2,20 @@ from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
-from .models import Vendor, PurchaseInvoice, APPayment
-from .serializers import VendorSerializer, PurchaseInvoiceSerializer, APPaymentSerializer, PurchaseInvoiceLineSerializer
+from .models import Vendor, PurchaseInvoice, APPayment, Item
+from .serializers import VendorSerializer, PurchaseInvoiceSerializer, APPaymentSerializer, PurchaseInvoiceLineSerializer, ItemSerializer
 from . import services
+
+
+def _serialize_item(item):
+    data = ItemSerializer(item).data
+    vendor = item.vendor.single()
+    expense_account = item.expense_account.single()
+    revenue_account = item.revenue_account.single()
+    data['vendor_id'] = vendor.vendor_id if vendor else None
+    data['expense_account_id'] = expense_account.account_id if expense_account else None
+    data['revenue_account_id'] = revenue_account.account_id if revenue_account else None
+    return data
 
 
 def _serialize_invoice(invoice):
@@ -155,3 +166,40 @@ class PurchaseInvoiceViewSet(viewsets.ViewSet):
         except Exception as e:
             return Response({'detail': str(e)}, status=status.HTTP_400_BAD_REQUEST)
         return Response(APPaymentSerializer(payment).data, status=status.HTTP_201_CREATED)
+
+
+class ItemViewSet(viewsets.ViewSet):
+    permission_classes = [IsAuthenticated]
+
+    def list(self, request):
+        items = [i for i in Item.nodes.all() if i.is_active]
+        return Response([_serialize_item(i) for i in items])
+
+    def retrieve(self, request, pk=None):
+        item = Item.nodes.get_or_none(item_id=pk)
+        if not item:
+            return Response({'detail': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
+        return Response(_serialize_item(item))
+
+    def create(self, request):
+        serializer = ItemSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        item = serializer.save()
+        return Response(_serialize_item(item), status=status.HTTP_201_CREATED)
+
+    def partial_update(self, request, pk=None):
+        item = Item.nodes.get_or_none(item_id=pk)
+        if not item:
+            return Response({'detail': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
+        serializer = ItemSerializer(item, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        item = serializer.save()
+        return Response(_serialize_item(item))
+
+    def destroy(self, request, pk=None):
+        item = Item.nodes.get_or_none(item_id=pk)
+        if not item:
+            return Response({'detail': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
+        item.is_active = False
+        item.save()
+        return Response(status=status.HTTP_204_NO_CONTENT)

@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Vendor, PurchaseInvoice, PurchaseInvoiceLine, APPayment
+from .models import Vendor, PurchaseInvoice, PurchaseInvoiceLine, APPayment, Item
 
 
 def _next_invoice_number(prefix: str, label: str) -> str:
@@ -178,6 +178,102 @@ class PurchaseInvoiceSerializer(serializers.Serializer):
                 if expense_account:
                     line.expense_account.connect(expense_account)
 
+        return instance
+
+
+class ItemSerializer(serializers.Serializer):
+    item_id = serializers.CharField(read_only=True)
+    name = serializers.CharField(max_length=200)
+    description = serializers.CharField(default='', allow_blank=True)
+    unit_price = serializers.FloatField(default=0.0, min_value=0)
+    item_type = serializers.ChoiceField(choices=['PRODUCT', 'SERVICE'], default='SERVICE')
+    is_active = serializers.BooleanField(default=True)
+    created_at = serializers.DateTimeField(read_only=True)
+
+    vendor_id = serializers.CharField(write_only=True, allow_null=True, allow_blank=True, required=False)
+    expense_account_id = serializers.CharField(write_only=True, allow_null=True, allow_blank=True, required=False)
+    revenue_account_id = serializers.CharField(write_only=True, allow_null=True, allow_blank=True, required=False)
+
+    vendor_name = serializers.SerializerMethodField()
+    expense_account_label = serializers.SerializerMethodField()
+    revenue_account_label = serializers.SerializerMethodField()
+
+    def get_vendor_name(self, obj):
+        try:
+            v = obj.vendor.single()
+            return v.name if v else None
+        except Exception:
+            return None
+
+    def get_expense_account_label(self, obj):
+        try:
+            a = obj.expense_account.single()
+            return f'{a.code} — {a.name}' if a else None
+        except Exception:
+            return None
+
+    def get_revenue_account_label(self, obj):
+        try:
+            a = obj.revenue_account.single()
+            return f'{a.code} — {a.name}' if a else None
+        except Exception:
+            return None
+
+    def _connect_relations(self, instance, vendor_id, expense_account_id, revenue_account_id):
+        from accounts.models import Account
+        if vendor_id is not None:
+            current = instance.vendor.single()
+            if current:
+                instance.vendor.disconnect(current)
+            if vendor_id:
+                vendor = Vendor.nodes.get_or_none(vendor_id=vendor_id)
+                if vendor:
+                    instance.vendor.connect(vendor)
+        if expense_account_id is not None:
+            current = instance.expense_account.single()
+            if current:
+                instance.expense_account.disconnect(current)
+            if expense_account_id:
+                acct = Account.nodes.get_or_none(account_id=expense_account_id)
+                if acct:
+                    instance.expense_account.connect(acct)
+        if revenue_account_id is not None:
+            current = instance.revenue_account.single()
+            if current:
+                instance.revenue_account.disconnect(current)
+            if revenue_account_id:
+                acct = Account.nodes.get_or_none(account_id=revenue_account_id)
+                if acct:
+                    instance.revenue_account.connect(acct)
+
+    def create(self, validated_data):
+        vendor_id = validated_data.pop('vendor_id', None)
+        expense_account_id = validated_data.pop('expense_account_id', None)
+        revenue_account_id = validated_data.pop('revenue_account_id', None)
+        item = Item(**validated_data)
+        item.save()
+        self._connect_relations(item, vendor_id, expense_account_id, revenue_account_id)
+        return item
+
+    def update(self, instance, validated_data):
+        vendor_id_present = 'vendor_id' in validated_data
+        expense_account_id_present = 'expense_account_id' in validated_data
+        revenue_account_id_present = 'revenue_account_id' in validated_data
+
+        vendor_id = validated_data.pop('vendor_id', None)
+        expense_account_id = validated_data.pop('expense_account_id', None)
+        revenue_account_id = validated_data.pop('revenue_account_id', None)
+
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        instance.save()
+
+        self._connect_relations(
+            instance,
+            vendor_id if vendor_id_present else None,
+            expense_account_id if expense_account_id_present else None,
+            revenue_account_id if revenue_account_id_present else None,
+        )
         return instance
 
 

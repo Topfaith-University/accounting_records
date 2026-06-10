@@ -1,0 +1,120 @@
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem">
+  <h2 class="page-title" style="margin:0">Items</h2>
+  <button (click)="showForm ? cancelForm() : (showForm = true)" class="btn-primary" style="padding:.5rem 1rem">
+    {{ showForm ? 'Cancel' : '+ New Item' }}
+  </button>
+</div>
+
+@if (showForm) {
+  <div class="card" style="padding:1.25rem;margin-bottom:1rem;overflow:visible">
+    <h3 style="margin:0 0 1rem;font-size:1rem;font-weight:700">{{ editingItemId ? 'Edit Item' : 'New Item' }}</h3>
+    @if (formError) { <p style="color:var(--danger);margin-bottom:.75rem;font-size:.875rem">{{ formError }}</p> }
+    <form [formGroup]="form" style="display:grid;grid-template-columns:1fr 1fr;gap:.75rem">
+      <div>
+        <label style="display:block;font-size:.8rem;font-weight:700;color:var(--text-muted);margin-bottom:.3rem">Name *</label>
+        <input formControlName="name" placeholder="e.g. Tutoring service"
+          style="width:100%;padding:.5rem;border:1.5px solid var(--border);border-radius:var(--radius-sm);box-sizing:border-box;font-family:var(--font-body);font-size:.875rem" />
+      </div>
+      <div>
+        <label style="display:block;font-size:.8rem;font-weight:700;color:var(--text-muted);margin-bottom:.3rem">Type</label>
+        <select formControlName="item_type"
+          style="width:100%;padding:.5rem;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-family:var(--font-body);font-size:.875rem">
+          <option value="SERVICE">Service</option>
+          <option value="PRODUCT">Product</option>
+        </select>
+      </div>
+      <div>
+        <label style="display:block;font-size:.8rem;font-weight:700;color:var(--text-muted);margin-bottom:.3rem">Unit Price (₦)</label>
+        <input formControlName="unit_price" type="number" min="0" step="0.01" placeholder="0.00"
+          style="width:100%;padding:.5rem;border:1.5px solid var(--border);border-radius:var(--radius-sm);box-sizing:border-box;font-family:var(--font-mono);font-size:.875rem;text-align:right" />
+      </div>
+      <div>
+        <label style="display:block;font-size:.8rem;font-weight:700;color:var(--text-muted);margin-bottom:.3rem">Preferred Vendor</label>
+        <select formControlName="vendor_id"
+          style="width:100%;padding:.5rem;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-family:var(--font-body);font-size:.875rem">
+          <option value="">— none —</option>
+          @for (v of vendors; track v.vendor_id) {
+            <option [value]="v.vendor_id">{{ v.name }}</option>
+          }
+        </select>
+      </div>
+      <div style="overflow:visible">
+        <label style="display:block;font-size:.8rem;font-weight:700;color:var(--text-muted);margin-bottom:.3rem">Default Expense Account</label>
+        <app-account-select
+          formControlName="expense_account_id"
+          [allAccounts]="allAccounts"
+          (accountsChanged)="allAccounts = $event"
+          placeholder="Search expense account…"
+        ></app-account-select>
+      </div>
+      <div style="overflow:visible">
+        <label style="display:block;font-size:.8rem;font-weight:700;color:var(--text-muted);margin-bottom:.3rem">Default Revenue Account</label>
+        <app-account-select
+          formControlName="revenue_account_id"
+          [allAccounts]="allAccounts"
+          (accountsChanged)="allAccounts = $event"
+          placeholder="Search revenue account…"
+        ></app-account-select>
+      </div>
+      <div style="grid-column:1/-1">
+        <label style="display:block;font-size:.8rem;font-weight:700;color:var(--text-muted);margin-bottom:.3rem">Description</label>
+        <input formControlName="description" placeholder="Optional description"
+          style="width:100%;padding:.5rem;border:1.5px solid var(--border);border-radius:var(--radius-sm);box-sizing:border-box;font-family:var(--font-body);font-size:.875rem" />
+      </div>
+      <div style="grid-column:1/-1">
+        <button type="button" (click)="submit()" [disabled]="!form.valid || saving" class="btn-primary" style="padding:.5rem 1.25rem">
+          {{ saving ? 'Saving…' : (editingItemId ? 'Update Item' : 'Save Item') }}
+        </button>
+      </div>
+    </form>
+  </div>
+}
+
+@if (loading) { <p>Loading…</p> }
+@if (error) { <p style="color:var(--danger)">{{ error }}</p> }
+@if (!loading && !error) {
+  <div class="card" style="overflow:hidden">
+    <table style="width:100%;border-collapse:collapse">
+      <thead style="background:var(--navy-subtle)">
+        <tr>
+          <th style="text-align:left;padding:.75rem 1rem;font-size:.8rem;font-weight:700;color:var(--navy-deep)">Name</th>
+          <th style="text-align:left;padding:.75rem 1rem;font-size:.8rem;font-weight:700;color:var(--navy-deep)">Type</th>
+          <th style="text-align:right;padding:.75rem 1rem;font-size:.8rem;font-weight:700;color:var(--navy-deep)">Unit Price</th>
+          <th style="text-align:left;padding:.75rem 1rem;font-size:.8rem;font-weight:700;color:var(--navy-deep)">Vendor</th>
+          <th style="text-align:left;padding:.75rem 1rem;font-size:.8rem;font-weight:700;color:var(--navy-deep)">Expense Account</th>
+          <th style="text-align:left;padding:.75rem 1rem;font-size:.8rem;font-weight:700;color:var(--navy-deep)">Revenue Account</th>
+          <th style="text-align:right;padding:.75rem 1rem;font-size:.8rem;font-weight:700;color:var(--navy-deep)">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (item of items; track item.item_id) {
+          <tr style="border-top:1px solid var(--border)">
+            <td style="padding:.75rem 1rem;font-weight:500">{{ item.name }}</td>
+            <td style="padding:.75rem 1rem;color:var(--text-secondary);font-size:.85rem">{{ item.item_type }}</td>
+            <td style="padding:.75rem 1rem;text-align:right;font-family:var(--font-mono);font-size:.875rem">₦{{ item.unit_price | number:'1.2-2' }}</td>
+            <td style="padding:.75rem 1rem;color:var(--text-secondary);font-size:.85rem">{{ item.vendor_name ?? '—' }}</td>
+            <td style="padding:.75rem 1rem;color:var(--text-secondary);font-size:.8rem">{{ item.expense_account_label ?? '—' }}</td>
+            <td style="padding:.75rem 1rem;color:var(--text-secondary);font-size:.8rem">{{ item.revenue_account_label ?? '—' }}</td>
+            <td style="padding:.75rem 1rem;text-align:right">
+              <button (click)="startEdit(item)"
+                style="margin-right:.5rem;padding:.35rem .75rem;background:none;border:1.5px solid var(--border);border-radius:var(--radius-sm);cursor:pointer;font-size:.8rem">
+                Edit
+              </button>
+              <button (click)="deleteItem(item)"
+                style="padding:.35rem .75rem;background:#fff1f2;color:var(--danger);border:1.5px solid #fecdca;border-radius:var(--radius-sm);cursor:pointer;font-size:.8rem">
+                Delete
+              </button>
+            </td>
+          </tr>
+        } @empty {
+          <tr>
+            <td colspan="7" style="padding:2.5rem;text-align:center;color:var(--text-muted)">
+              No items yet.<br><br>
+              <button (click)="showForm = true" class="btn-primary" style="padding:.5rem 1.25rem;font-size:.875rem">+ Create first item</button>
+            </td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  </div>
+}

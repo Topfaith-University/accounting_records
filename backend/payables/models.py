@@ -47,6 +47,23 @@ class PurchaseInvoiceLine(StructuredNode):
     expense_account = RelationshipTo('accounts.models.Account', 'CHARGES_EXPENSE', cardinality=One)
 
 
+class Item(StructuredNode):
+    item_id = UniqueIdProperty()
+    name = StringProperty(required=True)
+    description = StringProperty(default='')
+    unit_price = FloatProperty(default=0.0)
+    item_type = StringProperty(
+        choices=[('PRODUCT', 'Product'), ('SERVICE', 'Service')],
+        default='SERVICE'
+    )
+    is_active = BooleanProperty(default=True)
+    created_at = DateTimeProperty(default_now=True)
+
+    vendor = RelationshipTo('Vendor', 'SUPPLIED_BY', cardinality=ZeroOrOne)
+    expense_account = RelationshipTo('accounts.models.Account', 'DEFAULT_EXPENSE', cardinality=ZeroOrOne)
+    revenue_account = RelationshipTo('accounts.models.Account', 'DEFAULT_REVENUE', cardinality=ZeroOrOne)
+
+
 class APPayment(StructuredNode):
     payment_id = UniqueIdProperty()
     payment_date = DateProperty(required=True)

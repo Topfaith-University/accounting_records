@@ -69,6 +69,7 @@ export const routes: Routes = [
       { path: 'payables/invoices/:id/edit', loadComponent: () => import('./payables/invoice-form/invoice-form.component').then(m => m.PurchaseInvoiceFormComponent) },
       { path: 'payables/invoices/:id', loadComponent: () => import('./payables/invoice-detail/invoice-detail.component').then(m => m.InvoiceDetailComponent) },
       { path: 'payables/invoices', loadComponent: () => import('./payables/invoice-list/invoice-list.component').then(m => m.InvoiceListComponent) },
+      { path: 'payables/items', loadComponent: () => import('./payables/item-list/item-list.component').then(m => m.ItemListComponent) },
       { path: 'payables/vendors', loadComponent: () => import('./payables/vendor-list/vendor-list.component').then(m => m.VendorListComponent) },
       // Receivables
       { path: 'receivables/invoices/new', loadComponent: () => import('./receivables/invoice-form/invoice-form.component').then(m => m.SalesInvoiceFormComponent) },
