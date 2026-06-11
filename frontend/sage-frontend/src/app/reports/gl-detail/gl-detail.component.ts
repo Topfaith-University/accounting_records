@@ -3,15 +3,17 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ReportsService } from '../../services/reports.service';
 import { AccountsService } from '../../services/accounts.service';
+import { AccountSelectComponent } from '../../shared/account-select/account-select.component';
 
 @Component({
   selector: 'app-gl-detail',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, AccountSelectComponent],
   templateUrl: './gl-detail.component.html',
 })
 export class GlDetailComponent implements OnInit {
   accounts: any[] = [];
+  allAccounts: any[] = [];
   accountId = '';
   dateFrom = '';
   dateTo = '';
@@ -25,6 +27,7 @@ export class GlDetailComponent implements OnInit {
     try {
       const result = await this.accountsService.getAll();
       this.accounts = result.results ?? result;
+      this.allAccounts = [...this.accounts];
     } catch {
       this.error = 'Could not load accounts list.';
     }

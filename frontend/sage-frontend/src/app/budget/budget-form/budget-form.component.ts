@@ -4,16 +4,18 @@ import { ReactiveFormsModule, FormBuilder, FormGroup, FormArray, Validators } fr
 import { Router } from '@angular/router';
 import { BudgetService } from '../../services/budget.service';
 import { AccountsService } from '../../services/accounts.service';
+import { AccountSelectComponent } from '../../shared/account-select/account-select.component';
 
 @Component({
   selector: 'app-budget-form',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule],
+  imports: [CommonModule, ReactiveFormsModule, AccountSelectComponent],
   templateUrl: './budget-form.component.html',
 })
 export class BudgetFormComponent implements OnInit {
   form!: FormGroup;
   accounts: any[] = [];
+  allAccounts: any[] = [];
   saving = false;
   error = '';
 
@@ -40,6 +42,7 @@ export class BudgetFormComponent implements OnInit {
     try {
       const data = await this.accountsService.getAll();
       this.accounts = data.results ?? data;
+      this.allAccounts = [...this.accounts];
     } catch {
       this.error = 'Failed to load accounts.';
     }

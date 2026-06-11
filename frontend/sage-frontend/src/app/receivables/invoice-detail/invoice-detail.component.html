@@ -102,15 +102,14 @@
               <input formControlName="reference" placeholder="TXN/receipt ref"
                 style="width:100%;padding:.5rem;border:1px solid #ccc;border-radius:4px;box-sizing:border-box" />
             </div>
-            <div>
+            <div style="overflow:visible">
               <label style="display:block;font-size:.8rem;color:#555;margin-bottom:.25rem">Bank Account *</label>
-              <select formControlName="bank_account_id"
-                style="width:100%;padding:.5rem;border:1px solid #ccc;border-radius:4px">
-                <option value="">— select —</option>
-                @for (ba of bankAccounts; track ba.bank_account_id) {
-                  <option [value]="ba.bank_account_id">{{ ba.account_name }}</option>
-                }
-              </select>
+              <app-bank-select
+                formControlName="bank_account_id"
+                [allBanks]="allBanks"
+                (banksChanged)="allBanks = $event"
+                placeholder="Search bank account…"
+              ></app-bank-select>
             </div>
             <div style="grid-column:1/-1">
               <button type="submit" [disabled]="!receiveForm.valid || receiving"

@@ -2,14 +2,14 @@
   <h2 style="margin:0 0 1.5rem">GL Detail</h2>
 
   <div style="display:flex;gap:1rem;align-items:flex-end;flex-wrap:wrap;margin-bottom:1rem;background:white;padding:1rem;border-radius:8px;box-shadow:0 1px 4px rgba(0,0,0,.1)">
-    <div>
+    <div style="min-width:260px;overflow:visible">
       <label style="display:block;font-size:.8rem;color:#555;margin-bottom:.25rem">Account</label>
-      <select [(ngModel)]="accountId" style="padding:.5rem;border:1px solid #ccc;border-radius:4px;min-width:220px">
-        <option value="">— select account —</option>
-        @for (a of accounts; track a.account_id) {
-          <option [value]="a.account_id">{{ a.code }} — {{ a.name }}</option>
-        }
-      </select>
+      <app-account-select
+        [(ngModel)]="accountId"
+        [allAccounts]="allAccounts"
+        (accountsChanged)="allAccounts = $event"
+        placeholder="Search account…"
+      ></app-account-select>
     </div>
     <div>
       <label style="display:block;font-size:.8rem;color:#555;margin-bottom:.25rem">From</label>

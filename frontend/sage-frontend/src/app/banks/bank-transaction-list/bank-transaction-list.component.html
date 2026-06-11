@@ -5,13 +5,15 @@
 
 <div style="display:flex;align-items:center;gap:1rem;margin-bottom:1.25rem">
   <label style="font-size:.85rem;color:var(--text-secondary);font-weight:600">Filter by bank:</label>
-  <select [(ngModel)]="selectedBankId" (ngModelChange)="filterByBank()"
-    style="padding:.45rem .75rem;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-family:var(--font-body);font-size:.875rem;background:var(--white);color:var(--text-primary)">
-    <option value="">All banks</option>
-    @for (bank of banks; track bank.bank_account_id) {
-      <option [value]="bank.bank_account_id">{{ bank.name }}</option>
-    }
-  </select>
+  <div style="min-width:240px;overflow:visible">
+    <app-bank-select
+      [(ngModel)]="selectedBankId"
+      (ngModelChange)="filterByBank()"
+      [allBanks]="allBanks"
+      (banksChanged)="allBanks = $event"
+      placeholder="All banks"
+    ></app-bank-select>
+  </div>
 </div>
 
 @if (loading) { <p style="color:var(--text-muted)">Loading…</p> }

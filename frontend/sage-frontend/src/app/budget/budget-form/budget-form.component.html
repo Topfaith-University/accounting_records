@@ -30,14 +30,13 @@
         <tbody formArrayName="lines">
           @for (line of lines.controls; track $index) {
             <tr [formGroupName]="$index" style="border-top:1px solid #eee">
-              <td style="padding:.5rem 1rem">
-                <select formControlName="account_id"
-                  style="width:100%;padding:.375rem;border:1px solid #ccc;border-radius:4px">
-                  <option value="">— select account —</option>
-                  @for (a of accounts; track a.account_id) {
-                    <option [value]="a.account_id">{{ a.code }} — {{ a.name }}</option>
-                  }
-                </select>
+              <td style="padding:.5rem 1rem;overflow:visible">
+                <app-account-select
+                  formControlName="account_id"
+                  [allAccounts]="allAccounts"
+                  (accountsChanged)="allAccounts = $event"
+                  placeholder="Search account…"
+                ></app-account-select>
               </td>
               <td style="padding:.5rem 1rem">
                 <input formControlName="budgeted_amount" type="number" min="0.01" step="0.01" placeholder="0.00"

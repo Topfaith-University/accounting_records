@@ -5,11 +5,12 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { ReceivablesService } from '../../services/receivables.service';
 import { AuthService } from '../../services/auth.service';
 import { BanksService } from '../../services/banks.service';
+import { BankSelectComponent } from '../../shared/bank-select/bank-select.component';
 
 @Component({
   selector: 'app-sales-invoice-detail',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule],
+  imports: [CommonModule, ReactiveFormsModule, BankSelectComponent],
   templateUrl: './invoice-detail.component.html',
 })
 export class SalesInvoiceDetailComponent implements OnInit {
@@ -17,7 +18,7 @@ export class SalesInvoiceDetailComponent implements OnInit {
   loading = true;
   error = '';
   actionError = '';
-  bankAccounts: any[] = [];
+  allBanks: any[] = [];
   showReceiveForm = false;
   receiving = false;
   receiveForm!: FormGroup;
@@ -50,7 +51,7 @@ export class SalesInvoiceDetailComponent implements OnInit {
       bank_account_id: ['', Validators.required],
     });
     try {
-      [this.invoice, this.bankAccounts] = await Promise.all([
+      [this.invoice, this.allBanks] = await Promise.all([
         this.receivables.getInvoice(id),
         this.banks.getAccounts().then((d: any) => d.results ?? d),
       ]);
