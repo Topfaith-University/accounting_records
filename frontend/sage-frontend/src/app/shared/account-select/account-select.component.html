@@ -11,6 +11,14 @@
 
   @if (showDropdown) {
     <div style="position:absolute;z-index:1000;top:100%;left:0;right:0;background:var(--white);border:1.5px solid var(--border);border-radius:var(--radius-sm);box-shadow:0 4px 16px rgba(0,0,0,.12);max-height:220px;overflow-y:auto;margin-top:2px">
+      <div
+        (mousedown)="openCreateModal()"
+        style="padding:.5rem .75rem;cursor:pointer;font-size:.875rem;color:var(--navy-primary);font-weight:700;border-bottom:1.5px solid var(--border)"
+        onmouseover="this.style.background='var(--navy-subtle)'"
+        onmouseout="this.style.background=''"
+      >
+        + Create account…
+      </div>
       @for (acct of filteredAccounts; track acct.account_id) {
         <div
           (mousedown)="selectAccount(acct)"
@@ -26,14 +34,6 @@
       @if (filteredAccounts.length === 0) {
         <div style="padding:.5rem .75rem;font-size:.875rem;color:var(--text-muted);font-style:italic">No accounts match "{{ searchText }}"</div>
       }
-      <div
-        (mousedown)="openCreateModal()"
-        style="padding:.5rem .75rem;cursor:pointer;font-size:.875rem;color:var(--navy-primary);font-weight:700;border-top:1.5px solid var(--border)"
-        onmouseover="this.style.background='var(--navy-subtle)'"
-        onmouseout="this.style.background=''"
-      >
-        + Create account…
-      </div>
     </div>
   }
 </div>
