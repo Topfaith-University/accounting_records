@@ -5,7 +5,7 @@ from .models import BankAccount
 class BankAccountSerializer(serializers.Serializer):
     bank_account_id = serializers.CharField(read_only=True)
     name = serializers.CharField(max_length=200)
-    account_number = serializers.CharField(max_length=50)
+    account_number = serializers.CharField(max_length=50, required=False, allow_blank=True, default='')
     bank_name = serializers.CharField(max_length=200)
     currency = serializers.CharField(default='NGN')
     opening_balance = serializers.FloatField(default=0.0)
@@ -51,7 +51,10 @@ class BankAccountSerializer(serializers.Serializer):
             setattr(instance, attr, value)
         instance.save()
         if 'gl_account_id_input' in self.initial_data:
-            current_account = instance.gl_account.single()
+            try:
+                current_account = instance.gl_account.single()
+            except Exception:
+                current_account = None
             if current_account:
                 instance.gl_account.disconnect(current_account)
             if gl_account_id:

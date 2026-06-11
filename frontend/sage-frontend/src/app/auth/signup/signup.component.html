@@ -1,0 +1,144 @@
+<div class="login-root">
+
+  <!-- ── Left: brand panel ──────────────────────── -->
+  <div class="brand-panel">
+    <div class="geo-ring r1"></div>
+    <div class="geo-ring r2"></div>
+    <div class="geo-ring r3"></div>
+    <div class="geo-ring r4"></div>
+    <div class="geo-rect rect1"></div>
+    <div class="geo-rect rect2"></div>
+
+    <div class="panel-rule"></div>
+    <div class="wordmark">Pa<span>ge</span></div>
+    <div class="institution">Topfaith University</div>
+    <div class="tagline">Finance System</div>
+
+    <div class="panel-footer">Accounting &nbsp;·&nbsp; Reporting &nbsp;·&nbsp; Compliance</div>
+  </div>
+
+  <!-- ── Right: form panel ──────────────────────── -->
+  <div class="form-panel">
+    <div class="form-container">
+
+      @if (success) {
+        <!-- Success state -->
+        <div class="success-card">
+          <div class="success-icon">✓</div>
+          <h2 class="success-heading">Account created</h2>
+          <p class="success-body">Your account has been set up with a Staff role. Sign in to get started.</p>
+          <a routerLink="/login" class="submit-btn" style="display:block;text-align:center;text-decoration:none">
+            Go to Sign In
+          </a>
+        </div>
+      } @else {
+
+        <div class="form-header">
+          <h1>Create account</h1>
+          <p>Use your invite code to register</p>
+        </div>
+
+        <form (ngSubmit)="onSubmit()" autocomplete="on">
+
+          <div class="field-group">
+            <label for="username">Username *</label>
+            <input
+              id="username"
+              [(ngModel)]="username"
+              name="username"
+              type="text"
+              placeholder="Choose a username"
+              required
+              autocomplete="username"
+            />
+          </div>
+
+          <div class="field-group">
+            <label for="email">Email <span class="optional">optional</span></label>
+            <input
+              id="email"
+              [(ngModel)]="email"
+              name="email"
+              type="email"
+              placeholder="your@email.com"
+              autocomplete="email"
+            />
+          </div>
+
+          <div class="field-group">
+            <label for="password">Password *</label>
+            <div class="password-wrapper">
+              <input
+                id="password"
+                [(ngModel)]="password"
+                name="password"
+                [type]="showPassword ? 'text' : 'password'"
+                placeholder="At least 8 characters"
+                required
+                autocomplete="new-password"
+              />
+              <button type="button" class="password-toggle" (click)="showPassword = !showPassword"
+                [attr.aria-label]="showPassword ? 'Hide password' : 'Show password'">
+                {{ showPassword ? 'Hide' : 'Show' }}
+              </button>
+            </div>
+          </div>
+
+          <div class="field-group">
+            <label for="confirm">Confirm Password *</label>
+            <div class="password-wrapper">
+              <input
+                id="confirm"
+                [(ngModel)]="confirmPassword"
+                name="confirm"
+                [type]="showConfirm ? 'text' : 'password'"
+                placeholder="Repeat your password"
+                required
+                autocomplete="new-password"
+              />
+              <button type="button" class="password-toggle" (click)="showConfirm = !showConfirm"
+                [attr.aria-label]="showConfirm ? 'Hide' : 'Show'">
+                {{ showConfirm ? 'Hide' : 'Show' }}
+              </button>
+            </div>
+          </div>
+
+          <div class="field-group invite-group">
+            <label for="invite">Invite Code *</label>
+            <div class="password-wrapper">
+              <input
+                id="invite"
+                [(ngModel)]="inviteCode"
+                name="invite"
+                [type]="showInvite ? 'text' : 'password'"
+                placeholder="Enter the invite code"
+                required
+                autocomplete="off"
+              />
+              <button type="button" class="password-toggle" (click)="showInvite = !showInvite"
+                [attr.aria-label]="showInvite ? 'Hide' : 'Show'">
+                {{ showInvite ? 'Hide' : 'Show' }}
+              </button>
+            </div>
+          </div>
+
+          @if (error) {
+            <div class="error-msg">{{ error }}</div>
+          }
+
+          <button
+            type="submit"
+            class="submit-btn"
+            [class.is-loading]="loading"
+            [disabled]="loading"
+          >{{ loading ? 'Creating account…' : 'Create Account' }}</button>
+
+          <p class="signin-link">Already have an account? <a routerLink="/login">Sign in</a></p>
+
+        </form>
+      }
+
+    </div>
+  </div>
+
+</div>

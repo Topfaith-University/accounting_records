@@ -4,74 +4,140 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-"Sage" is a university accounting records application. It is a full-stack monorepo consisting of:
+"Sage" is a university accounting records application for Topfaith University. Full-stack monorepo:
 - **Backend**: Django + Django REST Framework (port 8002)
 - **Frontend**: Angular 17 standalone-component app (port 4200)
-- **Database**: Neo4j 5 graph database (bolt port 7687, browser port 7474) for domain models; SQLite for Django auth/admin only
-
-All three services are orchestrated via Docker Compose.
+- **Database**: Neo4j 5 (bolt port 7687, browser port 7474) for all domain data; SQLite for Django auth/admin only
 
 ## Running the Project
 
-**With Docker (recommended):**
 ```bash
+# All services (recommended)
 docker-compose up --build
-```
 
-**Backend only (local dev):**
-```bash
-cd backend
-source venv/bin/activate
-python manage.py runserver 0.0.0.0:8002
-```
+# Backend only
+cd backend && source venv/bin/activate && python manage.py runserver 0.0.0.0:8002
 
-**Frontend only (local dev):**
-```bash
-cd frontend/sage-frontend
-npm install
-npm start         # ng serve → http://localhost:4200
-```
+# Frontend only
+cd frontend/sage-frontend && npm install && npm start
 
-**Tests:**
-```bash
-# Backend
+# Tests
 cd backend && python manage.py test
-
-# Frontend
 cd frontend/sage-frontend && npm test
+
+# After adding/changing Neo4j node models (run inside Docker if local venv is missing deps)
+docker exec django_backend python manage.py install_labels
 ```
 
 ## Architecture
 
 ### Dual-database pattern
-This is the most important architectural decision: Django's ORM (SQLite) is used **only** for built-in apps (auth, admin, sessions). All domain models (`Account`, `BankAccount`) are `neomodel.StructuredNode` subclasses stored in Neo4j. Never use `django.db.models.Model` for domain entities.
+Django's ORM (SQLite) is used **only** for built-in apps (auth, admin, sessions). All domain models are `neomodel.StructuredNode` subclasses stored in Neo4j. Never use `django.db.models.Model` for domain entities.
 
 ### Backend apps
-| App | Purpose |
-|-----|---------|
-| `accounts/` | Chart of Accounts — `Account` nodes with `AccountType` enum (Sales, Expenses, Assets, etc.) |
-| `banks/` | Bank Accounts — `BankAccount` nodes linked to real bank accounts |
-| `reports/` | Planned reporting module (currently empty) |
-| `config/` | Django project config, root URL conf |
+
+| App | URL prefix | Key models |
+|-----|-----------|------------|
+| `accounts/` | `/api/accounts/` | `Account` (with `AccountType` enum, `normal_balance`) |
+| `banks/` | `/api/banks/` | `BankAccount`, `BankTransaction`, `BankReconciliation` |
+| `journals/` | `/api/journals/` | `JournalEntry`, `JournalLine`, `FiscalYear`, `AccountingPeriod` |
+| `payables/` | `/api/payables/` | `Vendor`, `PurchaseInvoice`, `PurchaseInvoiceLine`, `APPayment`, `Item` |
+| `receivables/` | `/api/receivables/` | `Customer`, `SalesInvoice`, `SalesInvoiceLine`, `ARReceipt` |
+| `reports/` | `/api/reports/` | Function-based views only (no models) |
+| `budget/` | `/api/budget/` | `Budget`, `BudgetLine` |
+| `config/` | — | Django settings, root URL conf, JWT auth views |
 
 ### API style
-Views are plain Django function-based views (not DRF ViewSets). Input is currently read from **GET query params**, not request bodies. All responses are `JsonResponse`. There are no serializers yet — data dicts are built manually in each view.
+All views are `viewsets.ViewSet` with DRF `DefaultRouter`, **except** `reports/` which uses plain function-based views. Every app has a `serializers.py` with full DRF serializers.
+
+**`_serialize_*` helper pattern**: Write-only FK fields on serializers (e.g. `vendor_id`, `expense_account_id`) must be manually re-attached in `_serialize_*(node)` helpers that call `Serializer(node).data` then add each FK id back from relationships. All ViewSet methods call these helpers before returning responses.
+
+### Auth & RBAC
+JWT via `djangorestframework-simplejwt`. Custom `SageTokenObtainPairSerializer` (in `config/urls.py`) embeds `username` and `groups` in the token payload.
+
+- All endpoints require `IsAuthenticated`
+- Post/void operations on invoices and journal entries additionally check `request.user.groups.filter(name__in=['Manager', 'Admin'])`
+
+Frontend reads roles from the decoded JWT in `AuthService`.
 
 ### URL structure
 ```
-/api/accounts/           → accounts app
-/api/banks/              → banks app
-/api/reports/            → reports app
-/admin/                  → Django admin
+/api/auth/token/            → obtain JWT
+/api/auth/token/refresh/    → refresh JWT
+/api/auth/me/               → current user info
+/api/accounts/              → AccountViewSet
+/api/banks/accounts/        → BankAccountViewSet
+/api/banks/transactions/    → BankTransactionViewSet
+/api/banks/reconciliations/ → BankReconciliationViewSet
+/api/journals/entries/      → JournalEntryViewSet
+/api/journals/fiscal-years/ → FiscalYearViewSet
+/api/journals/periods/      → AccountingPeriodViewSet
+/api/payables/vendors/      → VendorViewSet
+/api/payables/invoices/     → PurchaseInvoiceViewSet
+/api/payables/items/        → ItemViewSet
+/api/receivables/customers/ → CustomerViewSet
+/api/receivables/invoices/  → SalesInvoiceViewSet
+/api/budget/budgets/        → BudgetViewSet
+/api/reports/trial-balance/
+/api/reports/income-statement/
+/api/reports/balance-sheet/
+/api/reports/gl-detail/
+/api/reports/dashboard/
 ```
 
-### Frontend
-Angular 17 with standalone components. HTTP calls use **axios** (not Angular's HttpClient). The `ApiService` (`src/app/services/api.service.ts`) is the single API layer. The base URL must match the backend port (8002).
+### Neomodel conventions
+- `UniqueIdProperty` for all primary keys
+- Run `install_labels` after any model schema change
+- `updated_at` uses `default_now=True` but is **not** auto-updated on save — set manually
+
+### AccountType enum
+Located in `backend/accounts/enums.py`. Valid values: `Sales`, `Cost of Sales`, `Expenses`, `Income Tax`, `Non-Current Assets`, `Current Assets`, `Current Liabilities`, `Non-Current Liabilities`, `Owner's Equity`, `Other Incomes`.
+
+`normal_balance` is required (`DEBIT`/`CREDIT`). Debit-normal types: `Cost of Sales`, `Expenses`, `Income Tax`, `Non-Current Assets`, `Current Assets`. All others are credit-normal.
+
+### JournalEntry entry_type choices
+`MANUAL`, `AP_PAYMENT`, `AR_RECEIPT`, `BANK_TRANSACTION`
+
+---
+
+## Frontend
+
+Angular 17 with standalone components. No NgModules — every component declares its own `imports` array.
+
+### Services (one per backend app)
+All in `src/app/services/`. Each uses **axios** (not Angular's HttpClient). Base URL is `http://localhost:8002`.
+
+| Service file | Backend app |
+|---|---|
+| `accounts.service.ts` | accounts |
+| `banks.service.ts` | bank accounts |
+| `bank-transactions.service.ts` | bank transactions |
+| `journals.service.ts` | journals |
+| `payables.service.ts` | payables (vendors, invoices, items) |
+| `receivables.service.ts` | receivables (customers, invoices) |
+| `reports.service.ts` | reports |
+| `budget.service.ts` | budget |
+| `auth.service.ts` | JWT auth; decodes token to expose roles |
+
+### Shared smart select components
+Located in `src/app/shared/`. Each implements `ControlValueAccessor` so it works with both `formControlName` (reactive forms) and `[(ngModel)]` (template-driven).
+
+| Component | `@Input()` | `@Output()` |
+|---|---|---|
+| `AccountSelectComponent` | `allAccounts: any[]` | `accountsChanged` |
+| `BankSelectComponent` | `allBanks: any[]` | `banksChanged` |
+| `VendorSelectComponent` | `allVendors: any[]` | `vendorsChanged` |
+| `CustomerSelectComponent` | `allCustomers: any[]` | `customersChanged` |
+
+All four follow the same pattern:
+- Searchable typeahead dropdown with inline quick-create modal
+- `+ Create…` button at the **top** of the dropdown list (with `border-bottom` separator, not `border-top`)
+- `@HostListener('document:click')` closes dropdown on outside click
+- List item click uses `(mousedown)` not `(click)` to fire before `blur`
+- Parent passes `allX` array and listens to `xChanged` to refresh after quick-create
+
+### Item autofill pattern
+`Item` nodes serve as **UI templates only** — selecting an item in an invoice line patches the reactive form group via `applyItem(index, itemId)`. Items are never stored as FK relationships on invoice lines. The item column only renders when `items.length > 0`.
 
 ### Environment / secrets
-Backend reads from `backend/.env` via `python-decouple`. Required keys: `SECRET_KEY`, `DEBUG`, `ALLOWED_HOSTS`, `NEO4J_BOLT_URL`. The `.env` file is committed to the repo — do not put production secrets there.
-
-### Neomodel conventions
-- Use `UniqueIdProperty` for primary keys (not Django PKs).
-- Call `python manage.py install_labels` after adding or changing node models so Neo4j indexes are created.
-- `updated_at` is set to `default_now=True` on all models but is not auto-updated on save — handle manually if needed.
+Backend reads from `backend/.env` via `python-decouple`. Required keys: `SECRET_KEY`, `DEBUG`, `ALLOWED_HOSTS`, `NEO4J_BOLT_URL`. The `.env` file is committed — do not put production secrets there.

@@ -93,9 +93,15 @@ def create_bank_transaction(
     source_bank = BankAccount.nodes.get_or_none(bank_account_id=source_bank_id)
     if not source_bank:
         raise ValidationError('Source bank account not found.')
-    source_gl = source_bank.gl_account.single()
+    try:
+        source_gl = source_bank.gl_account.single()
+    except Exception:
+        source_gl = None
     if not source_gl:
-        raise ValidationError('Source bank account has no linked GL account.')
+        raise ValidationError(
+            f'Bank account "{source_bank.name}" has no linked GL account. '
+            'Edit the bank account and assign a GL account before posting transactions.'
+        )
 
     # Fix 7: Guard dest_bank/dest_gl as possibly unbound
     dest_bank = None
@@ -109,9 +115,15 @@ def create_bank_transaction(
         dest_bank = BankAccount.nodes.get_or_none(bank_account_id=destination_bank_id)
         if not dest_bank:
             raise ValidationError('Destination bank account not found.')
-        dest_gl = dest_bank.gl_account.single()
+        try:
+            dest_gl = dest_bank.gl_account.single()
+        except Exception:
+            dest_gl = None
         if not dest_gl:
-            raise ValidationError('Destination bank account has no linked GL account.')
+            raise ValidationError(
+                f'Bank account "{dest_bank.name}" has no linked GL account. '
+                'Edit the bank account and assign a GL account before posting transactions.'
+            )
         # Fix 4: Guard float() against non-numeric input for TRANSFER
         try:
             total_amount = float(amount)

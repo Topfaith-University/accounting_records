@@ -1,0 +1,155 @@
+<div style="max-width:820px">
+  <div class="page-header">
+    <div>
+      <h1 class="page-title">Import Bank Statement</h1>
+      <p class="page-subtitle">Upload a CSV file to bulk-create transactions for a bank account.</p>
+    </div>
+    <a routerLink="/banks/transactions" class="btn-secondary">← Back to Transactions</a>
+  </div>
+
+  @if (error) {
+    <p style="color:var(--danger);font-size:.875rem;margin-bottom:1rem">{{ error }}</p>
+  }
+
+  <!-- Step 1: Accounts -->
+  <div class="card" style="padding:1.25rem;margin-bottom:1rem;overflow:visible">
+    <p class="section-label">Accounts</p>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem">
+      <div>
+        <label>Bank Account *</label>
+        <app-bank-select
+          [(ngModel)]="bankAccountId"
+          [allBanks]="allBanks"
+          (banksChanged)="allBanks = $event"
+          placeholder="Select bank account…"
+        ></app-bank-select>
+      </div>
+      <div>
+        <label>Default GL Account *</label>
+        <app-account-select
+          [(ngModel)]="defaultAccountId"
+          [allAccounts]="allAccounts"
+          (accountsChanged)="allAccounts = $event"
+          placeholder="Offset account for all rows…"
+        ></app-account-select>
+      </div>
+    </div>
+  </div>
+
+  <!-- Step 2: File settings -->
+  <div class="card" style="padding:1.25rem;margin-bottom:1rem">
+    <p class="section-label">File Import Details</p>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.25rem;margin-bottom:1.25rem">
+      <div>
+        <label>Import File Type</label>
+        <select [(ngModel)]="importFileType">
+          <option value="CSV">CSV</option>
+        </select>
+      </div>
+      <div>
+        <label>Date Format</label>
+        <select [(ngModel)]="dateFormat">
+          <option value="dd/mm/yyyy">dd/mm/yyyy</option>
+          <option value="mm/dd/yyyy">mm/dd/yyyy</option>
+          <option value="yyyy-mm-dd">yyyy-mm-dd</option>
+        </select>
+      </div>
+    </div>
+
+    <div style="margin-bottom:1.25rem">
+      <label>Import File</label>
+      <div style="display:flex;align-items:center;gap:.75rem">
+        <label style="all:unset;padding:.55rem 1.25rem;background:var(--navy-primary);color:#fff;border-radius:var(--radius-md);cursor:pointer;font-size:.875rem;font-weight:700;font-family:var(--font-body);transition:background var(--transition-medium);white-space:nowrap"
+               onmouseover="this.style.background='var(--navy-mid)'" onmouseout="this.style.background='var(--navy-primary)'">
+          Browse
+          <input type="file" accept=".csv,text/csv" (change)="onFileChange($event)" style="display:none" />
+        </label>
+        <span style="font-size:.875rem;color:var(--text-muted);font-style:italic" [title]="fileName">
+          {{ fileName || 'No file chosen' }}
+        </span>
+      </div>
+    </div>
+
+    <p class="section-label">Date Range</p>
+    <div style="display:flex;gap:.5rem;margin-bottom:1rem">
+      <button type="button" (click)="dateRangeType = 'ALL'"
+        [style.background]="dateRangeType === 'ALL' ? 'var(--navy-primary)' : 'var(--white)'"
+        [style.color]="dateRangeType === 'ALL' ? '#fff' : 'var(--text-secondary)'"
+        [style.borderColor]="dateRangeType === 'ALL' ? 'var(--navy-primary)' : 'var(--border)'"
+        style="padding:.45rem 1.1rem;border:1.5px solid;border-radius:var(--radius-sm);cursor:pointer;font-weight:700;font-size:.8rem;font-family:var(--font-body);transition:all 150ms">
+        All Transactions
+      </button>
+      <button type="button" (click)="dateRangeType = 'DATE_RANGE'"
+        [style.background]="dateRangeType === 'DATE_RANGE' ? 'var(--navy-primary)' : 'var(--white)'"
+        [style.color]="dateRangeType === 'DATE_RANGE' ? '#fff' : 'var(--text-secondary)'"
+        [style.borderColor]="dateRangeType === 'DATE_RANGE' ? 'var(--navy-primary)' : 'var(--border)'"
+        style="padding:.45rem 1.1rem;border:1.5px solid;border-radius:var(--radius-sm);cursor:pointer;font-weight:700;font-size:.8rem;font-family:var(--font-body);transition:all 150ms">
+        Dates to Import
+      </button>
+    </div>
+
+    @if (dateRangeType === 'DATE_RANGE') {
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1.25rem">
+        <div>
+          <label>From Date</label>
+          <input type="date" [(ngModel)]="dateFrom" />
+        </div>
+        <div>
+          <label>To Date</label>
+          <input type="date" [(ngModel)]="dateTo" />
+        </div>
+      </div>
+    }
+
+    <div style="display:flex;gap:.75rem;padding-top:.25rem">
+      <button (click)="importFile()" [disabled]="!canImport" class="btn-primary">
+        {{ importing ? 'Importing…' : 'Import File' }}
+      </button>
+      <a routerLink="/banks/transactions" class="btn-secondary">Cancel</a>
+    </div>
+  </div>
+
+  <!-- Results -->
+  @if (result) {
+    <div class="card" style="padding:1.25rem">
+      <p class="section-label">Import Results</p>
+      <div style="display:flex;gap:2rem;margin-bottom:.75rem">
+        <div style="display:flex;align-items:center;gap:.5rem">
+          <span style="display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:50%;background:var(--success-bg);border:1px solid var(--success-border)">
+            <span style="color:var(--success);font-size:.8rem;font-weight:800">✓</span>
+          </span>
+          <div>
+            <div style="font-size:1.25rem;font-weight:800;font-family:var(--font-display);color:var(--navy-deep);line-height:1">{{ result.created }}</div>
+            <div style="font-size:.72rem;text-transform:uppercase;letter-spacing:.08em;color:var(--success);font-weight:700">Created</div>
+          </div>
+        </div>
+        @if (result.skipped > 0) {
+          <div style="display:flex;align-items:center;gap:.5rem">
+            <span style="display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:50%;background:var(--warning-bg);border:1px solid var(--warning-border)">
+              <span style="color:var(--warning);font-size:.8rem;font-weight:800">—</span>
+            </span>
+            <div>
+              <div style="font-size:1.25rem;font-weight:800;font-family:var(--font-display);color:var(--navy-deep);line-height:1">{{ result.skipped }}</div>
+              <div style="font-size:.72rem;text-transform:uppercase;letter-spacing:.08em;color:var(--warning);font-weight:700">Skipped</div>
+            </div>
+          </div>
+        }
+      </div>
+
+      @if (result.errors.length > 0) {
+        <div style="background:var(--danger-bg);border:1px solid var(--danger-border);border-radius:var(--radius-sm);padding:.875rem;margin-bottom:1rem">
+          <p style="font-size:.72rem;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:var(--danger);margin-bottom:.5rem">Row Errors ({{ result.errors.length }})</p>
+          @for (e of result.errors; track $index) {
+            <p style="font-size:.8rem;color:var(--danger);font-family:var(--font-mono);line-height:1.8">{{ e }}</p>
+          }
+        </div>
+      }
+
+      @if (result.created > 0) {
+        <a routerLink="/banks/transactions" class="btn-primary" style="text-decoration:none">
+          View Transactions →
+        </a>
+      }
+    </div>
+  }
+</div>

@@ -3,8 +3,8 @@ import axios from 'axios';
 
 @Injectable({ providedIn: 'root' })
 export class AuthService {
-  private readonly ACCESS_KEY = 'sage_access';
-  private readonly REFRESH_KEY = 'sage_refresh';
+  private readonly ACCESS_KEY = 'page_access';
+  private readonly REFRESH_KEY = 'page_refresh';
   private baseUrl = 'http://localhost:8002/api/auth/';
 
   constructor() {
@@ -44,6 +44,20 @@ export class AuthService {
     localStorage.setItem(this.ACCESS_KEY, res.data.access);
     localStorage.setItem(this.REFRESH_KEY, res.data.refresh);
   }
+
+  async register(username: string, email: string, password: string, confirmPassword: string, inviteCode: string): Promise<void> {
+    await axios.post(this.baseUrl + 'register/', {
+      username,
+      email,
+      password,
+      confirm_password: confirmPassword,
+      invite_code: inviteCode,
+    });
+  }
+
+  // Placeholder for future email-based password reset.
+  // When SMTP is configured: POST /api/auth/password-reset/request/ with { email }
+  // and POST /api/auth/password-reset/confirm/ with { token, new_password }.
 
   async refreshToken(): Promise<void> {
     const refresh = localStorage.getItem(this.REFRESH_KEY);

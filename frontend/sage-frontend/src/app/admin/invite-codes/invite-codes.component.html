@@ -1,0 +1,88 @@
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Invite Codes</h1>
+    <p class="page-subtitle">Generate single-use codes for new user registration</p>
+  </div>
+  <button (click)="generate()" class="btn-primary" [disabled]="generating">
+    {{ generating ? 'Generating…' : '+ Generate Code' }}
+  </button>
+</div>
+
+@if (error) {
+  <p style="color:var(--danger);margin-bottom:1rem">{{ error }}</p>
+}
+
+<!-- Active codes — prominent card -->
+<p class="section-label">Active</p>
+
+@if (loading) {
+  <p style="color:var(--text-muted);padding:.5rem 0">Loading…</p>
+}
+
+@if (!loading && activeCodes.length === 0) {
+  <div class="empty-state">
+    <div class="empty-icon">⊘</div>
+    <p>No active codes. Generate one to invite a new user.</p>
+  </div>
+}
+
+@if (!loading && activeCodes.length > 0) {
+  <div class="active-codes-grid">
+    @for (code of activeCodes; track code.id) {
+      <div class="code-card">
+        <div class="code-value">{{ code.code }}</div>
+        <div class="code-meta">
+          Created by <strong>{{ code.created_by }}</strong>
+          &nbsp;·&nbsp; Expires {{ formatDate(code.expires_at) }}
+        </div>
+        <div class="code-actions">
+          <button class="btn-copy" (click)="copy(code)" [class.copied]="copiedId === code.id">
+            {{ copiedId === code.id ? '✓ Copied' : 'Copy' }}
+          </button>
+          <button class="btn-revoke" (click)="revoke(code.id)"
+            [disabled]="revoking === code.id">
+            {{ revoking === code.id ? '…' : 'Revoke' }}
+          </button>
+        </div>
+      </div>
+    }
+  </div>
+}
+
+<!-- History table (used + expired) -->
+@if (!loading && (usedCodes.length > 0 || expiredCodes.length > 0)) {
+  <p class="section-label" style="margin-top:2rem">History</p>
+  <div class="card">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Code</th>
+          <th>Status</th>
+          <th>Created By</th>
+          <th>Used By</th>
+          <th>Expires</th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (code of usedCodes; track code.id) {
+          <tr>
+            <td class="mono" style="color:var(--text-muted)">{{ code.code }}</td>
+            <td><span class="badge" style="background:var(--info-bg);color:var(--navy-primary);border:1px solid var(--border)">Used</span></td>
+            <td>{{ code.created_by }}</td>
+            <td>{{ code.used_by }}</td>
+            <td>{{ formatDate(code.expires_at) }}</td>
+          </tr>
+        }
+        @for (code of expiredCodes; track code.id) {
+          <tr>
+            <td class="mono" style="color:var(--text-muted)">{{ code.code }}</td>
+            <td><span class="badge" style="background:var(--canvas);color:var(--text-muted);border:1px solid var(--border)">Expired</span></td>
+            <td>{{ code.created_by }}</td>
+            <td>—</td>
+            <td>{{ formatDate(code.expires_at) }}</td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  </div>
+}

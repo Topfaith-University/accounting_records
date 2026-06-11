@@ -27,6 +27,7 @@ INSTALLED_APPS = [
     'payables',
     'receivables',
     'budget',
+    'users',
     'django_neomodel',
 ]
 

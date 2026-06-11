@@ -17,6 +17,7 @@ export class ShellComponent {
     payables: false,
     receivables: false,
     budget: false,
+    admin: false,
   };
 
   constructor(public auth: AuthService, private router: Router) {}
@@ -26,4 +27,9 @@ export class ShellComponent {
   }
 
   logout() { this.auth.logout(); this.router.navigate(['/login']); }
+
+  get isAdmin(): boolean {
+    const user = this.auth.getCurrentUser();
+    return !!user && (user.roles.includes('Admin') || user.roles.includes('Manager'));
+  }
 }

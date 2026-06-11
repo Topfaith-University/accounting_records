@@ -7,6 +7,14 @@ export const routes: Routes = [
     loadComponent: () => import('./auth/login/login.component').then(m => m.LoginComponent)
   },
   {
+    path: 'signup',
+    loadComponent: () => import('./auth/signup/signup.component').then(m => m.SignupComponent)
+  },
+  {
+    path: 'forgot-password',
+    loadComponent: () => import('./auth/forgot-password/forgot-password.component').then(m => m.ForgotPasswordComponent)
+  },
+  {
     path: '',
     loadComponent: () => import('./shell/shell.component').then(m => m.ShellComponent),
     canActivate: [authGuard],
@@ -50,6 +58,10 @@ export const routes: Routes = [
         loadComponent: () => import('./banks/bank-transaction-list/bank-transaction-list.component').then(m => m.BankTransactionListComponent)
       },
       {
+        path: 'banks/import',
+        loadComponent: () => import('./banks/bank-import/bank-import.component').then(m => m.BankImportComponent)
+      },
+      {
         path: 'banks/reconciliations/:id',
         loadComponent: () => import('./banks/bank-reconciliation/bank-reconciliation.component').then(m => m.BankReconciliationComponent)
       },
@@ -81,6 +93,7 @@ export const routes: Routes = [
       { path: 'budget/new', loadComponent: () => import('./budget/budget-form/budget-form.component').then(m => m.BudgetFormComponent) },
       { path: 'budget/:id', loadComponent: () => import('./budget/budget-detail/budget-detail.component').then(m => m.BudgetDetailComponent) },
       { path: 'budget', loadComponent: () => import('./budget/budget-list/budget-list.component').then(m => m.BudgetListComponent) },
+      { path: 'admin/invite-codes', loadComponent: () => import('./admin/invite-codes/invite-codes.component').then(m => m.InviteCodesComponent) },
     ]
   },
   { path: '**', redirectTo: 'accounts' }

@@ -191,10 +191,9 @@ class BankReconciliationViewSet(viewsets.ViewSet):
 class BankTransactionViewSet(viewsets.ViewSet):
     permission_classes = [IsAuthenticated]
 
-    def list(self, request):
-        bank_account_id = request.query_params.get('bank_account_id')
+    def _query_transactions(self, bank_account_id=None, date_from=None, date_to=None):
+        from neomodel import db
         if bank_account_id:
-            from neomodel import db
             results, _ = db.cypher_query(
                 "MATCH (t:BankTransaction)-[:FROM_BANK|TO_BANK]->(ba:BankAccount {bank_account_id: $id}) "
                 "RETURN DISTINCT t.transaction_id, t.created_at ORDER BY t.created_at DESC",
@@ -204,7 +203,66 @@ class BankTransactionViewSet(viewsets.ViewSet):
         else:
             txns = list(BankTransaction.nodes.all())
             txns = sorted(txns, key=lambda t: str(t.created_at), reverse=True)
-        return Response(BankTransactionSerializer([t for t in txns if t], many=True).data)
+        txns = [t for t in txns if t]
+        if date_from:
+            txns = [t for t in txns if str(t.date) >= date_from]
+        if date_to:
+            txns = [t for t in txns if str(t.date) <= date_to]
+        return txns
+
+    def list(self, request):
+        txns = self._query_transactions(
+            bank_account_id=request.query_params.get('bank_account_id') or None,
+            date_from=request.query_params.get('date_from') or None,
+            date_to=request.query_params.get('date_to') or None,
+        )
+        return Response(BankTransactionSerializer(txns, many=True).data)
+
+    @action(detail=False, methods=['get'], url_path='export')
+    def export(self, request):
+        import csv, io
+        from django.http import HttpResponse
+
+        bank_account_id = request.query_params.get('bank_account_id') or None
+        date_from = request.query_params.get('date_from') or None
+        date_to = request.query_params.get('date_to') or None
+        fmt = request.query_params.get('format', 'csv')
+
+        txns = self._query_transactions(bank_account_id, date_from, date_to)
+        data = BankTransactionSerializer(txns, many=True).data
+
+        headers = ['Reference', 'Date', 'Bank', 'Type', 'Description', 'Amount']
+        rows = [
+            [r['reference'], str(r['date']), r.get('source_bank_name', ''),
+             r['transaction_type'], r.get('description', ''), r['amount']]
+            for r in data
+        ]
+
+        if fmt == 'xlsx':
+            import openpyxl
+            wb = openpyxl.Workbook()
+            ws = wb.active
+            ws.title = 'Bank Transactions'
+            ws.append(headers)
+            for row in rows:
+                ws.append(row)
+            buf = io.BytesIO()
+            wb.save(buf)
+            buf.seek(0)
+            response = HttpResponse(
+                buf.read(),
+                content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            )
+            response['Content-Disposition'] = 'attachment; filename="bank-transactions.xlsx"'
+            return response
+
+        buf = io.StringIO()
+        writer = csv.writer(buf)
+        writer.writerow(headers)
+        writer.writerows(rows)
+        response = HttpResponse(buf.getvalue(), content_type='text/csv')
+        response['Content-Disposition'] = 'attachment; filename="bank-transactions.csv"'
+        return response
 
     def retrieve(self, request, pk=None):
         txn = BankTransaction.nodes.get_or_none(transaction_id=pk)
@@ -231,3 +289,88 @@ class BankTransactionViewSet(viewsets.ViewSet):
         except Exception as e:
             return Response({'detail': str(e)}, status=status.HTTP_400_BAD_REQUEST)
         return Response(BankTransactionSerializer(txn).data, status=status.HTTP_201_CREATED)
+
+    @action(detail=False, methods=['post'], url_path='import')
+    def import_csv(self, request):
+        import csv, io
+        from datetime import datetime
+
+        bank_account_id = request.data.get('bank_account_id', '').strip()
+        default_acct_id = request.data.get('default_account_id', '').strip()
+        date_format_key = request.data.get('date_format', 'dd/mm/yyyy')
+        date_range_type = request.data.get('date_range_type', 'ALL')
+        date_from_str   = request.data.get('date_from', '')
+        date_to_str     = request.data.get('date_to', '')
+        csv_file        = request.FILES.get('file')
+
+        if not bank_account_id or not default_acct_id or not csv_file:
+            return Response(
+                {'detail': 'bank_account_id, default_account_id, and file are required.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        fmt_map = {'dd/mm/yyyy': '%d/%m/%Y', 'mm/dd/yyyy': '%m/%d/%Y', 'yyyy-mm-dd': '%Y-%m-%d'}
+        py_fmt = fmt_map.get(date_format_key, '%d/%m/%Y')
+
+        date_from = date_to = None
+        if date_range_type == 'DATE_RANGE':
+            try:
+                date_from = datetime.strptime(date_from_str, '%Y-%m-%d').date()
+                date_to   = datetime.strptime(date_to_str,   '%Y-%m-%d').date()
+            except ValueError:
+                return Response({'detail': 'Invalid date_from/date_to.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        from . import services
+        created = skipped = 0
+        errors = []
+
+        text = csv_file.read().decode('utf-8-sig')
+        reader = csv.DictReader(io.StringIO(text))
+        for i, row in enumerate(reader, start=2):   # row 1 is header
+            date_str    = (row.get('Date') or '').strip()
+            description = (row.get('Description') or '').strip()
+            amount_str  = (row.get('Amount') or '').strip()
+
+            if not date_str and not amount_str:   # trailing blank rows
+                continue
+
+            try:
+                txn_date = datetime.strptime(date_str, py_fmt).date()
+            except ValueError:
+                errors.append(f'Row {i}: invalid date "{date_str}"')
+                skipped += 1
+                continue
+
+            try:
+                amount = float(amount_str.replace(',', ''))
+            except ValueError:
+                errors.append(f'Row {i}: invalid amount "{amount_str}"')
+                skipped += 1
+                continue
+
+            if amount == 0:
+                skipped += 1
+                continue
+
+            if date_from and (txn_date < date_from or txn_date > date_to):
+                skipped += 1
+                continue
+
+            txn_type = 'RECEIPT' if amount > 0 else 'PAYMENT'
+            try:
+                services.create_bank_transaction(
+                    transaction_type=txn_type,
+                    txn_date=txn_date,
+                    description=description,
+                    source_bank_id=bank_account_id,
+                    destination_bank_id=None,
+                    splits=[{'account_id': default_acct_id, 'amount': abs(amount), 'description': ''}],
+                    amount=None,
+                    created_by=request.user.username,
+                )
+                created += 1
+            except Exception as e:
+                errors.append(f'Row {i}: {e}')
+                skipped += 1
+
+        return Response({'created': created, 'skipped': skipped, 'errors': errors})

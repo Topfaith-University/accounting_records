@@ -5,9 +5,27 @@ import axios from 'axios';
 export class BankTransactionsService {
   private baseUrl = 'http://localhost:8002/api/banks/transactions/';
 
-  getAll(bankAccountId?: string) {
-    const params = bankAccountId ? { bank_account_id: bankAccountId } : {};
+  getAll(bankAccountId?: string, dateFrom?: string, dateTo?: string) {
+    const params: Record<string, string> = {};
+    if (bankAccountId) params['bank_account_id'] = bankAccountId;
+    if (dateFrom) params['date_from'] = dateFrom;
+    if (dateTo) params['date_to'] = dateTo;
     return axios.get(this.baseUrl, { params }).then(r => r.data);
+  }
+
+  exportFile(params: Record<string, string>, format: 'csv' | 'xlsx', filename: string): Promise<void> {
+    return axios.get(this.baseUrl + 'export/', {
+      params: { ...params, format },
+      responseType: 'blob',
+    }).then(response => {
+      const blob = new Blob([response.data], { type: response.headers['content-type'] });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(url);
+    });
   }
 
   getOne(id: string) {
@@ -16,5 +34,9 @@ export class BankTransactionsService {
 
   create(data: object) {
     return axios.post(this.baseUrl, data).then(r => r.data);
+  }
+
+  importCsv(formData: FormData) {
+    return axios.post(this.baseUrl + 'import/', formData).then(r => r.data);
   }
 }

@@ -132,7 +132,7 @@ export class BankSelectComponent implements OnInit, ControlValueAccessor {
         opening_balance: this.newBank.opening_balance,
         opening_balance_date: this.newBank.opening_balance_date,
       };
-      if (this.newBank.gl_account_id) payload.gl_account_id = this.newBank.gl_account_id;
+      if (this.newBank.gl_account_id) payload.gl_account_id_input = this.newBank.gl_account_id;
       const created: BankAccount = await this.banksService.createAccount(payload);
       this.allBanks = [...this.allBanks, created];
       this.refreshFiltered();
@@ -140,7 +140,8 @@ export class BankSelectComponent implements OnInit, ControlValueAccessor {
       this.selectBank(created);
       this.showModal = false;
     } catch (e: any) {
-      this.createError = e.response?.data?.name?.[0] ?? e.response?.data?.detail ?? 'Failed to create bank account.';
+      this.createError = e.response?.data?.detail
+        ?? (e.response?.data ? JSON.stringify(e.response.data) : 'Failed to create bank account.');
     } finally {
       this.creatingBank = false;
     }

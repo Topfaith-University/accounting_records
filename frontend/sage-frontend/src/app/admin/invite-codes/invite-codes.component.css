@@ -1,0 +1,113 @@
+/* Active codes grid */
+.active-codes-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 1rem;
+  margin-bottom: 0.5rem;
+}
+
+.code-card {
+  background: var(--white);
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 1.25rem 1.25rem 1rem;
+  box-shadow: var(--shadow-xs);
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  transition: border-color 180ms, box-shadow 180ms;
+}
+
+.code-card:hover {
+  border-color: var(--navy-primary);
+  box-shadow: 0 2px 12px rgba(49, 73, 145, 0.1);
+}
+
+.code-value {
+  font-family: var(--font-mono);
+  font-size: 1.15rem;
+  font-weight: 500;
+  color: var(--navy-deep);
+  letter-spacing: 0.05em;
+}
+
+.code-meta {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.code-meta strong {
+  color: var(--text-secondary);
+}
+
+.code-actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.25rem;
+}
+
+.btn-copy {
+  padding: 0.4rem 1rem;
+  background: var(--navy-primary);
+  color: #fff;
+  border: none;
+  border-radius: var(--radius-sm);
+  font-family: var(--font-body);
+  font-size: 0.8rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 150ms, transform 80ms;
+  min-width: 72px;
+}
+
+.btn-copy:hover { background: var(--navy-deep); }
+.btn-copy:active { transform: scale(0.96); }
+
+.btn-copy.copied {
+  background: var(--success);
+}
+
+.btn-revoke {
+  padding: 0.4rem 0.875rem;
+  background: none;
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-body);
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: border-color 150ms, color 150ms;
+}
+
+.btn-revoke:hover:not(:disabled) {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+.btn-revoke:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Empty state */
+.empty-state {
+  background: var(--white);
+  border: 1.5px dashed var(--border);
+  border-radius: var(--radius-lg);
+  padding: 2.5rem;
+  text-align: center;
+  color: var(--text-muted);
+  margin-bottom: 0.5rem;
+}
+
+.empty-icon {
+  font-size: 2rem;
+  margin-bottom: 0.5rem;
+  opacity: 0.4;
+}
+
+.empty-state p {
+  font-size: 0.9rem;
+  margin: 0;
+}

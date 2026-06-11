@@ -2,7 +2,7 @@
   <nav class="nav-sidebar">
     <!-- Brand -->
     <div class="nav-brand">
-      <div class="nav-brand-wordmark">Sa<span>ge</span></div>
+      <div class="nav-brand-wordmark">Pa<span>ge</span></div>
       <div class="nav-brand-sub">Topfaith University Finance</div>
     </div>
 
@@ -29,6 +29,7 @@
       @if (open['banking']) {
         <a routerLink="/banks" routerLinkActive="active-link" class="nav-child-link">Bank Accounts</a>
         <a routerLink="/banks/transactions" routerLinkActive="active-link" class="nav-child-link">Transactions</a>
+        <a routerLink="/banks/import" routerLinkActive="active-link" class="nav-child-link">Import Statement</a>
       }
 
       <!-- Reports -->
@@ -71,6 +72,16 @@
       </button>
       @if (open['budget']) {
         <a routerLink="/budget" routerLinkActive="active-link" class="nav-child-link">Budgets</a>
+      }
+      <!-- Administration (Manager / Admin only) -->
+      @if (isAdmin) {
+        <button class="nav-section-btn" (click)="toggle('admin')" style="margin-top:.25rem">
+          Administration
+          <span class="nav-chevron" [style.transform]="open['admin'] ? 'rotate(90deg)' : 'rotate(0deg)'">&#9654;</span>
+        </button>
+        @if (open['admin']) {
+          <a routerLink="/admin/invite-codes" routerLinkActive="active-link" class="nav-child-link">Invite Codes</a>
+        }
       }
     </div>
 
