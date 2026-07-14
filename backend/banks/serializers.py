@@ -61,14 +61,16 @@ class BankAccountSerializer(serializers.Serializer):
                 current_account = instance.gl_account.single()
             except Exception:
                 current_account = None
-            if current_account:
+            unchanged = bool(current_account) and current_account.account_id == gl_account_id
+            if current_account and not unchanged:
                 instance.gl_account.disconnect(current_account)
             if gl_account_id:
                 from accounts.models import Account
-                new_account = Account.nodes.get_or_none(account_id=gl_account_id)
+                new_account = current_account if unchanged else Account.nodes.get_or_none(account_id=gl_account_id)
                 if new_account:
-                    instance.gl_account.connect(new_account)
-                    if new_account and instance.opening_balance:
+                    if not unchanged:
+                        instance.gl_account.connect(new_account)
+                    if instance.opening_balance:
                         from accounts.services import post_opening_balance_entry
                         post_opening_balance_entry(
                             new_account, instance.opening_balance, instance.opening_balance_date,
@@ -125,10 +127,14 @@ class BankTransactionSerializer(serializers.Serializer):
     destination_bank_id = serializers.CharField(write_only=True, required=False, allow_null=True, allow_blank=True)
     transfer_amount = serializers.FloatField(write_only=True, required=False, allow_null=True, min_value=0.01)
     splits = BankTransactionSplitSerializer(many=True, write_only=True, required=False, default=list)
+    vendor_id = serializers.CharField(write_only=True, required=False, allow_null=True, allow_blank=True)
+    customer_id = serializers.CharField(write_only=True, required=False, allow_null=True, allow_blank=True)
 
     # Read-only derived fields
     source_bank_name = serializers.SerializerMethodField()
     destination_bank_name = serializers.SerializerMethodField()
+    vendor_name = serializers.SerializerMethodField()
+    customer_name = serializers.SerializerMethodField()
     entry_id = serializers.SerializerMethodField()
     lines = serializers.SerializerMethodField()
 
@@ -143,6 +149,20 @@ class BankTransactionSerializer(serializers.Serializer):
         try:
             ba = obj.destination_bank.single()
             return ba.name if ba else None
+        except Exception:
+            return None
+
+    def get_vendor_name(self, obj):
+        try:
+            v = obj.vendor.single()
+            return v.name if v else None
+        except Exception:
+            return None
+
+    def get_customer_name(self, obj):
+        try:
+            c = obj.customer.single()
+            return c.name if c else None
         except Exception:
             return None
 

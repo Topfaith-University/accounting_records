@@ -219,3 +219,33 @@ class BankOpeningBalanceTests(TestCase):
         }, format='json')
         self.assertEqual(resp.status_code, 201, resp.content)
         self.assertEqual(compute_account_balance(gl_id), 1000.0)
+
+    def test_linking_gl_account_via_update_syncs_opening_balance(self):
+        import uuid
+        from accounts.services import compute_account_balance
+        # Create the bank account with an opening balance but no GL account yet.
+        resp = self.client.post('/api/banks/accounts/', {
+            'name': 'Test Bank 2', 'bank_name': 'Zenith',
+            'account_number': f'test-{uuid.uuid4()}',
+            'opening_balance': 750.0,
+            'opening_balance_date': '2026-01-01',
+        }, format='json')
+        self.assertEqual(resp.status_code, 201, resp.content)
+        bank_account_id = resp.data['bank_account_id']
+        self.assertIsNone(resp.data['gl_account_id'])
+
+        # Now link a GL account via partial_update — this should post the
+        # opening balance for the first time.
+        gl_id = self._create_gl_account()
+        resp = self.client.patch(f'/api/banks/accounts/{bank_account_id}/', {
+            'gl_account_id_input': gl_id,
+        }, format='json')
+        self.assertEqual(resp.status_code, 200, resp.content)
+        self.assertEqual(compute_account_balance(gl_id), 750.0)
+
+        # Saving again with the same GL account must not double-post.
+        resp = self.client.patch(f'/api/banks/accounts/{bank_account_id}/', {
+            'gl_account_id_input': gl_id,
+        }, format='json')
+        self.assertEqual(resp.status_code, 200, resp.content)
+        self.assertEqual(compute_account_balance(gl_id), 750.0)
