@@ -44,6 +44,9 @@
       <div><span class="label">Date:</span> {{ invoice.date }}</div>
       <div><span class="label">Due Date:</span> {{ invoice.due_date }}</div>
       <div><span class="label">Status:</span> {{ invoice.status }}</div>
+      {% if invoice.description %}
+      <div><span class="label">Description:</span> {{ invoice.description }}</div>
+      {% endif %}
     </div>
   </section>
 
