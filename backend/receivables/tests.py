@@ -72,3 +72,15 @@ class InvoiceLineQuantityUnitPriceTests(TestCase):
         self.assertEqual(line['quantity'], 1.0)
         self.assertEqual(line['unit_price'], 0.0)
         self.assertEqual(line['amount'], 300.0)
+
+
+class CustomerRequiredFieldsTests(TestCase):
+    def setUp(self):
+        self.user = get_user_model().objects.create_user('tester', password='pw12345')
+        self.client = APIClient()
+        self.client.force_authenticate(self.user)
+
+    def test_customer_created_with_only_name(self):
+        resp = self.client.post('/api/receivables/customers/', {'name': 'Jane Doe'}, format='json')
+        self.assertEqual(resp.status_code, 201, resp.content)
+        self.assertEqual(resp.data['email'], '')

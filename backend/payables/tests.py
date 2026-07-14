@@ -72,3 +72,15 @@ class InvoiceLineQuantityUnitPriceTests(TestCase):
         self.assertEqual(line['quantity'], 1.0)
         self.assertEqual(line['unit_price'], 0.0)
         self.assertEqual(line['amount'], 250.0)
+
+
+class VendorRequiredFieldsTests(TestCase):
+    def setUp(self):
+        self.user = get_user_model().objects.create_user('tester', password='pw12345')
+        self.client = APIClient()
+        self.client.force_authenticate(self.user)
+
+    def test_vendor_created_with_only_name(self):
+        resp = self.client.post('/api/payables/vendors/', {'name': 'Acme Supplies'}, format='json')
+        self.assertEqual(resp.status_code, 201, resp.content)
+        self.assertEqual(resp.data['email'], '')
