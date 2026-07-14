@@ -52,9 +52,10 @@ class AccountRBACTests(TestCase):
         self.assertEqual(resp.status_code, 403, resp.content)
 
     def test_partial_update_forbidden_for_non_admin_manager(self):
+        import uuid
         from accounts.models import Account
         account = Account(
-            code='9999', name='Existing Account',
+            code=f'test-{uuid.uuid4()}', name='Existing Account',
             account_type='Expenses', normal_balance='DEBIT',
         )
         account.save()
