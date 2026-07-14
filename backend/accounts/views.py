@@ -25,12 +25,16 @@ class AccountViewSet(viewsets.ViewSet):
         return Response(AccountSerializer(account).data)
 
     def create(self, request):
+        if not request.user.groups.filter(name__in=['Admin', 'Manager']).exists():
+            return Response({'detail': 'Forbidden.'}, status=status.HTTP_403_FORBIDDEN)
         serializer = AccountSerializer(data=request.data, context={'request': request})
         serializer.is_valid(raise_exception=True)
         account = serializer.save()
         return Response(AccountSerializer(account).data, status=status.HTTP_201_CREATED)
 
     def partial_update(self, request, pk=None):
+        if not request.user.groups.filter(name__in=['Admin', 'Manager']).exists():
+            return Response({'detail': 'Forbidden.'}, status=status.HTTP_403_FORBIDDEN)
         account = Account.nodes.get_or_none(account_id=pk)
         if not account:
             return Response({'detail': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)

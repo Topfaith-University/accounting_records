@@ -1,11 +1,14 @@
 from django.test import TestCase
 from rest_framework.test import APIClient
 from django.contrib.auth import get_user_model
+from django.contrib.auth.models import Group
 
 
 class OpeningBalanceTests(TestCase):
     def setUp(self):
         self.user = get_user_model().objects.create_user('tester', password='pw12345')
+        admin_group, _ = Group.objects.get_or_create(name='Admin')
+        self.user.groups.add(admin_group)
         self.client = APIClient()
         self.client.force_authenticate(self.user)
 
