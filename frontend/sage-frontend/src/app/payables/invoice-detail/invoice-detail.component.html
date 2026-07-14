@@ -7,8 +7,12 @@
         <h2 style="margin:0 0 .25rem">{{ invoice.invoice_number }}</h2>
         <span [style.color]="statusColor(invoice.status)" style="font-weight:700;font-size:.875rem">{{ invoice.status }}</span>
       </div>
-      @if (isManagerOrAdmin) {
-        <div style="display:flex;gap:.75rem">
+      <div style="display:flex;gap:.75rem">
+        <button (click)="downloadPdf()" title="Print PDF"
+          style="padding:.5rem .75rem;background:white;color:#1a73e8;border:1px solid #1a73e8;border-radius:4px;cursor:pointer">
+          &#128424; Print PDF
+        </button>
+        @if (isManagerOrAdmin) {
           @if (invoice.status === 'DRAFT') {
             <button (click)="editInvoice()"
               style="padding:.5rem 1rem;background:white;color:#1a73e8;border:1px solid #1a73e8;border-radius:4px;cursor:pointer">
@@ -29,8 +33,8 @@
               Void
             </button>
           }
-        </div>
-      }
+        }
+      </div>
     </div>
 
     @if (actionError) { <p style="color:red;margin-bottom:1rem">{{ actionError }}</p> }

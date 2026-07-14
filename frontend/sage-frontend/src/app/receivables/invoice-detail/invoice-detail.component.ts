@@ -80,6 +80,10 @@ export class SalesInvoiceDetailComponent implements OnInit {
     }
   }
 
+  async downloadPdf() {
+    await this.receivables.downloadInvoicePdf(this.invoice.invoice_id, this.invoice.invoice_number);
+  }
+
   editInvoice() {
     this.router.navigate(['/receivables/invoices', this.invoice.invoice_id, 'edit']);
   }

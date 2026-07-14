@@ -21,6 +21,16 @@ export class ReceivablesService {
   voidInvoice(id: string) { return axios.post(this.base + `invoices/${id}/void/`).then(r => r.data); }
   receiveInvoice(id: string, data: object) { return axios.post(this.base + `invoices/${id}/receive/`, data).then(r => r.data); }
 
+  async downloadInvoicePdf(id: string, invoiceNumber: string): Promise<void> {
+    const response = await axios.get(this.base + `invoices/${id}/print/`, { responseType: 'blob' });
+    const url = URL.createObjectURL(new Blob([response.data], { type: response.headers['content-type'] }));
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `sales-invoice-${invoiceNumber}.pdf`;
+    link.click();
+    URL.revokeObjectURL(url);
+  }
+
   async exportCustomers(format: 'pdf' | 'xlsx'): Promise<void> {
     const response = await axios.get(this.base + 'customers/export/', {
       params: { format },
