@@ -1,12 +1,16 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
+import axios from 'axios';
 import { PayablesService } from '../../services/payables.service';
+import { API_ROOT } from '../../services/api-base';
+import { PaginatePipe } from '../../shared/paginate.pipe';
+import { PaginationComponent } from '../../shared/pagination/pagination.component';
 
 @Component({
   selector: 'app-invoice-list',
   standalone: true,
-  imports: [CommonModule, RouterModule],
+  imports: [CommonModule, RouterModule, PaginatePipe, PaginationComponent],
   templateUrl: './invoice-list.component.html',
 })
 export class InvoiceListComponent implements OnInit {
@@ -14,6 +18,8 @@ export class InvoiceListComponent implements OnInit {
   loading = true;
   error = '';
   activeTab: 'ALL' | 'DRAFT' | 'POSTED' | 'PAID' | 'VOID' = 'ALL';
+  page = 1;
+  pageSize = 25;
 
   constructor(private payables: PayablesService) {}
 
@@ -31,6 +37,7 @@ export class InvoiceListComponent implements OnInit {
 
   async setTab(tab: string) {
     this.activeTab = tab as typeof this.activeTab;
+    this.page = 1;
     await this.load();
   }
 
@@ -51,5 +58,22 @@ export class InvoiceListComponent implements OnInit {
       borderRadius: '4px', fontSize: '.75rem', fontWeight: '700',
       textTransform: 'uppercase', letterSpacing: '.04em',
     };
+  }
+
+  async exportFile(format: 'pdf' | 'xlsx') {
+    try {
+      const response = await axios.get(`${API_ROOT}payables/invoices/export/`, {
+        params: { format }, responseType: 'blob',
+      });
+      const blob = new Blob([response.data], { type: response.headers['content-type'] });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `purchase-invoices.${format}`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      this.error = 'Export failed.';
+    }
   }
 }

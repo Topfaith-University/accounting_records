@@ -7,13 +7,25 @@
       <div class="form-full">
         <h3 style="margin:0 0 1rem;font-family:var(--font-serif);color:var(--burgundy-deep);display:flex;justify-content:space-between;align-items:center;">
           Chart of Accounts
-          @if (canManage) {
-            <button (click)="toggleForm()"
-              class="btn-primary lift-on-hover"
+          <div style="display:flex;gap:0.5rem;">
+            <button (click)="exportFile('pdf')"
+              class="btn-secondary"
               style="padding:0.5rem 1rem;font-size:0.85rem;">
-              {{ showForm ? 'Cancel' : '+ New' }}
+              Export PDF
             </button>
-          }
+            <button (click)="exportFile('xlsx')"
+              class="btn-secondary"
+              style="padding:0.5rem 1rem;font-size:0.85rem;">
+              Export XLSX
+            </button>
+            @if (canManage) {
+              <button (click)="toggleForm()"
+                class="btn-primary lift-on-hover"
+                style="padding:0.5rem 1rem;font-size:0.85rem;">
+                {{ showForm ? 'Cancel' : '+ New' }}
+              </button>
+            }
+          </div>
         </h3>
       </div>
     </div>
@@ -96,7 +108,7 @@
           </tr>
         </thead>
         <tbody>
-          @for (account of accounts; track account.account_id) {
+          @for (account of accounts | paginate:page:pageSize; track account.account_id) {
             <tr class="lift-on-hover">
               <td style="font-family:monospace;font-weight:500;">{{ account.code }}</td>
               <td>
@@ -142,6 +154,7 @@
           }
         </tbody>
       </table>
+      <app-pagination [total]="accounts.length" [page]="page" [pageSize]="pageSize" (pageChange)="page = $event"></app-pagination>
     }
   </div>
 </div>

@@ -1,12 +1,16 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
+import axios from 'axios';
 import { JournalsService } from '../../services/journals.service';
+import { API_ROOT } from '../../services/api-base';
+import { PaginatePipe } from '../../shared/paginate.pipe';
+import { PaginationComponent } from '../../shared/pagination/pagination.component';
 
 @Component({
   selector: 'app-entry-list',
   standalone: true,
-  imports: [CommonModule, RouterModule],
+  imports: [CommonModule, RouterModule, PaginatePipe, PaginationComponent],
   templateUrl: './entry-list.component.html',
 })
 export class EntryListComponent implements OnInit {
@@ -15,6 +19,8 @@ export class EntryListComponent implements OnInit {
   error = '';
   activeTab: 'ALL' | 'DRAFT' | 'POSTED' | 'VOID' = 'ALL';
   tabs: ('ALL' | 'DRAFT' | 'POSTED' | 'VOID')[] = ['ALL', 'DRAFT', 'POSTED', 'VOID'];
+  page = 1;
+  pageSize = 25;
 
   constructor(private journalsService: JournalsService) {}
 
@@ -32,10 +38,28 @@ export class EntryListComponent implements OnInit {
 
   async setTab(tab: string) {
     this.activeTab = tab as typeof this.activeTab;
+    this.page = 1;
     await this.loadEntries();
   }
 
   statusColor(status: string) {
     return { DRAFT: '#f59e0b', POSTED: '#10b981', VOID: '#ef4444' }[status] ?? '#888';
+  }
+
+  async exportFile(format: 'pdf' | 'xlsx') {
+    try {
+      const response = await axios.get(`${API_ROOT}journals/entries/export/`, {
+        params: { format }, responseType: 'blob',
+      });
+      const blob = new Blob([response.data], { type: response.headers['content-type'] });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `journal-entries.${format}`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      this.error = 'Export failed.';
+    }
   }
 }

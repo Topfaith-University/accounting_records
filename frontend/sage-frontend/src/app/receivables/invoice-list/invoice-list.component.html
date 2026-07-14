@@ -1,9 +1,19 @@
 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem">
   <h2 style="margin:0">Sales Invoices (AR)</h2>
-  <a routerLink="/receivables/invoices/new"
-    style="background:#1a73e8;color:white;padding:.5rem 1rem;border-radius:4px;text-decoration:none;font-size:.875rem">
-    + New Invoice
-  </a>
+  <div style="display:flex;gap:.5rem">
+    <button (click)="exportFile('pdf')"
+      style="background:white;color:#555;padding:.5rem 1rem;border:1px solid #ccc;border-radius:4px;cursor:pointer;font-size:.875rem">
+      Export PDF
+    </button>
+    <button (click)="exportFile('xlsx')"
+      style="background:white;color:#555;padding:.5rem 1rem;border:1px solid #ccc;border-radius:4px;cursor:pointer;font-size:.875rem">
+      Export XLSX
+    </button>
+    <a routerLink="/receivables/invoices/new"
+      style="background:#1a73e8;color:white;padding:.5rem 1rem;border-radius:4px;text-decoration:none;font-size:.875rem">
+      + New Invoice
+    </a>
+  </div>
 </div>
 
 <div style="display:flex;gap:.5rem;margin-bottom:1rem">
@@ -20,40 +30,43 @@
 @if (loading) { <p>Loading…</p> }
 @if (error) { <p style="color:red">{{ error }}</p> }
 @if (!loading && !error) {
-  <table style="width:100%;border-collapse:collapse;background:white;border-radius:8px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.1)">
-    <thead style="background:#f0f0f5">
-      <tr>
-        <th style="text-align:left;padding:.75rem 1rem">Invoice #</th>
-        <th style="text-align:left;padding:.75rem 1rem">Date</th>
-        <th style="text-align:left;padding:.75rem 1rem">Due Date</th>
-        <th style="text-align:left;padding:.75rem 1rem">Customer</th>
-        <th style="text-align:right;padding:.75rem 1rem">Total (₦)</th>
-        <th style="text-align:right;padding:.75rem 1rem">Received (₦)</th>
-        <th style="text-align:left;padding:.75rem 1rem">Status</th>
-      </tr>
-    </thead>
-    <tbody>
-      @for (inv of invoices; track inv.invoice_id) {
-        <tr style="border-top:1px solid #eee;cursor:pointer" [routerLink]="['/receivables/invoices', inv.invoice_id]">
-          <td style="padding:.75rem 1rem;font-family:monospace">{{ inv.invoice_number }}</td>
-          <td style="padding:.75rem 1rem">{{ inv.date }}</td>
-          <td style="padding:.75rem 1rem">{{ inv.due_date }}</td>
-          <td style="padding:.75rem 1rem">{{ inv.customer_name }}</td>
-          <td style="padding:.75rem 1rem;text-align:right">{{ inv.total_amount | number:'1.2-2' }}</td>
-          <td style="padding:.75rem 1rem;text-align:right">{{ inv.amount_received | number:'1.2-2' }}</td>
-          <td style="padding:.75rem 1rem">
-            <span [ngStyle]="statusBadgeStyle(inv.status)">{{ inv.status }}</span>
-          </td>
-        </tr>
-      } @empty {
+  <div style="background:white;border-radius:8px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.1)">
+    <table style="width:100%;border-collapse:collapse">
+      <thead style="background:#f0f0f5">
         <tr>
-          <td colspan="7" style="padding:2.5rem;text-align:center;color:var(--text-muted)">
-            No invoices found.
-            <br><br>
-            <a routerLink="/receivables/invoices/new" class="btn-primary" style="padding:.5rem 1.25rem;font-size:.875rem;text-decoration:none">+ Create first invoice</a>
-          </td>
+          <th style="text-align:left;padding:.75rem 1rem">Invoice #</th>
+          <th style="text-align:left;padding:.75rem 1rem">Date</th>
+          <th style="text-align:left;padding:.75rem 1rem">Due Date</th>
+          <th style="text-align:left;padding:.75rem 1rem">Customer</th>
+          <th style="text-align:right;padding:.75rem 1rem">Total (₦)</th>
+          <th style="text-align:right;padding:.75rem 1rem">Received (₦)</th>
+          <th style="text-align:left;padding:.75rem 1rem">Status</th>
         </tr>
-      }
-    </tbody>
-  </table>
+      </thead>
+      <tbody>
+        @for (inv of invoices | paginate:page:pageSize; track inv.invoice_id) {
+          <tr style="border-top:1px solid #eee;cursor:pointer" [routerLink]="['/receivables/invoices', inv.invoice_id]">
+            <td style="padding:.75rem 1rem;font-family:monospace">{{ inv.invoice_number }}</td>
+            <td style="padding:.75rem 1rem">{{ inv.date }}</td>
+            <td style="padding:.75rem 1rem">{{ inv.due_date }}</td>
+            <td style="padding:.75rem 1rem">{{ inv.customer_name }}</td>
+            <td style="padding:.75rem 1rem;text-align:right">{{ inv.total_amount | number:'1.2-2' }}</td>
+            <td style="padding:.75rem 1rem;text-align:right">{{ inv.amount_received | number:'1.2-2' }}</td>
+            <td style="padding:.75rem 1rem">
+              <span [ngStyle]="statusBadgeStyle(inv.status)">{{ inv.status }}</span>
+            </td>
+          </tr>
+        } @empty {
+          <tr>
+            <td colspan="7" style="padding:2.5rem;text-align:center;color:var(--text-muted)">
+              No invoices found.
+              <br><br>
+              <a routerLink="/receivables/invoices/new" class="btn-primary" style="padding:.5rem 1.25rem;font-size:.875rem;text-decoration:none">+ Create first invoice</a>
+            </td>
+          </tr>
+        }
+      </tbody>
+    </table>
+    <app-pagination [total]="invoices.length" [page]="page" [pageSize]="pageSize" (pageChange)="page = $event"></app-pagination>
+  </div>
 }

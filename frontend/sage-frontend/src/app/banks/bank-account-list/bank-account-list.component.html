@@ -7,13 +7,25 @@
       <div class="form-full">
         <h3 style="margin:0 0 1rem;font-family:var(--font-serif);color:var(--burgundy-deep);display:flex;justify-content:space-between;align-items:center;">
           Bank Accounts
-          @if (canManage) {
-            <button (click)="toggleForm()"
-              class="btn-primary lift-on-hover"
+          <div style="display:flex;gap:0.5rem;">
+            <button (click)="exportFile('pdf')"
+              class="btn-secondary"
               style="padding:0.5rem 1rem;font-size:0.85rem;">
-              {{ showForm ? 'Cancel' : '+ New' }}
+              Export PDF
             </button>
-          }
+            <button (click)="exportFile('xlsx')"
+              class="btn-secondary"
+              style="padding:0.5rem 1rem;font-size:0.85rem;">
+              Export XLSX
+            </button>
+            @if (canManage) {
+              <button (click)="toggleForm()"
+                class="btn-primary lift-on-hover"
+                style="padding:0.5rem 1rem;font-size:0.85rem;">
+                {{ showForm ? 'Cancel' : '+ New' }}
+              </button>
+            }
+          </div>
         </h3>
       </div>
     </div>
@@ -104,7 +116,7 @@
           </tr>
         </thead>
         <tbody>
-          @for (acct of accounts; track acct.bank_account_id) {
+          @for (acct of accounts | paginate:page:pageSize; track acct.bank_account_id) {
             <tr class="lift-on-hover">
               <td>
                 <a [routerLink]="['/banks', acct.bank_account_id]" style="color:var(--teal-deep);font-weight:600;text-decoration:none;">
@@ -150,8 +162,8 @@
             </tr>
           }
         </tbody>
-
       </table>
+      <app-pagination [total]="accounts.length" [page]="page" [pageSize]="pageSize" (pageChange)="page = $event"></app-pagination>
     }
   </div>
 </div>

@@ -1,18 +1,24 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ReactiveFormsModule, FormBuilder, FormGroup, Validators } from '@angular/forms';
+import axios from 'axios';
 import { PayablesService } from '../../services/payables.service';
+import { API_ROOT } from '../../services/api-base';
+import { PaginatePipe } from '../../shared/paginate.pipe';
+import { PaginationComponent } from '../../shared/pagination/pagination.component';
 
 @Component({
   selector: 'app-vendor-list',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule],
+  imports: [CommonModule, ReactiveFormsModule, PaginatePipe, PaginationComponent],
   templateUrl: './vendor-list.component.html',
 })
 export class VendorListComponent implements OnInit {
   vendors: any[] = [];
   loading = true;
   error = '';
+  page = 1;
+  pageSize = 25;
   showForm = false;
   saving = false;
   formError = '';
@@ -85,6 +91,23 @@ export class VendorListComponent implements OnInit {
       await this.load();
     } catch (e: any) {
       this.error = e.response?.data?.detail ?? 'Failed to delete vendor.';
+    }
+  }
+
+  async exportFile(format: 'pdf' | 'xlsx') {
+    try {
+      const response = await axios.get(`${API_ROOT}payables/vendors/export/`, {
+        params: { format }, responseType: 'blob',
+      });
+      const blob = new Blob([response.data], { type: response.headers['content-type'] });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `vendors.${format}`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      this.error = 'Export failed.';
     }
   }
 }

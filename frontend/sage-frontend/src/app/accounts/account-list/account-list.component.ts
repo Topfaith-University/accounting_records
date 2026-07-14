@@ -2,8 +2,12 @@ import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterModule } from '@angular/router';
+import axios from 'axios';
 import { AccountsService } from '../../services/accounts.service';
 import { AuthService } from '../../services/auth.service';
+import { API_ROOT } from '../../services/api-base';
+import { PaginatePipe } from '../../shared/paginate.pipe';
+import { PaginationComponent } from '../../shared/pagination/pagination.component';
 
 const DEBIT_NORMAL_TYPES = new Set([
   'Cost of Sales', 'Expenses', 'Income Tax', 'Non-Current Assets', 'Current Assets'
@@ -12,7 +16,7 @@ const DEBIT_NORMAL_TYPES = new Set([
 @Component({
   selector: 'app-account-list',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterModule],
+  imports: [CommonModule, FormsModule, RouterModule, PaginatePipe, PaginationComponent],
   templateUrl: './account-list.component.html',
 })
 export class AccountListComponent implements OnInit {
@@ -20,6 +24,8 @@ export class AccountListComponent implements OnInit {
   accountTypes: string[] = [];
   loading = true;
   error = '';
+  page = 1;
+  pageSize = 25;
 
   showForm = false;
   saving = false;
@@ -28,8 +34,7 @@ export class AccountListComponent implements OnInit {
   form = { name: '', account_type: '', description: '' };
 
   get canManage(): boolean {
-    const user = this.auth.getCurrentUser();
-    return user?.roles.some((r: string) => ['Admin', 'Manager'].includes(r)) ?? false;
+    return !!this.auth.getCurrentUser();
   }
 
   get canDelete(): boolean {
@@ -121,6 +126,23 @@ export class AccountListComponent implements OnInit {
       await this.loadAccounts();
     } catch (e: any) {
       this.error = e.response?.data?.detail ?? (e.response?.data ? JSON.stringify(e.response.data) : 'Failed to delete account.');
+    }
+  }
+
+  async exportFile(format: 'pdf' | 'xlsx') {
+    try {
+      const response = await axios.get(`${API_ROOT}accounts/export/`, {
+        params: { format }, responseType: 'blob',
+      });
+      const blob = new Blob([response.data], { type: response.headers['content-type'] });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `accounts.${format}`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      this.error = 'Export failed.';
     }
   }
 }

@@ -1,9 +1,19 @@
 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem">
   <h2 style="margin:0">Customers</h2>
-  <button (click)="showForm ? cancelForm() : (showForm = true)"
-    style="background:#1a73e8;color:white;padding:.5rem 1rem;border:none;border-radius:4px;cursor:pointer;font-size:.875rem">
-    {{ showForm ? 'Cancel' : '+ New Customer' }}
-  </button>
+  <div style="display:flex;gap:.5rem">
+    <button (click)="exportFile('pdf')"
+      style="background:white;color:#555;padding:.5rem 1rem;border:1px solid #ccc;border-radius:4px;cursor:pointer;font-size:.875rem">
+      Export PDF
+    </button>
+    <button (click)="exportFile('xlsx')"
+      style="background:white;color:#555;padding:.5rem 1rem;border:1px solid #ccc;border-radius:4px;cursor:pointer;font-size:.875rem">
+      Export XLSX
+    </button>
+    <button (click)="showForm ? cancelForm() : (showForm = true)"
+      style="background:#1a73e8;color:white;padding:.5rem 1rem;border:none;border-radius:4px;cursor:pointer;font-size:.875rem">
+      {{ showForm ? 'Cancel' : '+ New Customer' }}
+    </button>
+  </div>
 </div>
 
 @if (showForm) {
@@ -52,43 +62,46 @@
 @if (loading) { <p>Loading…</p> }
 @if (error) { <p style="color:red">{{ error }}</p> }
 @if (!loading && !error) {
-  <table style="width:100%;border-collapse:collapse;background:white;border-radius:8px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.1)">
-    <thead style="background:#f0f0f5">
-      <tr>
-        <th style="text-align:left;padding:.75rem 1rem">Name</th>
-        <th style="text-align:left;padding:.75rem 1rem">Type</th>
-        <th style="text-align:left;padding:.75rem 1rem">Email</th>
-        <th style="text-align:left;padding:.75rem 1rem">Phone</th>
-        <th style="text-align:right;padding:.75rem 1rem">Actions</th>
-      </tr>
-    </thead>
-    <tbody>
-      @for (customer of customers; track customer.customer_id) {
-        <tr style="border-top:1px solid #eee">
-          <td style="padding:.75rem 1rem;font-weight:500">{{ customer.name }}</td>
-          <td style="padding:.75rem 1rem;color:#555">{{ customer.customer_type }}</td>
-          <td style="padding:.75rem 1rem;color:#555">{{ customer.email }}</td>
-          <td style="padding:.75rem 1rem;color:#555">{{ customer.phone }}</td>
-          <td style="padding:.75rem 1rem;text-align:right">
-            <button (click)="startEdit(customer)"
-              style="margin-right:.5rem;padding:.35rem .75rem;background:none;border:1px solid #ccc;border-radius:4px;cursor:pointer">
-              Edit
-            </button>
-            <button (click)="deleteCustomer(customer)"
-              style="padding:.35rem .75rem;background:#fff1f2;color:#b42318;border:1px solid #fecdca;border-radius:4px;cursor:pointer">
-              Delete
-            </button>
-          </td>
-        </tr>
-      } @empty {
+  <div style="background:white;border-radius:8px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.1)">
+    <table style="width:100%;border-collapse:collapse">
+      <thead style="background:#f0f0f5">
         <tr>
-          <td colspan="5" style="padding:2.5rem;text-align:center;color:var(--text-muted)">
-            No customers yet.
-            <br><br>
-            <button (click)="showForm = true" class="btn-primary" style="padding:.5rem 1.25rem;font-size:.875rem">+ Add first customer</button>
-          </td>
+          <th style="text-align:left;padding:.75rem 1rem">Name</th>
+          <th style="text-align:left;padding:.75rem 1rem">Type</th>
+          <th style="text-align:left;padding:.75rem 1rem">Email</th>
+          <th style="text-align:left;padding:.75rem 1rem">Phone</th>
+          <th style="text-align:right;padding:.75rem 1rem">Actions</th>
         </tr>
-      }
-    </tbody>
-  </table>
+      </thead>
+      <tbody>
+        @for (customer of customers | paginate:page:pageSize; track customer.customer_id) {
+          <tr style="border-top:1px solid #eee">
+            <td style="padding:.75rem 1rem;font-weight:500">{{ customer.name }}</td>
+            <td style="padding:.75rem 1rem;color:#555">{{ customer.customer_type }}</td>
+            <td style="padding:.75rem 1rem;color:#555">{{ customer.email }}</td>
+            <td style="padding:.75rem 1rem;color:#555">{{ customer.phone }}</td>
+            <td style="padding:.75rem 1rem;text-align:right">
+              <button (click)="startEdit(customer)"
+                style="margin-right:.5rem;padding:.35rem .75rem;background:none;border:1px solid #ccc;border-radius:4px;cursor:pointer">
+                Edit
+              </button>
+              <button (click)="deleteCustomer(customer)"
+                style="padding:.35rem .75rem;background:#fff1f2;color:#b42318;border:1px solid #fecdca;border-radius:4px;cursor:pointer">
+                Delete
+              </button>
+            </td>
+          </tr>
+        } @empty {
+          <tr>
+            <td colspan="5" style="padding:2.5rem;text-align:center;color:var(--text-muted)">
+              No customers yet.
+              <br><br>
+              <button (click)="showForm = true" class="btn-primary" style="padding:.5rem 1.25rem;font-size:.875rem">+ Add first customer</button>
+            </td>
+          </tr>
+        }
+      </tbody>
+    </table>
+    <app-pagination [total]="customers.length" [page]="page" [pageSize]="pageSize" (pageChange)="page = $event"></app-pagination>
+  </div>
 }

@@ -1,18 +1,24 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ReactiveFormsModule, FormBuilder, FormGroup, Validators } from '@angular/forms';
+import axios from 'axios';
 import { ReceivablesService } from '../../services/receivables.service';
+import { API_ROOT } from '../../services/api-base';
+import { PaginatePipe } from '../../shared/paginate.pipe';
+import { PaginationComponent } from '../../shared/pagination/pagination.component';
 
 @Component({
   selector: 'app-customer-list',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule],
+  imports: [CommonModule, ReactiveFormsModule, PaginatePipe, PaginationComponent],
   templateUrl: './customer-list.component.html',
 })
 export class CustomerListComponent implements OnInit {
   customers: any[] = [];
   loading = true;
   error = '';
+  page = 1;
+  pageSize = 25;
   showForm = false;
   saving = false;
   formError = '';
@@ -87,6 +93,23 @@ export class CustomerListComponent implements OnInit {
       await this.load();
     } catch (e: any) {
       this.error = e.response?.data?.detail ?? 'Failed to delete customer.';
+    }
+  }
+
+  async exportFile(format: 'pdf' | 'xlsx') {
+    try {
+      const response = await axios.get(`${API_ROOT}receivables/customers/export/`, {
+        params: { format }, responseType: 'blob',
+      });
+      const blob = new Blob([response.data], { type: response.headers['content-type'] });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `customers.${format}`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      this.error = 'Export failed.';
     }
   }
 }

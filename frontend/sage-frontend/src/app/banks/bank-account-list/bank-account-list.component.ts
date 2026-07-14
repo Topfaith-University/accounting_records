@@ -2,15 +2,19 @@ import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterModule } from '@angular/router';
+import axios from 'axios';
 import { BanksService } from '../../services/banks.service';
 import { AccountsService } from '../../services/accounts.service';
 import { AuthService } from '../../services/auth.service';
+import { API_ROOT } from '../../services/api-base';
 import { AccountSelectComponent } from '../../shared/account-select/account-select.component';
+import { PaginatePipe } from '../../shared/paginate.pipe';
+import { PaginationComponent } from '../../shared/pagination/pagination.component';
 
 @Component({
   selector: 'app-bank-account-list',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterModule, AccountSelectComponent],
+  imports: [CommonModule, FormsModule, RouterModule, AccountSelectComponent, PaginatePipe, PaginationComponent],
   templateUrl: './bank-account-list.component.html',
 })
 export class BankAccountListComponent implements OnInit {
@@ -19,6 +23,8 @@ export class BankAccountListComponent implements OnInit {
   allAccounts: any[] = [];
   loading = true;
   error = '';
+  page = 1;
+  pageSize = 25;
 
   showForm = false;
   saving = false;
@@ -35,8 +41,7 @@ export class BankAccountListComponent implements OnInit {
   };
 
   get canManage(): boolean {
-    const user = this.auth.getCurrentUser();
-    return user?.roles.some((r: string) => ['Admin', 'Manager'].includes(r)) ?? false;
+    return !!this.auth.getCurrentUser();
   }
 
   get isEditMode(): boolean {
@@ -144,6 +149,23 @@ export class BankAccountListComponent implements OnInit {
       await this.loadData();
     } catch (e: any) {
       this.error = e.response?.data?.detail ?? (e.response?.data ? JSON.stringify(e.response.data) : 'Failed to delete bank account.');
+    }
+  }
+
+  async exportFile(format: 'pdf' | 'xlsx') {
+    try {
+      const response = await axios.get(`${API_ROOT}banks/accounts/export/`, {
+        params: { format }, responseType: 'blob',
+      });
+      const blob = new Blob([response.data], { type: response.headers['content-type'] });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `bank-accounts.${format}`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      this.error = 'Export failed.';
     }
   }
 }
