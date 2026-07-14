@@ -42,6 +42,8 @@ class PurchaseInvoice(StructuredNode):
 class PurchaseInvoiceLine(StructuredNode):
     line_id = UniqueIdProperty()
     description = StringProperty(default='')
+    quantity = FloatProperty(default=1.0)
+    unit_price = FloatProperty(default=0.0)
     amount = FloatProperty(required=True)
 
     expense_account = RelationshipTo('accounts.models.Account', 'CHARGES_EXPENSE', cardinality=One)

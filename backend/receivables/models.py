@@ -46,6 +46,8 @@ class SalesInvoice(StructuredNode):
 class SalesInvoiceLine(StructuredNode):
     line_id = UniqueIdProperty()
     description = StringProperty(default='')
+    quantity = FloatProperty(default=1.0)
+    unit_price = FloatProperty(default=0.0)
     amount = FloatProperty(required=True)
 
     revenue_account = RelationshipTo('accounts.models.Account', 'EARNS_REVENUE', cardinality=One)

@@ -46,6 +46,8 @@ class VendorSerializer(serializers.Serializer):
 class PurchaseInvoiceLineSerializer(serializers.Serializer):
     line_id = serializers.CharField(read_only=True)
     description = serializers.CharField(default='', allow_blank=True)
+    quantity = serializers.FloatField(default=1.0, min_value=0.01)
+    unit_price = serializers.FloatField(default=0.0, min_value=0)
     amount = serializers.FloatField(min_value=0.01)
     expense_account_id = serializers.CharField(write_only=True)
     expense_account_code = serializers.SerializerMethodField()

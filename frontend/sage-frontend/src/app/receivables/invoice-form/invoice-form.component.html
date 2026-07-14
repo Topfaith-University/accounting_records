@@ -52,6 +52,8 @@
             }
             <th style="text-align:left;padding:.75rem 1rem;font-size:.875rem">Revenue Account</th>
             <th style="text-align:left;padding:.75rem 1rem;font-size:.875rem">Description</th>
+            <th style="text-align:right;padding:.75rem 1rem;font-size:.875rem;width:90px">Qty</th>
+            <th style="text-align:right;padding:.75rem 1rem;font-size:.875rem;width:130px">Unit Price (&#8358;)</th>
             <th style="text-align:right;padding:.75rem 1rem;font-size:.875rem;width:140px">Amount (&#8358;)</th>
             <th style="width:40px"></th>
           </tr>
@@ -81,6 +83,16 @@
               <td style="padding:.5rem 1rem">
                 <input formControlName="description" placeholder="optional"
                   style="width:100%;padding:.375rem;border:1px solid #ccc;border-radius:4px;box-sizing:border-box" />
+              </td>
+              <td style="padding:.5rem 1rem">
+                <input formControlName="quantity" type="number" min="0.01" step="0.01" placeholder="1"
+                  (input)="recomputeAmount($index)"
+                  style="width:100%;padding:.375rem;border:1px solid #ccc;border-radius:4px;text-align:right;box-sizing:border-box" />
+              </td>
+              <td style="padding:.5rem 1rem">
+                <input formControlName="unit_price" type="number" min="0" step="0.01" placeholder="0.00"
+                  (input)="recomputeAmount($index)"
+                  style="width:100%;padding:.375rem;border:1px solid #ccc;border-radius:4px;text-align:right;box-sizing:border-box" />
               </td>
               <td style="padding:.5rem 1rem">
                 <input formControlName="amount" type="number" min="0.01" step="0.01" placeholder="0.00"

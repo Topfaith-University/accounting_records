@@ -80,6 +80,8 @@ export class SalesInvoiceFormComponent implements OnInit {
           this.lines.push(this.fb.group({
             revenue_account_id: [line.revenue_account_id ?? '', Validators.required],
             description: [line.description ?? ''],
+            quantity: [line.quantity ?? 1, [Validators.required, Validators.min(0.01)]],
+            unit_price: [line.unit_price ?? 0, [Validators.required, Validators.min(0)]],
             amount: [line.amount ?? null, [Validators.required, Validators.min(0.01)]],
           }));
         }
@@ -96,6 +98,8 @@ export class SalesInvoiceFormComponent implements OnInit {
     this.lines.push(this.fb.group({
       revenue_account_id: ['', Validators.required],
       description: [''],
+      quantity: [1, [Validators.required, Validators.min(0.01)]],
+      unit_price: [0, [Validators.required, Validators.min(0)]],
       amount: [null, [Validators.required, Validators.min(0.01)]],
     }));
   }
@@ -104,14 +108,23 @@ export class SalesInvoiceFormComponent implements OnInit {
     if (this.lines.length > 1) this.lines.removeAt(i);
   }
 
+  recomputeAmount(index: number) {
+    const group = this.lines.at(index);
+    const qty = group.get('quantity')!.value || 0;
+    const price = group.get('unit_price')!.value || 0;
+    group.get('amount')!.setValue(Math.round(qty * price * 100) / 100);
+  }
+
   applyItem(index: number, itemId: string) {
     const item = this.items.find(i => i.item_id === itemId);
     if (!item) return;
-    this.lines.at(index).patchValue({
+    const group = this.lines.at(index);
+    group.patchValue({
       revenue_account_id: item.revenue_account_id ?? '',
       description: item.name,
-      amount: item.unit_price ?? null,
+      unit_price: item.unit_price ?? 0,
     });
+    this.recomputeAmount(index);
   }
 
   async save() {
