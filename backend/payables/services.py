@@ -138,6 +138,23 @@ def record_payment(invoice_id: str, payment_date, amount: float,
     payment.bank_account.connect(bank)
     payment.journal_entry.connect(entry)
 
+    from banks.models import BankTransaction
+    from banks.services import generate_bank_transaction_reference
+    bank_txn = BankTransaction(
+        reference=generate_bank_transaction_reference(),
+        transaction_type='PAYMENT',
+        date=_to_date(payment_date),
+        amount=amount,
+        description=f'Payment for {invoice.invoice_number}',
+        created_by=username,
+    )
+    bank_txn.save()
+    bank_txn.source_bank.connect(bank)
+    bank_txn.journal_entry.connect(entry)
+    vendor = invoice.vendor.single()
+    if vendor:
+        bank_txn.vendor.connect(vendor)
+
     invoice.amount_paid = round(invoice.amount_paid + amount, 2)
     if invoice.amount_paid >= invoice.total_amount - 0.01:
         invoice.status = 'PAID'

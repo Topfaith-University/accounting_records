@@ -64,10 +64,12 @@ class SalesInvoiceViewSet(viewsets.ViewSet):
     def list(self, request):
         invoices = SalesInvoice.nodes.all()
         inv_status = request.query_params.get('status')
+        customer_id = request.query_params.get('customer_id')
+        invoices = list(invoices)
         if inv_status:
             invoices = [i for i in invoices if i.status == inv_status.upper()]
-        else:
-            invoices = list(invoices)
+        if customer_id:
+            invoices = [i for i in invoices if (c := i.customer.single()) and c.customer_id == customer_id]
         invoices = sorted(invoices, key=lambda i: str(i.date), reverse=True)
         return Response(SalesInvoiceSerializer(invoices, many=True).data)
 

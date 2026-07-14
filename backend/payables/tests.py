@@ -84,3 +84,43 @@ class VendorRequiredFieldsTests(TestCase):
         resp = self.client.post('/api/payables/vendors/', {'name': 'Acme Supplies'}, format='json')
         self.assertEqual(resp.status_code, 201, resp.content)
         self.assertEqual(resp.data['email'], '')
+
+
+class RecordPaymentBankTransactionTests(TestCase):
+    def setUp(self):
+        self.user = get_user_model().objects.create_user('tester', password='pw12345')
+        admin_group, _ = Group.objects.get_or_create(name='Admin')
+        self.user.groups.add(admin_group)
+        self.client = APIClient()
+        self.client.force_authenticate(self.user)
+
+    def _setup_invoice_and_bank(self):
+        import uuid
+        ap = self.client.post('/api/accounts/', {'name': 'AP Control', 'account_type': 'Current Liabilities', 'normal_balance': 'CREDIT'}, format='json').data
+        expense = self.client.post('/api/accounts/', {'name': 'Office Supplies', 'account_type': 'Expenses', 'normal_balance': 'DEBIT'}, format='json').data
+        bank_gl = self.client.post('/api/accounts/', {'name': 'Bank GL', 'account_type': 'Current Assets', 'normal_balance': 'DEBIT'}, format='json').data
+        vendor = self.client.post('/api/payables/vendors/', {'name': 'Test Vendor'}, format='json').data
+        bank = self.client.post('/api/banks/accounts/', {
+            'name': 'Test Bank', 'bank_name': 'GTBank', 'account_number': f'test-{uuid.uuid4()}',
+            'opening_balance': 5000.0,
+            'opening_balance_date': '2026-01-01', 'gl_account_id_input': bank_gl['account_id'],
+        }, format='json').data
+        invoice = self.client.post('/api/payables/invoices/', {
+            'date': '2026-01-01', 'due_date': '2026-02-01',
+            'vendor_id': vendor['vendor_id'], 'ap_account_id': ap['account_id'],
+            'lines': [{'description': 'Pens', 'amount': 100.0, 'expense_account_id': expense['account_id']}],
+        }, format='json').data
+        self.client.post(f"/api/payables/invoices/{invoice['invoice_id']}/post/")
+        return invoice, bank
+
+    def test_paying_invoice_creates_bank_transaction(self):
+        from banks.models import BankTransaction
+        invoice, bank = self._setup_invoice_and_bank()
+        resp = self.client.post(f"/api/payables/invoices/{invoice['invoice_id']}/pay/", {
+            'payment_date': '2026-01-15', 'amount': 100.0, 'bank_account_id': bank['bank_account_id'],
+        }, format='json')
+        self.assertEqual(resp.status_code, 201, resp.content)
+        txns = list(BankTransaction.nodes.filter(description=f"Payment for {invoice['invoice_number']}"))
+        self.assertEqual(len(txns), 1)
+        self.assertEqual(txns[0].transaction_type, 'PAYMENT')
+        self.assertEqual(txns[0].amount, 100.0)

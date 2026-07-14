@@ -75,10 +75,12 @@ class PurchaseInvoiceViewSet(viewsets.ViewSet):
     def list(self, request):
         invoices = PurchaseInvoice.nodes.all()
         inv_status = request.query_params.get('status')
+        vendor_id = request.query_params.get('vendor_id')
+        invoices = list(invoices)
         if inv_status:
             invoices = [i for i in invoices if i.status == inv_status.upper()]
-        else:
-            invoices = list(invoices)
+        if vendor_id:
+            invoices = [i for i in invoices if (v := i.vendor.single()) and v.vendor_id == vendor_id]
         invoices = sorted(invoices, key=lambda i: str(i.date), reverse=True)
         return Response(PurchaseInvoiceSerializer(invoices, many=True).data)
 

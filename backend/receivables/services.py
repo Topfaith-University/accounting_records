@@ -138,6 +138,23 @@ def record_receipt(invoice_id: str, receipt_date, amount: float,
     receipt.bank_account.connect(bank)
     receipt.journal_entry.connect(entry)
 
+    from banks.models import BankTransaction
+    from banks.services import generate_bank_transaction_reference
+    bank_txn = BankTransaction(
+        reference=generate_bank_transaction_reference(),
+        transaction_type='RECEIPT',
+        date=_to_date(receipt_date),
+        amount=amount,
+        description=f'Receipt for {invoice.invoice_number}',
+        created_by=username,
+    )
+    bank_txn.save()
+    bank_txn.source_bank.connect(bank)
+    bank_txn.journal_entry.connect(entry)
+    customer = invoice.customer.single()
+    if customer:
+        bank_txn.customer.connect(customer)
+
     invoice.amount_received = round(invoice.amount_received + amount, 2)
     if invoice.amount_received >= invoice.total_amount - 0.01:
         invoice.status = 'PAID'
