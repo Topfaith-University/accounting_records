@@ -205,13 +205,15 @@ export class BankTransactionFormComponent implements OnInit {
         reference: row.reference || '',
         bank_account_id: this.sourceBankId,
       });
-    } else {
+    } else if (row.type === 'CUSTOMER') {
       await this.receivablesService.receiveInvoice(row.selected_invoice_id, {
         receipt_date: row.date,
         amount,
         reference: row.reference || '',
         bank_account_id: this.sourceBankId,
       });
+    } else {
+      throw new Error(`Cannot apply an invoice to a "${row.type}" row.`);
     }
   }
 

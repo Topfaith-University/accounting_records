@@ -111,11 +111,11 @@ class RecordPaymentBankTransactionTests(TestCase):
             'lines': [{'description': 'Pens', 'amount': 100.0, 'expense_account_id': expense['account_id']}],
         }, format='json').data
         self.client.post(f"/api/payables/invoices/{invoice['invoice_id']}/post/")
-        return invoice, bank
+        return invoice, bank, vendor
 
     def test_paying_invoice_creates_bank_transaction(self):
         from banks.models import BankTransaction
-        invoice, bank = self._setup_invoice_and_bank()
+        invoice, bank, vendor = self._setup_invoice_and_bank()
         resp = self.client.post(f"/api/payables/invoices/{invoice['invoice_id']}/pay/", {
             'payment_date': '2026-01-15', 'amount': 100.0, 'bank_account_id': bank['bank_account_id'],
         }, format='json')
@@ -124,3 +124,6 @@ class RecordPaymentBankTransactionTests(TestCase):
         self.assertEqual(len(txns), 1)
         self.assertEqual(txns[0].transaction_type, 'PAYMENT')
         self.assertEqual(txns[0].amount, 100.0)
+        linked_vendor = txns[0].vendor.single()
+        self.assertIsNotNone(linked_vendor)
+        self.assertEqual(linked_vendor.vendor_id, vendor['vendor_id'])
