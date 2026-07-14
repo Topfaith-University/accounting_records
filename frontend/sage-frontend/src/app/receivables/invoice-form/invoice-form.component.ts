@@ -7,11 +7,12 @@ import { AccountsService } from '../../services/accounts.service';
 import { PayablesService } from '../../services/payables.service';
 import { AccountSelectComponent } from '../../shared/account-select/account-select.component';
 import { CustomerSelectComponent } from '../../shared/customer-select/customer-select.component';
+import { ItemSelectComponent } from '../../shared/item-select/item-select.component';
 
 @Component({
   selector: 'app-sales-invoice-form',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, AccountSelectComponent, CustomerSelectComponent],
+  imports: [CommonModule, ReactiveFormsModule, AccountSelectComponent, CustomerSelectComponent, ItemSelectComponent],
   templateUrl: './invoice-form.component.html',
 })
 export class SalesInvoiceFormComponent implements OnInit {

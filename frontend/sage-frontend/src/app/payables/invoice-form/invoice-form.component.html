@@ -62,14 +62,13 @@
           @for (line of lines.controls; track $index) {
             <tr [formGroupName]="$index" style="border-top:1px solid #eee">
               @if (items.length > 0) {
-                <td style="padding:.5rem 1rem">
-                  <select (change)="applyItem($index, $any($event.target).value)"
-                    style="width:100%;padding:.375rem;border:1px solid #ccc;border-radius:4px;font-family:var(--font-body);font-size:.8rem;color:var(--text-secondary)">
-                    <option value="">— fill from item —</option>
-                    @for (it of items; track it.item_id) {
-                      <option [value]="it.item_id">{{ it.name }}</option>
-                    }
-                  </select>
+                <td style="padding:.5rem 1rem;overflow:visible">
+                  <app-item-select
+                    [allItems]="items"
+                    (itemsChanged)="items = $event"
+                    (itemPicked)="applyItem($index, $event.item_id)"
+                    placeholder="Search or create item…"
+                  ></app-item-select>
                 </td>
               }
               <td style="padding:.5rem 1rem;overflow:visible">

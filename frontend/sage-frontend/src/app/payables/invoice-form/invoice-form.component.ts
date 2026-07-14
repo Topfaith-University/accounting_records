@@ -6,11 +6,12 @@ import { PayablesService } from '../../services/payables.service';
 import { AccountsService } from '../../services/accounts.service';
 import { AccountSelectComponent } from '../../shared/account-select/account-select.component';
 import { VendorSelectComponent } from '../../shared/vendor-select/vendor-select.component';
+import { ItemSelectComponent } from '../../shared/item-select/item-select.component';
 
 @Component({
   selector: 'app-purchase-invoice-form',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, AccountSelectComponent, VendorSelectComponent],
+  imports: [CommonModule, ReactiveFormsModule, AccountSelectComponent, VendorSelectComponent, ItemSelectComponent],
   templateUrl: './invoice-form.component.html',
 })
 export class PurchaseInvoiceFormComponent implements OnInit {
