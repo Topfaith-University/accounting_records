@@ -2,6 +2,7 @@ from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
+from config.export_utils import pdf_response
 from .models import Vendor, PurchaseInvoice, APPayment, Item
 from .serializers import VendorSerializer, PurchaseInvoiceSerializer, APPaymentSerializer, PurchaseInvoiceLineSerializer, ItemSerializer
 from . import services
@@ -101,6 +102,21 @@ class PurchaseInvoiceViewSet(viewsets.ViewSet):
         if not invoice:
             return Response({'detail': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
         return Response(_serialize_invoice(invoice))
+
+    @action(detail=True, methods=['get'], url_path='print')
+    def print_invoice(self, request, pk=None):
+        invoice = PurchaseInvoice.nodes.get_or_none(invoice_id=pk)
+        if not invoice:
+            return Response({'detail': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
+        vendor = invoice.vendor.single()
+        lines = list(invoice.lines.all())
+        return pdf_response('payables/purchase_invoice.html', {
+            'invoice': invoice,
+            'vendor': vendor,
+            'lines': lines,
+            'settled_amount': invoice.amount_paid,
+            'outstanding_amount': max(0, invoice.total_amount - invoice.amount_paid),
+        }, f'purchase-invoice-{invoice.invoice_number}')
 
     def create(self, request):
         serializer = PurchaseInvoiceSerializer(data=request.data)
