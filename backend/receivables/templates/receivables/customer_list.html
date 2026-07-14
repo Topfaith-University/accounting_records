@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  body { font-family: Arial, sans-serif; font-size: 11px; margin: 20px; color: #1a1a2e; }
+  h1 { font-size: 16px; margin: 0 0 4px; }
+  .subtitle { color: #555; margin: 0 0 16px; font-size: 10px; }
+  table { width: 100%; border-collapse: collapse; }
+  th { background: #1a1a2e; color: white; padding: 6px 8px; text-align: left; font-size: 10px; }
+  td { padding: 5px 8px; border-bottom: 1px solid #eee; }
+  tr:nth-child(even) td { background: #f9f9fb; }
+</style>
+</head>
+<body>
+<h1>Customers</h1>
+<p class="subtitle">Active customers</p>
+<table>
+  <thead>
+    <tr>
+      <th>Name</th><th>Type</th><th>Email</th><th>Phone</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for row in rows %}
+    <tr>
+      <td>{{ row.name }}</td>
+      <td>{{ row.customer_type }}</td>
+      <td>{{ row.email }}</td>
+      <td>{{ row.phone }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+</body>
+</html>

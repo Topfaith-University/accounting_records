@@ -57,6 +57,18 @@ class CustomerViewSet(viewsets.ViewSet):
         customer.save()
         return Response(status=status.HTTP_204_NO_CONTENT)
 
+    @action(detail=False, methods=['get'], url_path='export')
+    def export(self, request):
+        from config.export_utils import xlsx_response, pdf_response
+        customers = sorted([c for c in Customer.nodes.all() if c.is_active], key=lambda c: c.name)
+        fmt = request.query_params.get('format', 'xlsx')
+        headers = ['Name', 'Type', 'Email', 'Phone']
+        rows = [[c.name, c.customer_type, c.email, c.phone] for c in customers]
+        if fmt == 'pdf':
+            ctx = {'rows': [dict(zip(['name', 'customer_type', 'email', 'phone'], r)) for r in rows]}
+            return pdf_response('receivables/customer_list.html', ctx, 'customers')
+        return xlsx_response(headers, rows, 'customers', 'Customers')
+
 
 class SalesInvoiceViewSet(viewsets.ViewSet):
     permission_classes = [IsAuthenticated]
@@ -136,6 +148,27 @@ class SalesInvoiceViewSet(viewsets.ViewSet):
         except Exception as e:
             return Response({'detail': str(e)}, status=status.HTTP_400_BAD_REQUEST)
         return Response(_serialize_invoice(invoice))
+
+    @action(detail=False, methods=['get'], url_path='export')
+    def export(self, request):
+        from config.export_utils import xlsx_response, pdf_response
+        invoices = list(SalesInvoice.nodes.all())
+        invoices = sorted(invoices, key=lambda i: str(i.date), reverse=True)
+        fmt = request.query_params.get('format', 'xlsx')
+        headers = ['Invoice #', 'Customer', 'Date', 'Due Date', 'Total (N)', 'Received (N)', 'Status']
+        rows = []
+        for inv in invoices:
+            customer = inv.customer.single()
+            rows.append([
+                inv.invoice_number, customer.name if customer else '', str(inv.date), str(inv.due_date),
+                inv.total_amount, inv.amount_received, inv.status,
+            ])
+        if fmt == 'pdf':
+            ctx = {'rows': [dict(zip(
+                ['invoice_number', 'customer', 'date', 'due_date', 'total_amount', 'amount_received', 'status'], r
+            )) for r in rows]}
+            return pdf_response('receivables/invoice_list.html', ctx, 'sales-invoices')
+        return xlsx_response(headers, rows, 'sales-invoices', 'Sales Invoices')
 
     @action(detail=True, methods=['post'], url_path='receive')
     def receive(self, request, pk=None):

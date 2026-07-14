@@ -68,6 +68,18 @@ class VendorViewSet(viewsets.ViewSet):
         vendor.save()
         return Response(status=status.HTTP_204_NO_CONTENT)
 
+    @action(detail=False, methods=['get'], url_path='export')
+    def export(self, request):
+        from config.export_utils import xlsx_response, pdf_response
+        vendors = sorted([v for v in Vendor.nodes.all() if v.is_active], key=lambda v: v.name)
+        fmt = request.query_params.get('format', 'xlsx')
+        headers = ['Name', 'Email', 'Phone', 'Address']
+        rows = [[v.name, v.email, v.phone, v.address] for v in vendors]
+        if fmt == 'pdf':
+            ctx = {'rows': [dict(zip(['name', 'email', 'phone', 'address'], r)) for r in rows]}
+            return pdf_response('payables/vendor_list.html', ctx, 'vendors')
+        return xlsx_response(headers, rows, 'vendors', 'Vendors')
+
 
 class PurchaseInvoiceViewSet(viewsets.ViewSet):
     permission_classes = [IsAuthenticated]
@@ -147,6 +159,27 @@ class PurchaseInvoiceViewSet(viewsets.ViewSet):
         except Exception as e:
             return Response({'detail': str(e)}, status=status.HTTP_400_BAD_REQUEST)
         return Response(_serialize_invoice(invoice))
+
+    @action(detail=False, methods=['get'], url_path='export')
+    def export(self, request):
+        from config.export_utils import xlsx_response, pdf_response
+        invoices = list(PurchaseInvoice.nodes.all())
+        invoices = sorted(invoices, key=lambda i: str(i.date), reverse=True)
+        fmt = request.query_params.get('format', 'xlsx')
+        headers = ['Invoice #', 'Vendor', 'Date', 'Due Date', 'Total (N)', 'Paid (N)', 'Status']
+        rows = []
+        for inv in invoices:
+            vendor = inv.vendor.single()
+            rows.append([
+                inv.invoice_number, vendor.name if vendor else '', str(inv.date), str(inv.due_date),
+                inv.total_amount, inv.amount_paid, inv.status,
+            ])
+        if fmt == 'pdf':
+            ctx = {'rows': [dict(zip(
+                ['invoice_number', 'vendor', 'date', 'due_date', 'total_amount', 'amount_paid', 'status'], r
+            )) for r in rows]}
+            return pdf_response('payables/invoice_list.html', ctx, 'purchase-invoices')
+        return xlsx_response(headers, rows, 'purchase-invoices', 'Purchase Invoices')
 
     @action(detail=True, methods=['post'], url_path='pay')
     def pay(self, request, pk=None):
