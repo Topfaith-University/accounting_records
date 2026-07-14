@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  body { font-family: Arial, sans-serif; font-size: 11px; margin: 20px; color: #1a1a2e; }
+  h1 { font-size: 16px; margin: 0 0 4px; }
+  .subtitle { color: #555; margin: 0 0 16px; font-size: 10px; }
+  table { width: 100%; border-collapse: collapse; }
+  th { background: #1a1a2e; color: white; padding: 6px 8px; text-align: left; font-size: 10px; }
+  th:nth-child(5), td:nth-child(5) { text-align: right; font-family: monospace; }
+  td { padding: 5px 8px; border-bottom: 1px solid #eee; }
+  tr:nth-child(even) td { background: #f9f9fb; }
+</style>
+</head>
+<body>
+<h1>Chart of Accounts</h1>
+<p class="subtitle">Active accounts</p>
+<table>
+  <thead>
+    <tr>
+      <th>Code</th><th>Name</th><th>Type</th><th>Normal Balance</th><th>Balance (&#8358;)</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for row in rows %}
+    <tr>
+      <td>{{ row.code }}</td>
+      <td>{{ row.name }}</td>
+      <td>{{ row.account_type }}</td>
+      <td>{{ row.normal_balance }}</td>
+      <td>{{ row.balance|floatformat:2 }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+</body>
+</html>

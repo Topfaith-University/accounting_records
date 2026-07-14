@@ -59,6 +59,23 @@ class AccountViewSet(viewsets.ViewSet):
     def types(self, request):
         return Response({'account_types': [t.value for t in AccountType]})
 
+    @action(detail=False, methods=['get'], url_path='export')
+    def export(self, request):
+        from config.export_utils import xlsx_response, pdf_response
+        accounts = list(Account.nodes.filter(is_active=True))
+        accounts = sorted(accounts, key=lambda a: a.code)
+        fmt = request.query_params.get('format', 'xlsx')
+        headers = ['Code', 'Name', 'Type', 'Normal Balance', 'Balance (N)']
+        from .services import compute_account_balance
+        rows = [
+            [a.code, a.name, a.account_type, a.normal_balance, compute_account_balance(a.account_id)]
+            for a in accounts
+        ]
+        if fmt == 'pdf':
+            ctx = {'rows': [dict(zip(['code', 'name', 'account_type', 'normal_balance', 'balance'], r)) for r in rows]}
+            return pdf_response('accounts/account_list.html', ctx, 'accounts')
+        return xlsx_response(headers, rows, 'accounts', 'Accounts')
+
     @action(detail=True, methods=['get'], url_path='balance')
     def balance(self, request, pk=None):
         account = Account.nodes.get_or_none(account_id=pk)
