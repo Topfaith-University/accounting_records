@@ -1,6 +1,9 @@
 from unittest.mock import patch, MagicMock, call
 from django.test import TestCase
 from rest_framework.exceptions import ValidationError
+from rest_framework.test import APIClient
+from django.contrib.auth import get_user_model
+from django.contrib.auth.models import Group
 
 
 
@@ -188,3 +191,31 @@ class CreateBankTransactionTest(TestCase):
                 amount=None,
                 created_by='admin',
             )
+
+
+class BankOpeningBalanceTests(TestCase):
+    def setUp(self):
+        self.user = get_user_model().objects.create_user('tester', password='pw12345')
+        manager_group, _ = Group.objects.get_or_create(name='Manager')
+        self.user.groups.add(manager_group)
+        self.client = APIClient()
+        self.client.force_authenticate(self.user)
+
+    def _create_gl_account(self):
+        resp = self.client.post('/api/accounts/', {
+            'name': 'Test Bank GL', 'account_type': 'Current Assets', 'normal_balance': 'DEBIT',
+        }, format='json')
+        return resp.data['account_id']
+
+    def test_bank_account_opening_balance_syncs_to_gl(self):
+        import uuid
+        from accounts.services import compute_account_balance
+        gl_id = self._create_gl_account()
+        resp = self.client.post('/api/banks/accounts/', {
+            'name': 'Test Bank', 'bank_name': 'GTBank',
+            'account_number': f'test-{uuid.uuid4()}',
+            'opening_balance': 1000.0,
+            'opening_balance_date': '2026-01-01', 'gl_account_id_input': gl_id,
+        }, format='json')
+        self.assertEqual(resp.status_code, 201, resp.content)
+        self.assertEqual(compute_account_balance(gl_id), 1000.0)

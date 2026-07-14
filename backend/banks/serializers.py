@@ -43,6 +43,12 @@ class BankAccountSerializer(serializers.Serializer):
             acct = Account.nodes.get_or_none(account_id=gl_account_id)
             if acct:
                 bank_account.gl_account.connect(acct)
+                if bank_account.opening_balance:
+                    from accounts.services import post_opening_balance_entry
+                    post_opening_balance_entry(
+                        acct, bank_account.opening_balance, bank_account.opening_balance_date,
+                        self.context['request'].user.username,
+                    )
         return bank_account
 
     def update(self, instance, validated_data):
@@ -62,6 +68,12 @@ class BankAccountSerializer(serializers.Serializer):
                 new_account = Account.nodes.get_or_none(account_id=gl_account_id)
                 if new_account:
                     instance.gl_account.connect(new_account)
+                    if new_account and instance.opening_balance:
+                        from accounts.services import post_opening_balance_entry
+                        post_opening_balance_entry(
+                            new_account, instance.opening_balance, instance.opening_balance_date,
+                            self.context['request'].user.username,
+                        )
         return instance
 
 
