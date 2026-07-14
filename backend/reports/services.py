@@ -132,6 +132,18 @@ def compute_balance_sheet(as_of_date: str) -> dict:
         else:
             equity.append(row)
 
+    # Cumulative Profit/Loss since inception, rolled into Equity (no closing-entry
+    # mechanism exists yet, so this is computed live rather than posted).
+    pl = compute_income_statement('0001-01-01', as_of_date)
+    if pl['net_surplus'] != 0:
+        equity.append({
+            'account_id': None,
+            'code': '',
+            'name': 'Profit/(Loss) — current & prior periods',
+            'account_type': "Owner's Equity",
+            'balance': pl['net_surplus'],
+        })
+
     total_assets = round(sum(r['balance'] for r in assets), 2)
     total_liabilities = round(sum(r['balance'] for r in liabilities), 2)
     total_equity = round(sum(r['balance'] for r in equity), 2)
