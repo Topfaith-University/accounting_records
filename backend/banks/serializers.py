@@ -53,6 +53,10 @@ class BankAccountSerializer(serializers.Serializer):
 
     def update(self, instance, validated_data):
         gl_account_id = validated_data.pop('gl_account_id_input', None)
+        # Immutable after creation, like AccountSerializer.update()'s `code`/`opening_balance`
+        # handling — editing it here would desync the bank's displayed opening_balance from
+        # the GL posting already made (post_opening_balance_entry only ever posts once).
+        validated_data.pop('opening_balance', None)
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
         instance.save()

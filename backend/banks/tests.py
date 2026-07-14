@@ -266,3 +266,26 @@ class BankOpeningBalanceTests(TestCase):
         }, format='json')
         self.assertEqual(resp.status_code, 200, resp.content)
         self.assertEqual(compute_account_balance(gl_id), 750.0)
+
+    def test_editing_opening_balance_after_creation_is_ignored(self):
+        import uuid
+        from accounts.services import compute_account_balance
+        gl_id = self._create_gl_account()
+        resp = self.client.post('/api/banks/accounts/', {
+            'name': 'Test Bank 3', 'bank_name': 'Access',
+            'account_number': f'test-{uuid.uuid4()}',
+            'opening_balance': 500.0,
+            'opening_balance_date': '2026-01-01', 'gl_account_id_input': gl_id,
+        }, format='json')
+        self.assertEqual(resp.status_code, 201, resp.content)
+        bank_account_id = resp.data['bank_account_id']
+
+        # Attempting to change the opening balance after creation must be a
+        # no-op — otherwise the displayed value would desync from the GL
+        # posting, which is only ever made once.
+        resp = self.client.patch(f'/api/banks/accounts/{bank_account_id}/', {
+            'opening_balance': 900.0,
+        }, format='json')
+        self.assertEqual(resp.status_code, 200, resp.content)
+        self.assertEqual(resp.data['opening_balance'], 500.0)
+        self.assertEqual(compute_account_balance(gl_id), 500.0)
