@@ -303,6 +303,9 @@ class BankTransactionViewSet(viewsets.ViewSet):
                 splits=data.get('splits', []),
                 amount=data.get('transfer_amount'),
                 created_by=request.user.username,
+                vendor_id=data.get('vendor_id') or None,
+                customer_id=data.get('customer_id') or None,
+                reference=request.data.get('reference') or None,
             )
         except Exception as e:
             return Response({'detail': str(e)}, status=status.HTTP_400_BAD_REQUEST)

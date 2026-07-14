@@ -84,6 +84,9 @@ def create_bank_transaction(
     splits: list,
     amount,
     created_by: str,
+    vendor_id=None,
+    customer_id=None,
+    reference=None,
 ):
     # Fix 3: Validate transaction_type before any processing
     VALID_TYPES = {'RECEIPT', 'PAYMENT', 'TRANSFER'}
@@ -154,7 +157,7 @@ def create_bank_transaction(
             })
         total_amount = sum(s['amount'] for s in resolved_splits)
 
-    reference = generate_bank_transaction_reference()
+    reference = reference or generate_bank_transaction_reference()
     now = datetime.utcnow()
 
     entry = JournalEntry(
@@ -213,5 +216,17 @@ def create_bank_transaction(
     if transaction_type == 'TRANSFER':
         txn.destination_bank.connect(dest_bank)
     txn.journal_entry.connect(entry)
+
+    if vendor_id:
+        from payables.models import Vendor
+        vendor_node = Vendor.nodes.get_or_none(vendor_id=vendor_id)
+        if vendor_node:
+            txn.vendor.connect(vendor_node)
+
+    if customer_id:
+        from receivables.models import Customer
+        customer_node = Customer.nodes.get_or_none(customer_id=customer_id)
+        if customer_node:
+            txn.customer.connect(customer_node)
 
     return txn

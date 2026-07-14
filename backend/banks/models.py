@@ -53,3 +53,5 @@ class BankTransaction(StructuredNode):
     source_bank = RelationshipTo('BankAccount', 'FROM_BANK', cardinality=One)
     destination_bank = RelationshipTo('BankAccount', 'TO_BANK', cardinality=ZeroOrOne)
     journal_entry = RelationshipTo('journals.models.JournalEntry', 'GENERATES_ENTRY', cardinality=One)
+    vendor = RelationshipTo('payables.models.Vendor', 'PAID_TO_VENDOR', cardinality=ZeroOrOne)
+    customer = RelationshipTo('receivables.models.Customer', 'RECEIVED_FROM_CUSTOMER', cardinality=ZeroOrOne)
