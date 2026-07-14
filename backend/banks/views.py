@@ -57,6 +57,24 @@ class BankAccountViewSet(viewsets.ViewSet):
         lines = services.get_bank_gl_lines(pk)
         return Response({'bank_account_id': pk, 'lines': lines})
 
+    @action(detail=False, methods=['get'], url_path='export')
+    def export(self, request):
+        from config.export_utils import xlsx_response, pdf_response
+        accounts = sorted(BankAccount.nodes.filter(is_active=True), key=lambda a: a.name)
+        fmt = request.query_params.get('format', 'xlsx')
+        headers = ['Name', 'Bank', 'Account No.', 'Opening Balance (N)', 'Current Balance (N)']
+        data = BankAccountSerializer(list(accounts), many=True).data
+        rows = [
+            [r['name'], r['bank_name'], r['account_number'], r['opening_balance'], r.get('current_balance')]
+            for r in data
+        ]
+        if fmt == 'pdf':
+            ctx = {'rows': [dict(zip(
+                ['name', 'bank_name', 'account_number', 'opening_balance', 'current_balance'], r
+            )) for r in rows]}
+            return pdf_response('banks/bank_account_list.html', ctx, 'bank-accounts')
+        return xlsx_response(headers, rows, 'bank-accounts', 'Bank Accounts')
+
     @action(detail=True, methods=['get'], url_path='reconciliations')
     def reconciliations(self, request, pk=None):
         account = BankAccount.nodes.get_or_none(bank_account_id=pk)

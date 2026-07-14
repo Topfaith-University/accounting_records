@@ -44,6 +44,26 @@ class BudgetViewSet(viewsets.ViewSet):
         budget.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
 
+    @action(detail=False, methods=['get'], url_path='export')
+    def export(self, request):
+        from config.export_utils import xlsx_response, pdf_response
+        budgets = sorted(Budget.nodes.all(), key=lambda b: str(b.created_at), reverse=True)
+        fmt = request.query_params.get('format', 'xlsx')
+        headers = ['Name', 'Fiscal Year', 'Total Budgeted (N)', 'Status', 'Created By']
+        rows = []
+        for b in budgets:
+            try:
+                total_budgeted = sum(l.budgeted_amount for l in b.lines.all())
+            except Exception:
+                total_budgeted = 0.0
+            rows.append([b.name, b.fiscal_year, total_budgeted, b.status, b.created_by])
+        if fmt == 'pdf':
+            ctx = {'rows': [dict(zip(
+                ['name', 'fiscal_year', 'total_budgeted', 'status', 'created_by'], r
+            )) for r in rows]}
+            return pdf_response('budget/budget_list.html', ctx, 'budgets')
+        return xlsx_response(headers, rows, 'budgets', 'Budgets')
+
     @action(detail=True, methods=['post'], url_path='approve')
     def approve(self, request, pk=None):
         if not request.user.groups.filter(name__in=['Manager', 'Admin']).exists():

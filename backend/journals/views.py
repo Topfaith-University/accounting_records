@@ -82,6 +82,24 @@ class JournalEntryViewSet(viewsets.ViewSet):
             return Response({'detail': str(e)}, status=status.HTTP_400_BAD_REQUEST)
         return Response(JournalEntrySerializer(entry).data)
 
+    @action(detail=False, methods=['get'], url_path='export')
+    def export(self, request):
+        from config.export_utils import xlsx_response, pdf_response
+        entries = list(JournalEntry.nodes.all())
+        entries = sorted(entries, key=lambda e: str(e.date), reverse=True)
+        fmt = request.query_params.get('format', 'xlsx')
+        headers = ['Reference', 'Date', 'Description', 'Debit (N)', 'Credit (N)', 'Status']
+        rows = [
+            [e.reference, str(e.date), e.description, e.total_debit, e.total_credit, e.status]
+            for e in entries
+        ]
+        if fmt == 'pdf':
+            ctx = {'rows': [dict(zip(
+                ['reference', 'date', 'description', 'total_debit', 'total_credit', 'status'], r
+            )) for r in rows]}
+            return pdf_response('journals/entry_list.html', ctx, 'journal-entries')
+        return xlsx_response(headers, rows, 'journal-entries', 'Journal Entries')
+
 
 class FiscalYearViewSet(viewsets.ViewSet):
     permission_classes = [IsAuthenticated]
