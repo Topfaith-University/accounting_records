@@ -29,3 +29,69 @@ def compute_account_balance(account_id: str, as_of_date=None) -> float:
         return round(total_debits - total_credits, 2)
     else:
         return round(total_credits - total_debits, 2)
+
+
+def get_or_create_opening_balance_equity_account():
+    from .models import Account
+    acct = Account.nodes.get_or_none(code='3900')
+    if acct:
+        return acct
+    acct = Account(
+        code='3900',
+        name='Opening Balance Equity',
+        account_type="Owner's Equity",
+        normal_balance='CREDIT',
+        description='System account — contra side of opening balance postings.',
+        is_system=True,
+    )
+    acct.save()
+    return acct
+
+
+def post_opening_balance_entry(account, opening_balance, as_of_date, username):
+    """Posts a journal entry seeding `account`'s opening balance against
+    Opening Balance Equity. Idempotent — skips if already posted for this account."""
+    from journals.models import JournalEntry, JournalLine
+    from datetime import datetime
+
+    if not opening_balance:
+        return None
+
+    reference = f'OB-{account.account_id}'
+    if JournalEntry.nodes.get_or_none(reference=reference):
+        return None  # already posted, never repost
+
+    equity_acct = get_or_create_opening_balance_equity_account()
+
+    entry = JournalEntry(
+        reference=reference,
+        date=as_of_date,
+        description=f'Opening balance — {account.name}',
+        status='POSTED',
+        entry_type='MANUAL',
+        total_debit=abs(opening_balance),
+        total_credit=abs(opening_balance),
+        created_by=username,
+        approved_by=username,
+        approved_at=datetime.utcnow(),
+    )
+    entry.save()
+
+    # Positive opening_balance means the account should show its normal_balance
+    # side increased; equity is always the contra side.
+    account_side = 'DEBIT' if account.normal_balance == 'DEBIT' else 'CREDIT'
+    equity_side = 'CREDIT' if account_side == 'DEBIT' else 'DEBIT'
+    if opening_balance < 0:
+        account_side, equity_side = equity_side, account_side
+
+    acct_line = JournalLine(side=account_side, amount=abs(opening_balance), description='Opening balance')
+    acct_line.save()
+    entry.lines.connect(acct_line)
+    acct_line.account.connect(account)
+
+    equity_line = JournalLine(side=equity_side, amount=abs(opening_balance), description=f'Opening balance — {account.name}')
+    equity_line.save()
+    entry.lines.connect(equity_line)
+    equity_line.account.connect(equity_acct)
+
+    return entry
