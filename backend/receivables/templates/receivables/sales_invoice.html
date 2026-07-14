@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Sales Invoice {{ invoice.invoice_number }}</title>
+  <style>
+    @page { size: A4; margin: 18mm; }
+    body { color: #1f2933; font-family: Arial, sans-serif; font-size: 11px; line-height: 1.45; }
+    h1 { margin: 0; color: #1f4e79; font-size: 25px; font-weight: 700; }
+    h2 { margin: 0 0 5px; color: #1f4e79; font-size: 13px; }
+    .header { border-bottom: 2px solid #1f4e79; padding-bottom: 14px; }
+    .invoice-number { color: #52606d; font-size: 12px; margin-top: 4px; }
+    .details { display: table; margin: 20px 0; width: 100%; }
+    .customer, .metadata { display: table-cell; vertical-align: top; width: 50%; }
+    .metadata { text-align: right; }
+    .metadata div { margin-bottom: 3px; }
+    .label { color: #52606d; font-weight: 700; }
+    table { border-collapse: collapse; width: 100%; }
+    th { background: #1f4e79; color: white; font-size: 10px; letter-spacing: 0.3px; padding: 8px; text-align: left; }
+    td { border-bottom: 1px solid #d9e2ec; padding: 8px; vertical-align: top; }
+    .number { text-align: right; }
+    .summary { margin-left: auto; margin-top: 18px; width: 42%; }
+    .summary td { padding: 6px 8px; }
+    .summary .total td { border-top: 2px solid #1f4e79; font-weight: 700; }
+    .summary .outstanding td { color: #b42318; font-size: 12px; font-weight: 700; }
+  </style>
+</head>
+<body>
+  <header class="header">
+    <h1>Sales Invoice</h1>
+    <div class="invoice-number">Invoice #{{ invoice.invoice_number }}</div>
+  </header>
+
+  <section class="details">
+    <div class="customer">
+      <h2>Customer</h2>
+      {% if customer %}
+      <strong>{{ customer.name }}</strong><br>
+      {% if customer.address %}{{ customer.address }}<br>{% endif %}
+      {% if customer.email %}{{ customer.email }}{% endif %}
+      {% endif %}
+    </div>
+    <div class="metadata">
+      <div><span class="label">Date:</span> {{ invoice.date }}</div>
+      <div><span class="label">Due Date:</span> {{ invoice.due_date }}</div>
+      <div><span class="label">Status:</span> {{ invoice.status }}</div>
+    </div>
+  </section>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Description</th>
+        <th class="number">Quantity</th>
+        <th class="number">Unit Price</th>
+        <th class="number">Amount</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for line in lines %}
+      <tr>
+        <td>{{ line.description }}</td>
+        <td class="number">{{ line.quantity|floatformat:2 }}</td>
+        <td class="number">&#8358;{{ line.unit_price|floatformat:2 }}</td>
+        <td class="number">&#8358;{{ line.amount|floatformat:2 }}</td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="4">No invoice lines.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <table class="summary">
+    <tr class="total"><td>Total</td><td class="number">&#8358;{{ invoice.total_amount|floatformat:2 }}</td></tr>
+    <tr><td>Received</td><td class="number">&#8358;{{ settled_amount|floatformat:2 }}</td></tr>
+    <tr class="outstanding"><td>Outstanding</td><td class="number">&#8358;{{ outstanding_amount|floatformat:2 }}</td></tr>
+  </table>
+</body>
+</html>

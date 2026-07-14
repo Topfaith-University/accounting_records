@@ -2,6 +2,46 @@ from django.test import TestCase
 from rest_framework.test import APIClient
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
+from django.http import HttpResponse
+from unittest.mock import Mock, patch
+
+
+class SalesInvoicePrintTests(TestCase):
+    def setUp(self):
+        self.user = get_user_model().objects.create_user('tester', password='pw12345')
+        self.client = APIClient()
+        self.client.force_authenticate(self.user)
+
+    @patch('receivables.views.SalesInvoice.nodes', new_callable=Mock)
+    @patch('receivables.views.pdf_response', create=True)
+    def test_print_returns_sales_invoice_pdf(self, pdf_response, nodes):
+        invoice = Mock(
+            invoice_number='SI-0001', total_amount=1500.0, amount_received=200.0,
+            date='2026-07-01', due_date='2026-07-31', description='', status='POSTED',
+        )
+        customer = Mock()
+        line = Mock()
+        invoice.customer.single.return_value = customer
+        invoice.lines.all.return_value = [line]
+        nodes.get_or_none.return_value = invoice
+        pdf_response.return_value = HttpResponse(content_type='application/pdf')
+
+        response = self.client.get('/api/receivables/invoices/invoice-1/print/')
+
+        self.assertEqual(response.status_code, 200)
+        pdf_response.assert_called_once()
+        self.assertEqual(pdf_response.call_args.args[0], 'receivables/sales_invoice.html')
+        self.assertEqual(pdf_response.call_args.args[2], 'sales-invoice-SI-0001')
+        self.assertEqual(pdf_response.call_args.args[1]['outstanding_amount'], 1300.0)
+
+    @patch('receivables.views.SalesInvoice.nodes', new_callable=Mock)
+    def test_print_returns_not_found_for_missing_invoice(self, nodes):
+        nodes.get_or_none.return_value = None
+
+        response = self.client.get('/api/receivables/invoices/missing/print/')
+
+        self.assertEqual(response.status_code, 404)
+        self.assertEqual(response.data, {'detail': 'Not found.'})
 
 
 class InvoiceLineQuantityUnitPriceTests(TestCase):

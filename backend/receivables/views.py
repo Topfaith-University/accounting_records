@@ -2,6 +2,7 @@ from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
+from config.export_utils import pdf_response
 from .models import Customer, SalesInvoice
 from .serializers import CustomerSerializer, SalesInvoiceSerializer, ARReceiptSerializer, SalesInvoiceLineSerializer
 from . import services
@@ -90,6 +91,21 @@ class SalesInvoiceViewSet(viewsets.ViewSet):
         if not invoice:
             return Response({'detail': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
         return Response(_serialize_invoice(invoice))
+
+    @action(detail=True, methods=['get'], url_path='print')
+    def print_invoice(self, request, pk=None):
+        invoice = SalesInvoice.nodes.get_or_none(invoice_id=pk)
+        if not invoice:
+            return Response({'detail': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
+        customer = invoice.customer.single()
+        lines = list(invoice.lines.all())
+        return pdf_response('receivables/sales_invoice.html', {
+            'invoice': invoice,
+            'customer': customer,
+            'lines': lines,
+            'settled_amount': invoice.amount_received,
+            'outstanding_amount': max(0, invoice.total_amount - invoice.amount_received),
+        }, f'sales-invoice-{invoice.invoice_number}')
 
     def create(self, request):
         serializer = SalesInvoiceSerializer(data=request.data)
