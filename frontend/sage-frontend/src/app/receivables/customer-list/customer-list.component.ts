@@ -1,9 +1,7 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ReactiveFormsModule, FormBuilder, FormGroup, Validators } from '@angular/forms';
-import axios from 'axios';
 import { ReceivablesService } from '../../services/receivables.service';
-import { API_ROOT } from '../../services/api-base';
 import { PaginatePipe } from '../../shared/paginate.pipe';
 import { PaginationComponent } from '../../shared/pagination/pagination.component';
 
@@ -98,16 +96,7 @@ export class CustomerListComponent implements OnInit {
 
   async exportFile(format: 'pdf' | 'xlsx') {
     try {
-      const response = await axios.get(`${API_ROOT}receivables/customers/export/`, {
-        params: { format }, responseType: 'blob',
-      });
-      const blob = new Blob([response.data], { type: response.headers['content-type'] });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `customers.${format}`;
-      a.click();
-      URL.revokeObjectURL(url);
+      await this.receivables.exportCustomers(format);
     } catch {
       this.error = 'Export failed.';
     }

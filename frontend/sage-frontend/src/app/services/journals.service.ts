@@ -1,9 +1,10 @@
 import { Injectable } from '@angular/core';
 import axios from 'axios';
+import { API_ROOT } from './api-base';
 
 @Injectable({ providedIn: 'root' })
 export class JournalsService {
-  private baseUrl = 'http://localhost:8002/api/journals/';
+  private baseUrl = `${API_ROOT}journals/`;
 
   getEntries(params?: { status?: string }) {
     return axios.get(this.baseUrl + 'entries/', { params }).then(r => r.data);
@@ -44,5 +45,19 @@ export class JournalsService {
   getPeriods(fiscalYearId?: string) {
     const params = fiscalYearId ? { fiscal_year_id: fiscalYearId } : {};
     return axios.get(this.baseUrl + 'periods/', { params }).then(r => r.data);
+  }
+
+  async exportFile(format: 'pdf' | 'xlsx'): Promise<void> {
+    const response = await axios.get(this.baseUrl + 'entries/export/', {
+      params: { format },
+      responseType: 'blob',
+    });
+    const blob = new Blob([response.data], { type: response.headers['content-type'] });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `journal-entries.${format}`;
+    a.click();
+    URL.revokeObjectURL(url);
   }
 }

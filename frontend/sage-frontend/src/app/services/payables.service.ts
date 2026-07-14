@@ -1,9 +1,10 @@
 import { Injectable } from '@angular/core';
 import axios from 'axios';
+import { API_ROOT } from './api-base';
 
 @Injectable({ providedIn: 'root' })
 export class PayablesService {
-  private base = 'http://localhost:8002/api/payables/';
+  private base = `${API_ROOT}payables/`;
 
   getVendors() { return axios.get(this.base + 'vendors/').then(r => r.data); }
   getVendor(id: string) { return axios.get(this.base + `vendors/${id}/`).then(r => r.data); }
@@ -25,4 +26,32 @@ export class PayablesService {
   createItem(data: object) { return axios.post(this.base + 'items/', data).then(r => r.data); }
   updateItem(id: string, data: object) { return axios.patch(this.base + `items/${id}/`, data).then(r => r.data); }
   deleteItem(id: string) { return axios.delete(this.base + `items/${id}/`).then(r => r.data); }
+
+  async exportInvoices(format: 'pdf' | 'xlsx'): Promise<void> {
+    const response = await axios.get(this.base + 'invoices/export/', {
+      params: { format },
+      responseType: 'blob',
+    });
+    const blob = new Blob([response.data], { type: response.headers['content-type'] });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `purchase-invoices.${format}`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  async exportVendors(format: 'pdf' | 'xlsx'): Promise<void> {
+    const response = await axios.get(this.base + 'vendors/export/', {
+      params: { format },
+      responseType: 'blob',
+    });
+    const blob = new Blob([response.data], { type: response.headers['content-type'] });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `vendors.${format}`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
 }

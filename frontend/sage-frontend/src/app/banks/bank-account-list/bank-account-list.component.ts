@@ -2,11 +2,9 @@ import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterModule } from '@angular/router';
-import axios from 'axios';
 import { BanksService } from '../../services/banks.service';
 import { AccountsService } from '../../services/accounts.service';
 import { AuthService } from '../../services/auth.service';
-import { API_ROOT } from '../../services/api-base';
 import { AccountSelectComponent } from '../../shared/account-select/account-select.component';
 import { PaginatePipe } from '../../shared/paginate.pipe';
 import { PaginationComponent } from '../../shared/pagination/pagination.component';
@@ -154,16 +152,7 @@ export class BankAccountListComponent implements OnInit {
 
   async exportFile(format: 'pdf' | 'xlsx') {
     try {
-      const response = await axios.get(`${API_ROOT}banks/accounts/export/`, {
-        params: { format }, responseType: 'blob',
-      });
-      const blob = new Blob([response.data], { type: response.headers['content-type'] });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `bank-accounts.${format}`;
-      a.click();
-      URL.revokeObjectURL(url);
+      await this.banksService.exportFile(format);
     } catch {
       this.error = 'Export failed.';
     }
