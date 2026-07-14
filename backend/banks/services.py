@@ -75,6 +75,19 @@ def generate_bank_transaction_reference() -> str:
     return f'{prefix}{seq:04d}'
 
 
+def generate_invoice_settlement_reference(prefix: str, invoice_number: str) -> str:
+    results, _ = db.cypher_query(
+        """
+        MERGE (c:InvoiceSettlementCounter {prefix: $prefix, invoice_number: $invoice_number})
+        ON CREATE SET c.seq = 1
+        ON MATCH SET c.seq = c.seq + 1
+        RETURN c.seq
+        """,
+        {'prefix': prefix, 'invoice_number': invoice_number},
+    )
+    return f'{prefix}-{invoice_number}-{int(results[0][0]):04d}'
+
+
 def create_bank_transaction(
     transaction_type: str,
     txn_date,

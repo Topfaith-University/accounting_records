@@ -166,3 +166,39 @@ class RecordPaymentBankTransactionTests(TestCase):
         linked_vendor = txns[0].vendor.single()
         self.assertIsNotNone(linked_vendor)
         self.assertEqual(linked_vendor.vendor_id, vendor['vendor_id'])
+
+
+class RecordPaymentReferenceTests(TestCase):
+
+    def test_partial_payments_use_distinct_journal_references(self):
+        from payables.services import record_payment
+
+        invoice = Mock(
+            invoice_number='PI-2026-0002', status='POSTED', total_amount=100.0, amount_paid=0.0,
+        )
+        invoice.ap_account.single.return_value = Mock()
+        invoice.vendor.single.return_value = None
+        bank = Mock()
+        bank.gl_account.single.return_value = Mock()
+
+        with patch('payables.services.PurchaseInvoice.nodes', new_callable=Mock) as invoice_nodes, \
+             patch('banks.models.BankAccount.nodes', new_callable=Mock) as bank_nodes, \
+             patch('journals.models.JournalEntry') as journal_entry, \
+             patch('journals.models.JournalLine'), \
+             patch('payables.services.APPayment'), \
+             patch('banks.models.BankTransaction'), \
+             patch('banks.services.generate_bank_transaction_reference', return_value='BT-2026-0001'), \
+             patch('banks.services.generate_invoice_settlement_reference', side_effect=[
+                 'APPay-PI-2026-0002-0001', 'APPay-PI-2026-0002-0002',
+             ]):
+            invoice_nodes.get_or_none.return_value = invoice
+            bank_nodes.get_or_none.return_value = bank
+
+            record_payment('invoice-1', '2026-07-01', 40.0, '', 'bank-1', 'tester')
+            record_payment('invoice-1', '2026-07-02', 60.0, '', 'bank-1', 'tester')
+
+        self.assertEqual(
+            [call.kwargs['reference'] for call in journal_entry.call_args_list],
+            ['APPay-PI-2026-0002-0001', 'APPay-PI-2026-0002-0002'],
+        )
+        self.assertEqual(invoice.status, 'PAID')

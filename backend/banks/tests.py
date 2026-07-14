@@ -28,6 +28,23 @@ class GenerateReferenceTest(TestCase):
         self.assertEqual(ref, f'BT-{year}-0006')
 
 
+class GenerateInvoiceSettlementReferenceTests(TestCase):
+
+    @patch('banks.services.db')
+    def test_generates_sequence_per_invoice_and_family(self, mock_db):
+        mock_db.cypher_query.return_value = ([[2]], None)
+
+        from banks.services import generate_invoice_settlement_reference
+
+        reference = generate_invoice_settlement_reference('APPay', 'PI-2026-0002')
+
+        self.assertEqual(reference, 'APPay-PI-2026-0002-0002')
+        self.assertEqual(
+            mock_db.cypher_query.call_args.args[1],
+            {'prefix': 'APPay', 'invoice_number': 'PI-2026-0002'},
+        )
+
+
 class CreateBankTransactionTest(TestCase):
 
     def _make_mock_bank(self, bank_account_id, gl_account_id='gl-1'):

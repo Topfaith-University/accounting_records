@@ -103,8 +103,12 @@ def record_receipt(invoice_id: str, receipt_date, amount: float,
     amount = round(amount, 2)
 
     from journals.models import JournalEntry, JournalLine
+    from banks.services import (
+        generate_bank_transaction_reference,
+        generate_invoice_settlement_reference,
+    )
     entry = JournalEntry(
-        reference=f'ARRec-{invoice.invoice_number}',
+        reference=generate_invoice_settlement_reference('ARRec', invoice.invoice_number),
         date=_to_date(receipt_date),
         description=f'Receipt for {invoice.invoice_number}',
         status='POSTED',
@@ -139,7 +143,6 @@ def record_receipt(invoice_id: str, receipt_date, amount: float,
     receipt.journal_entry.connect(entry)
 
     from banks.models import BankTransaction
-    from banks.services import generate_bank_transaction_reference
     bank_txn = BankTransaction(
         reference=generate_bank_transaction_reference(),
         transaction_type='RECEIPT',

@@ -167,3 +167,39 @@ class RecordReceiptBankTransactionTests(TestCase):
         linked_customer = txns[0].customer.single()
         self.assertIsNotNone(linked_customer)
         self.assertEqual(linked_customer.customer_id, customer['customer_id'])
+
+
+class RecordReceiptReferenceTests(TestCase):
+
+    def test_partial_receipts_use_distinct_journal_references(self):
+        from receivables.services import record_receipt
+
+        invoice = Mock(
+            invoice_number='SI-2026-0002', status='POSTED', total_amount=100.0, amount_received=0.0,
+        )
+        invoice.ar_account.single.return_value = Mock()
+        invoice.customer.single.return_value = None
+        bank = Mock()
+        bank.gl_account.single.return_value = Mock()
+
+        with patch('receivables.services.SalesInvoice.nodes', new_callable=Mock) as invoice_nodes, \
+             patch('banks.models.BankAccount.nodes', new_callable=Mock) as bank_nodes, \
+             patch('journals.models.JournalEntry') as journal_entry, \
+             patch('journals.models.JournalLine'), \
+             patch('receivables.services.ARReceipt'), \
+             patch('banks.models.BankTransaction'), \
+             patch('banks.services.generate_bank_transaction_reference', return_value='BT-2026-0001'), \
+             patch('banks.services.generate_invoice_settlement_reference', side_effect=[
+                 'ARRec-SI-2026-0002-0001', 'ARRec-SI-2026-0002-0002',
+             ]):
+            invoice_nodes.get_or_none.return_value = invoice
+            bank_nodes.get_or_none.return_value = bank
+
+            record_receipt('invoice-1', '2026-07-01', 40.0, '', 'bank-1', 'tester')
+            record_receipt('invoice-1', '2026-07-02', 60.0, '', 'bank-1', 'tester')
+
+        self.assertEqual(
+            [call.kwargs['reference'] for call in journal_entry.call_args_list],
+            ['ARRec-SI-2026-0002-0001', 'ARRec-SI-2026-0002-0002'],
+        )
+        self.assertEqual(invoice.status, 'PAID')
