@@ -203,3 +203,98 @@ class RecordReceiptReferenceTests(TestCase):
             ['ARRec-SI-2026-0002-0001', 'ARRec-SI-2026-0002-0002'],
         )
         self.assertEqual(invoice.status, 'PAID')
+
+
+class CustomerStatementTests(TestCase):
+    def setUp(self):
+        from users.models import Company, Membership
+        self.user = get_user_model().objects.create_user('tester', password='pw12345')
+        admin_group, _ = Group.objects.get_or_create(name='Admin')
+        self.user.groups.add(admin_group)
+
+        # Create a company and membership for the test user
+        self.company = Company.objects.create(name='Test Company')
+        Membership.objects.create(user=self.user, company=self.company, role='Admin')
+
+        # Create APIClient and set up authentication with company context
+        self.client = APIClient()
+        self.client.force_authenticate(self.user)
+        # Manually inject company_id into auth claims
+        self.client.default_format = 'json'
+
+        # Patch get_active_company_id to return test company (patch where it's imported/used)
+        from unittest.mock import patch
+        self.patchers = []
+        # Patch in all modules that import get_active_company_id
+        for module in ['payables.views', 'payables.serializers', 'accounts.views', 'accounts.serializers',
+                       'banks.views', 'banks.serializers', 'journals.views', 'journals.serializers',
+                       'receivables.views', 'receivables.serializers', 'budget.views', 'budget.serializers']:
+            try:
+                p = patch(f'{module}.get_active_company_id')
+                mock = p.start()
+                mock.return_value = str(self.company.id)
+                self.patchers.append(p)
+            except (ImportError, AttributeError):
+                pass  # Module might not exist or might not import this
+
+    def tearDown(self):
+        for patcher in self.patchers:
+            patcher.stop()
+
+    def _post_invoice(self, customer_id, amount, suffix=''):
+        ar = self.client.post('/api/accounts/', {
+            'name': f'AR Control{suffix}', 'account_type': 'Current Assets', 'normal_balance': 'DEBIT',
+        }, format='json').data
+        revenue = self.client.post('/api/accounts/', {
+            'name': f'Revenue{suffix}', 'account_type': 'Sales', 'normal_balance': 'CREDIT',
+        }, format='json').data
+        invoice = self.client.post('/api/receivables/invoices/', {
+            'date': '2026-01-01', 'due_date': '2026-02-01',
+            'customer_id': customer_id, 'ar_account_id': ar['account_id'],
+            'lines': [{'description': 'Line item', 'amount': amount, 'revenue_account_id': revenue['account_id']}],
+        }, format='json').data
+        return invoice
+
+    def test_statement_running_balance_after_partial_receipt(self):
+        import uuid
+        customer = self.client.post('/api/receivables/customers/', {'name': 'Test Customer'}, format='json').data
+        invoice = self._post_invoice(customer['customer_id'], 1000.0)
+        self.client.post(f"/api/receivables/invoices/{invoice['invoice_id']}/post/")
+
+        bank_gl = self.client.post('/api/accounts/', {
+            'name': 'Bank GL', 'account_type': 'Current Assets', 'normal_balance': 'DEBIT',
+        }, format='json').data
+        bank = self.client.post('/api/banks/accounts/', {
+            'name': 'Test Bank', 'bank_name': 'GTBank', 'account_number': f'test-{uuid.uuid4()}',
+            'opening_balance': 5000.0, 'opening_balance_date': '2026-01-01',
+            'gl_account_id_input': bank_gl['account_id'],
+        }, format='json').data
+        self.client.post(f"/api/receivables/invoices/{invoice['invoice_id']}/receive/", {
+            'receipt_date': '2026-01-15', 'amount': 400.0, 'bank_account_id': bank['bank_account_id'],
+        }, format='json')
+
+        resp = self.client.get(f"/api/receivables/customers/{customer['customer_id']}/statement/")
+        self.assertEqual(resp.status_code, 200, resp.content)
+        lines = resp.data['lines']
+        self.assertEqual(len(lines), 2)
+        self.assertEqual(lines[0]['type'], 'INVOICE')
+        self.assertEqual(lines[0]['debit'], 1000.0)
+        self.assertEqual(lines[0]['credit'], 0.0)
+        self.assertEqual(lines[0]['running_balance'], 1000.0)
+        self.assertEqual(lines[1]['type'], 'RECEIPT')
+        self.assertEqual(lines[1]['credit'], 400.0)
+        self.assertEqual(lines[1]['running_balance'], 600.0)
+        self.assertEqual(resp.data['closing_balance'], 600.0)
+
+    def test_statement_excludes_draft_invoices(self):
+        customer = self.client.post('/api/receivables/customers/', {'name': 'Draft Customer'}, format='json').data
+        self._post_invoice(customer['customer_id'], 500.0, suffix=' Draft')  # left unposted (DRAFT)
+
+        resp = self.client.get(f"/api/receivables/customers/{customer['customer_id']}/statement/")
+        self.assertEqual(resp.status_code, 200, resp.content)
+        self.assertEqual(resp.data['lines'], [])
+        self.assertEqual(resp.data['closing_balance'], 0.0)
+
+    def test_statement_returns_404_for_unknown_customer(self):
+        resp = self.client.get('/api/receivables/customers/does-not-exist/statement/')
+        self.assertEqual(resp.status_code, 404)

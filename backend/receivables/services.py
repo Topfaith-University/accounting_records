@@ -1,6 +1,6 @@
 from datetime import datetime, date as _date
 from rest_framework.exceptions import ValidationError
-from .models import SalesInvoice, ARReceipt
+from .models import SalesInvoice, ARReceipt, Customer
 
 
 def _to_date(val):
@@ -9,8 +9,8 @@ def _to_date(val):
     return _date.fromisoformat(str(val))
 
 
-def post_invoice(invoice_id: str, approver: str) -> SalesInvoice:
-    invoice = SalesInvoice.nodes.get_or_none(invoice_id=invoice_id)
+def post_invoice(invoice_id: str, company_id: str, approver: str) -> SalesInvoice:
+    invoice = SalesInvoice.nodes.get_or_none(invoice_id=invoice_id, company_id=company_id)
     if not invoice:
         raise ValidationError('Invoice not found.')
     if invoice.status != 'DRAFT':
@@ -27,6 +27,7 @@ def post_invoice(invoice_id: str, approver: str) -> SalesInvoice:
 
     from journals.models import JournalEntry, JournalLine
     entry = JournalEntry(
+        company_id=company_id,
         reference=f'AR-{invoice.invoice_number}',
         date=_to_date(invoice.date),
         description=f'Sales Invoice {invoice.invoice_number}',
@@ -40,7 +41,7 @@ def post_invoice(invoice_id: str, approver: str) -> SalesInvoice:
     )
     entry.save()
 
-    debit_line = JournalLine(side='DEBIT', amount=total, description=f'AR — {invoice.invoice_number}')
+    debit_line = JournalLine(company_id=company_id, side='DEBIT', amount=total, description=f'AR — {invoice.invoice_number}')
     debit_line.save()
     entry.lines.connect(debit_line)
     debit_line.account.connect(ar_acct)
@@ -49,7 +50,7 @@ def post_invoice(invoice_id: str, approver: str) -> SalesInvoice:
         rev_acct = line.revenue_account.single()
         if not rev_acct:
             raise ValidationError(f'Line {line.line_id} has no revenue account.')
-        jl = JournalLine(side='CREDIT', amount=line.amount, description=line.description)
+        jl = JournalLine(company_id=company_id, side='CREDIT', amount=line.amount, description=line.description)
         jl.save()
         entry.lines.connect(jl)
         jl.account.connect(rev_acct)
@@ -61,8 +62,8 @@ def post_invoice(invoice_id: str, approver: str) -> SalesInvoice:
     return invoice
 
 
-def void_invoice(invoice_id: str, voider: str) -> SalesInvoice:
-    invoice = SalesInvoice.nodes.get_or_none(invoice_id=invoice_id)
+def void_invoice(invoice_id: str, company_id: str, voider: str) -> SalesInvoice:
+    invoice = SalesInvoice.nodes.get_or_none(invoice_id=invoice_id, company_id=company_id)
     if not invoice:
         raise ValidationError('Invoice not found.')
     if invoice.status not in ('DRAFT', 'POSTED'):
@@ -79,9 +80,9 @@ def void_invoice(invoice_id: str, voider: str) -> SalesInvoice:
     return invoice
 
 
-def record_receipt(invoice_id: str, receipt_date, amount: float,
+def record_receipt(invoice_id: str, company_id: str, receipt_date, amount: float,
                    reference: str, bank_account_id: str, username: str) -> ARReceipt:
-    invoice = SalesInvoice.nodes.get_or_none(invoice_id=invoice_id)
+    invoice = SalesInvoice.nodes.get_or_none(invoice_id=invoice_id, company_id=company_id)
     if not invoice:
         raise ValidationError('Invoice not found.')
     if invoice.status != 'POSTED':
@@ -92,7 +93,7 @@ def record_receipt(invoice_id: str, receipt_date, amount: float,
         raise ValidationError(f'Receipt amount {amount:.2f} exceeds remaining balance {remaining:.2f}.')
 
     from banks.models import BankAccount
-    bank = BankAccount.nodes.get_or_none(bank_account_id=bank_account_id)
+    bank = BankAccount.nodes.get_or_none(bank_account_id=bank_account_id, company_id=company_id)
     if not bank:
         raise ValidationError('Bank account not found.')
     bank_gl = bank.gl_account.single()
@@ -108,7 +109,8 @@ def record_receipt(invoice_id: str, receipt_date, amount: float,
         generate_invoice_settlement_reference,
     )
     entry = JournalEntry(
-        reference=generate_invoice_settlement_reference('ARRec', invoice.invoice_number),
+        company_id=company_id,
+        reference=generate_invoice_settlement_reference('ARRec', invoice.invoice_number, company_id),
         date=_to_date(receipt_date),
         description=f'Receipt for {invoice.invoice_number}',
         status='POSTED',
@@ -121,17 +123,18 @@ def record_receipt(invoice_id: str, receipt_date, amount: float,
     )
     entry.save()
 
-    dr = JournalLine(side='DEBIT', amount=amount, description='Bank receipt')
+    dr = JournalLine(company_id=company_id, side='DEBIT', amount=amount, description='Bank receipt')
     dr.save()
     entry.lines.connect(dr)
     dr.account.connect(bank_gl)
 
-    cr = JournalLine(side='CREDIT', amount=amount, description='AR receipt')
+    cr = JournalLine(company_id=company_id, side='CREDIT', amount=amount, description='AR receipt')
     cr.save()
     entry.lines.connect(cr)
     cr.account.connect(ar_acct)
 
     receipt = ARReceipt(
+        company_id=company_id,
         receipt_date=_to_date(receipt_date),
         amount=amount,
         reference=reference,
@@ -144,7 +147,8 @@ def record_receipt(invoice_id: str, receipt_date, amount: float,
 
     from banks.models import BankTransaction
     bank_txn = BankTransaction(
-        reference=generate_bank_transaction_reference(),
+        company_id=company_id,
+        reference=generate_bank_transaction_reference(company_id),
         transaction_type='RECEIPT',
         date=_to_date(receipt_date),
         amount=amount,
@@ -163,3 +167,54 @@ def record_receipt(invoice_id: str, receipt_date, amount: float,
         invoice.status = 'PAID'
     invoice.save()
     return receipt
+
+
+def get_customer_statement(customer_id: str, company_id: str) -> dict | None:
+    customer = Customer.nodes.get_or_none(customer_id=customer_id, company_id=company_id)
+    if not customer:
+        return None
+
+    invoices = [i for i in customer.invoices.all() if i.status in ('POSTED', 'PAID')]
+
+    events = []
+    for invoice in invoices:
+        events.append({
+            'date': invoice.date,
+            'type': 'INVOICE',
+            'reference': invoice.invoice_number,
+            'description': invoice.description or f'Invoice {invoice.invoice_number}',
+            'debit': round(invoice.total_amount, 2),
+            'credit': 0.0,
+        })
+        for receipt in invoice.receipts.all():
+            events.append({
+                'date': receipt.receipt_date,
+                'type': 'RECEIPT',
+                'reference': receipt.reference or '',
+                'description': f'Receipt for {invoice.invoice_number}',
+                'debit': 0.0,
+                'credit': round(receipt.amount, 2),
+            })
+
+    events.sort(key=lambda e: (str(e['date']), 0 if e['type'] == 'INVOICE' else 1))
+
+    running_balance = 0.0
+    lines = []
+    for e in events:
+        running_balance += e['debit'] - e['credit']
+        lines.append({
+            'date': str(e['date']),
+            'type': e['type'],
+            'reference': e['reference'],
+            'description': e['description'],
+            'debit': e['debit'],
+            'credit': e['credit'],
+            'running_balance': round(running_balance, 2),
+        })
+
+    return {
+        'entity_id': customer.customer_id,
+        'entity_name': customer.name,
+        'lines': lines,
+        'closing_balance': round(running_balance, 2),
+    }
