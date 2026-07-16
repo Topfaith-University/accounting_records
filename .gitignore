@@ -208,3 +208,6 @@ __marimo__/
 
 # Custom ignore for setup scripts
 setup.sh
+
+# macOS
+.DS_Store
