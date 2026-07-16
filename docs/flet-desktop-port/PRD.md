@@ -1,5 +1,7 @@
 # PRD — "Page Desktop" — Standalone Windows Accounting App (Python + Flet + SQLite)
 
+> **Superseded 2026-07-15 by [`../electron-desktop-port/PRD.md`](../electron-desktop-port/PRD.md).** The Flet approach required hand-rebuilding every screen from this spec in an unfamiliar UI framework, which proved hard to build correctly. The Electron approach reuses the existing Angular frontend directly instead. This document is kept for reference — its data model (§3) and business logic spec (§4) were carried forward largely unchanged; do not use its UI/tech-stack sections (§2, §6, §7) for new work.
+
 **Status:** Approved for build
 **Source of truth for behavior:** the live Page web system (Django + Neo4j backend, Angular 17 frontend) in this repository, as of 2026-07-15. This PRD is a byte-for-byte behavioral port of that system into a new, independent, offline desktop stack — it does not talk to the existing backend at any point.
 
