@@ -180,13 +180,18 @@ class PurchaseInvoiceViewSet(viewsets.ViewSet):
             return Response({'detail': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
         if invoice.status != 'DRAFT':
             return Response({'detail': 'Only draft invoices can be deleted.'}, status=status.HTTP_400_BAD_REQUEST)
-        # Node.delete() is DETACH DELETE — it removes every relationship on the
-        # node regardless of cardinality, so there's nothing to disconnect first.
-        # (Calling .disconnect() on a cardinality=One relationship like
-        # expense_account/vendor/ap_account raises AttemptedCardinalityViolation —
-        # those relationships only support .reconnect(), never .disconnect().)
         for line in list(invoice.lines.all()):
+            invoice.lines.disconnect(line)
+            expense_account = line.expense_account.single()
+            if expense_account:
+                line.expense_account.disconnect(expense_account)
             line.delete()
+        vendor = invoice.vendor.single()
+        if vendor:
+            invoice.vendor.disconnect(vendor)
+        ap_account = invoice.ap_account.single()
+        if ap_account:
+            invoice.ap_account.disconnect(ap_account)
         invoice.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
 
@@ -298,21 +303,3 @@ class ItemViewSet(viewsets.ViewSet):
         item.is_active = False
         item.save()
         return Response(status=status.HTTP_204_NO_CONTENT)
-
-    @action(detail=False, methods=['get'], url_path='export')
-    def export(self, request):
-        from config.export_utils import xlsx_response, pdf_response
-        company_id = get_active_company_id(request)
-        items = sorted([i for i in Item.nodes.filter(company_id=company_id) if i.is_active], key=lambda i: i.name)
-        fmt = request.query_params.get('format', 'xlsx')
-        headers = ['Name', 'Type', 'Vendor', 'Cost Price (N)', 'Selling Price (N)']
-        rows = []
-        for i in items:
-            vendor = i.vendor.single()
-            rows.append([i.name, i.item_type, vendor.name if vendor else '', i.cost_price, i.selling_price])
-        if fmt == 'pdf':
-            ctx = {'rows': [dict(zip(
-                ['name', 'item_type', 'vendor', 'cost_price', 'selling_price'], r
-            )) for r in rows]}
-            return pdf_response('payables/item_list.html', ctx, 'items')
-        return xlsx_response(headers, rows, 'items', 'Items')
