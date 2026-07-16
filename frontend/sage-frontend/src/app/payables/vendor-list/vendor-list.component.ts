@@ -1,6 +1,7 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ReactiveFormsModule, FormBuilder, FormGroup, Validators } from '@angular/forms';
+import { RouterModule } from '@angular/router';
 import { PayablesService } from '../../services/payables.service';
 import { PaginatePipe } from '../../shared/paginate.pipe';
 import { PaginationComponent } from '../../shared/pagination/pagination.component';
@@ -8,7 +9,7 @@ import { PaginationComponent } from '../../shared/pagination/pagination.componen
 @Component({
   selector: 'app-vendor-list',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, PaginatePipe, PaginationComponent],
+  imports: [CommonModule, ReactiveFormsModule, RouterModule, PaginatePipe, PaginationComponent],
   templateUrl: './vendor-list.component.html',
 })
 export class VendorListComponent implements OnInit {
@@ -54,7 +55,7 @@ export class VendorListComponent implements OnInit {
       } else {
         await this.payables.createVendor(this.form.value);
       }
-      this.form.reset();
+      this.form.reset({ name: '', email: '', phone: '', address: '' });
       this.editingVendorId = null;
       this.showForm = false;
       await this.load();
@@ -79,7 +80,7 @@ export class VendorListComponent implements OnInit {
     this.showForm = false;
     this.editingVendorId = null;
     this.formError = '';
-    this.form.reset();
+    this.form.reset({ name: '', email: '', phone: '', address: '' });
   }
 
   async deleteVendor(vendor: any) {

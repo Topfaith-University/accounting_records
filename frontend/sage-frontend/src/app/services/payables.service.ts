@@ -64,4 +64,34 @@ export class PayablesService {
     a.click();
     URL.revokeObjectURL(url);
   }
+
+  async exportItems(format: 'pdf' | 'xlsx'): Promise<void> {
+    const response = await axios.get(this.base + 'items/export/', {
+      params: { format },
+      responseType: 'blob',
+    });
+    const blob = new Blob([response.data], { type: response.headers['content-type'] });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `items.${format}`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  getVendorStatement(id: string) { return axios.get(this.base + `vendors/${id}/statement/`).then(r => r.data); }
+
+  async exportVendorStatement(id: string, format: 'pdf' | 'xlsx'): Promise<void> {
+    const response = await axios.get(this.base + `vendors/${id}/statement/`, {
+      params: { format },
+      responseType: 'blob',
+    });
+    const blob = new Blob([response.data], { type: response.headers['content-type'] });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `vendor-statement.${format}`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
 }

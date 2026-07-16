@@ -15,6 +15,11 @@ export const routes: Routes = [
     loadComponent: () => import('./auth/forgot-password/forgot-password.component').then(m => m.ForgotPasswordComponent)
   },
   {
+    path: 'select-company',
+    loadComponent: () => import('./auth/company-select/company-select.component').then(m => m.CompanySelectComponent),
+    canActivate: [authGuard],
+  },
+  {
     path: '',
     loadComponent: () => import('./shell/shell.component').then(m => m.ShellComponent),
     canActivate: [authGuard],
@@ -83,6 +88,7 @@ export const routes: Routes = [
       { path: 'payables/invoices', loadComponent: () => import('./payables/invoice-list/invoice-list.component').then(m => m.InvoiceListComponent) },
       { path: 'payables/items', loadComponent: () => import('./payables/item-list/item-list.component').then(m => m.ItemListComponent) },
       { path: 'payables/vendors', loadComponent: () => import('./payables/vendor-list/vendor-list.component').then(m => m.VendorListComponent) },
+      { path: 'payables/vendors/:id', loadComponent: () => import('./payables/vendor-statement/vendor-statement.component').then(m => m.VendorStatementComponent) },
       // Receivables
       { path: 'receivables/invoices/new', loadComponent: () => import('./receivables/invoice-form/invoice-form.component').then(m => m.SalesInvoiceFormComponent) },
       { path: 'receivables/invoices/:id/edit', loadComponent: () => import('./receivables/invoice-form/invoice-form.component').then(m => m.SalesInvoiceFormComponent) },
@@ -94,6 +100,7 @@ export const routes: Routes = [
       { path: 'budget/:id', loadComponent: () => import('./budget/budget-detail/budget-detail.component').then(m => m.BudgetDetailComponent) },
       { path: 'budget', loadComponent: () => import('./budget/budget-list/budget-list.component').then(m => m.BudgetListComponent) },
       { path: 'admin/invite-codes', loadComponent: () => import('./admin/invite-codes/invite-codes.component').then(m => m.InviteCodesComponent) },
+      { path: 'admin/members', loadComponent: () => import('./admin/members/members.component').then(m => m.MembersComponent) },
     ]
   },
   { path: '**', redirectTo: 'accounts' }
