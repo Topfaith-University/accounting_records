@@ -9,7 +9,8 @@ import { PayablesService } from '../../services/payables.service';
 interface Item {
   item_id: string;
   name: string;
-  unit_price?: number;
+  cost_price?: number;
+  selling_price?: number;
   expense_account_id?: string;
   revenue_account_id?: string;
 }
@@ -28,6 +29,7 @@ interface Item {
 export class ItemSelectComponent implements OnInit, ControlValueAccessor {
   @Input() placeholder = 'Search or create item…';
   @Input() allItems: Item[] = [];
+  @Input() priceField: 'cost_price' | 'selling_price' = 'cost_price';
 
   @Output() itemsChanged = new EventEmitter<Item[]>();
   @Output() itemPicked = new EventEmitter<Item>();
@@ -37,7 +39,7 @@ export class ItemSelectComponent implements OnInit, ControlValueAccessor {
   showModal = false;
   filteredItems: Item[] = [];
 
-  newItem = { name: '', description: '', unit_price: 0, item_type: 'SERVICE' };
+  newItem = { name: '', description: '', cost_price: 0, selling_price: 0, item_type: 'SERVICE' };
   creatingItem = false;
   createError = '';
 
@@ -91,7 +93,7 @@ export class ItemSelectComponent implements OnInit, ControlValueAccessor {
 
   openCreateModal() {
     this.showDropdown = false;
-    this.newItem = { name: this.searchText.trim(), description: '', unit_price: 0, item_type: 'SERVICE' };
+    this.newItem = { name: this.searchText.trim(), description: '', cost_price: 0, selling_price: 0, item_type: 'SERVICE' };
     this.createError = '';
     this.showModal = true;
   }

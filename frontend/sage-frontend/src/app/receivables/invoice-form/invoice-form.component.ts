@@ -123,7 +123,7 @@ export class SalesInvoiceFormComponent implements OnInit {
     group.patchValue({
       revenue_account_id: item.revenue_account_id ?? '',
       description: item.name,
-      unit_price: item.unit_price ?? 0,
+      unit_price: item.selling_price ?? 0,
     });
     this.recomputeAmount(index);
   }

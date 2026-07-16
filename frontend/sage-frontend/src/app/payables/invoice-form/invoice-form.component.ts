@@ -121,7 +121,7 @@ export class PurchaseInvoiceFormComponent implements OnInit {
     group.patchValue({
       expense_account_id: item.expense_account_id ?? '',
       description: item.name,
-      unit_price: item.unit_price ?? 0,
+      unit_price: item.cost_price ?? 0,
     });
     this.recomputeAmount(index);
   }

@@ -65,6 +65,7 @@
                 <td style="padding:.5rem 1rem;overflow:visible">
                   <app-item-select
                     [allItems]="items"
+                    priceField="cost_price"
                     (itemsChanged)="items = $event"
                     (itemPicked)="applyItem($index, $event.item_id)"
                     placeholder="Search or create item…"

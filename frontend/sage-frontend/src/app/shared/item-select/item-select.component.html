@@ -27,8 +27,8 @@
           onmouseout="this.style.background=''"
         >
           {{ item.name }}
-          @if (item.unit_price) {
-            <span style="float:right;font-size:.75rem;color:var(--text-muted)">₦{{ item.unit_price }}</span>
+          @if (item[priceField]) {
+            <span style="float:right;font-size:.75rem;color:var(--text-muted)">₦{{ item[priceField] }}</span>
           }
         </div>
       }
@@ -58,8 +58,13 @@
             style="width:100%;padding:.5rem .75rem;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-family:var(--font-body);font-size:.875rem;box-sizing:border-box" />
         </div>
         <div>
-          <label style="display:block;font-size:.8rem;font-weight:600;color:var(--text-muted);margin-bottom:.25rem">Unit Price (₦)</label>
-          <input [(ngModel)]="newItem.unit_price" type="number" step="0.01" min="0" placeholder="0.00"
+          <label style="display:block;font-size:.8rem;font-weight:600;color:var(--text-muted);margin-bottom:.25rem">Cost Price (₦)</label>
+          <input [(ngModel)]="newItem.cost_price" type="number" step="0.01" min="0" placeholder="0.00"
+            style="width:100%;padding:.5rem .75rem;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-family:var(--font-body);font-size:.875rem;box-sizing:border-box" />
+        </div>
+        <div>
+          <label style="display:block;font-size:.8rem;font-weight:600;color:var(--text-muted);margin-bottom:.25rem">Selling Price (₦)</label>
+          <input [(ngModel)]="newItem.selling_price" type="number" step="0.01" min="0" placeholder="0.00"
             style="width:100%;padding:.5rem .75rem;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-family:var(--font-body);font-size:.875rem;box-sizing:border-box" />
         </div>
         <div>
