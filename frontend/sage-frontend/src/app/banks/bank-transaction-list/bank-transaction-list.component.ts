@@ -7,11 +7,13 @@ import { BanksService } from '../../services/banks.service';
 import { AccountsService } from '../../services/accounts.service';
 import { BankSelectComponent } from '../../shared/bank-select/bank-select.component';
 import { AccountSelectComponent } from '../../shared/account-select/account-select.component';
+import { PaginatePipe } from '../../shared/paginate.pipe';
+import { PaginationComponent } from '../../shared/pagination/pagination.component';
 
 @Component({
   selector: 'app-bank-transaction-list',
   standalone: true,
-  imports: [CommonModule, RouterModule, FormsModule, BankSelectComponent, AccountSelectComponent],
+  imports: [CommonModule, RouterModule, FormsModule, BankSelectComponent, AccountSelectComponent, PaginatePipe, PaginationComponent],
   templateUrl: './bank-transaction-list.component.html',
 })
 export class BankTransactionListComponent implements OnInit {
@@ -23,6 +25,8 @@ export class BankTransactionListComponent implements OnInit {
   dateTo = '';
   loading = true;
   error = '';
+  page = 1;
+  pageSize = 25;
 
   // Import panel state
   showImportPanel = false;
@@ -62,6 +66,7 @@ export class BankTransactionListComponent implements OnInit {
   }
 
   async applyFilter() {
+    this.page = 1;
     this.loading = true;
     this.error = '';
     try {
