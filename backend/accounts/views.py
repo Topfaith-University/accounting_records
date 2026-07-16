@@ -2,6 +2,7 @@ from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
+from config.auth import get_active_company_id
 from .models import Account
 from .serializers import AccountSerializer
 from .enums import AccountType
@@ -11,7 +12,10 @@ class AccountViewSet(viewsets.ViewSet):
     permission_classes = [IsAuthenticated]
 
     def list(self, request):
-        accounts = Account.nodes.filter(is_active=True)
+        company_id = get_active_company_id(request)
+        if not company_id:
+            return Response({'detail': 'No active company.'}, status=status.HTTP_400_BAD_REQUEST)
+        accounts = Account.nodes.filter(is_active=True, company_id=company_id)
         account_type = request.query_params.get('account_type')
         if account_type:
             accounts = [a for a in accounts if a.account_type == account_type]
@@ -19,7 +23,8 @@ class AccountViewSet(viewsets.ViewSet):
         return Response(serializer.data)
 
     def retrieve(self, request, pk=None):
-        account = Account.nodes.get_or_none(account_id=pk)
+        company_id = get_active_company_id(request)
+        account = Account.nodes.get_or_none(account_id=pk, company_id=company_id)
         if not account:
             return Response({'detail': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
         return Response(AccountSerializer(account).data)
@@ -27,6 +32,8 @@ class AccountViewSet(viewsets.ViewSet):
     def create(self, request):
         if not request.user.groups.filter(name__in=['Admin', 'Manager']).exists():
             return Response({'detail': 'Forbidden.'}, status=status.HTTP_403_FORBIDDEN)
+        if not get_active_company_id(request):
+            return Response({'detail': 'No active company.'}, status=status.HTTP_400_BAD_REQUEST)
         serializer = AccountSerializer(data=request.data, context={'request': request})
         serializer.is_valid(raise_exception=True)
         account = serializer.save()
@@ -35,10 +42,11 @@ class AccountViewSet(viewsets.ViewSet):
     def partial_update(self, request, pk=None):
         if not request.user.groups.filter(name__in=['Admin', 'Manager']).exists():
             return Response({'detail': 'Forbidden.'}, status=status.HTTP_403_FORBIDDEN)
-        account = Account.nodes.get_or_none(account_id=pk)
+        company_id = get_active_company_id(request)
+        account = Account.nodes.get_or_none(account_id=pk, company_id=company_id)
         if not account:
             return Response({'detail': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
-        serializer = AccountSerializer(account, data=request.data, partial=True)
+        serializer = AccountSerializer(account, data=request.data, partial=True, context={'request': request})
         serializer.is_valid(raise_exception=True)
         account = serializer.save()
         return Response(AccountSerializer(account).data)
@@ -46,7 +54,8 @@ class AccountViewSet(viewsets.ViewSet):
     def destroy(self, request, pk=None):
         if not request.user.groups.filter(name__in=['Admin']).exists():
             return Response({'detail': 'Forbidden.'}, status=status.HTTP_403_FORBIDDEN)
-        account = Account.nodes.get_or_none(account_id=pk)
+        company_id = get_active_company_id(request)
+        account = Account.nodes.get_or_none(account_id=pk, company_id=company_id)
         if not account:
             return Response({'detail': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
         if account.is_system:
@@ -62,7 +71,8 @@ class AccountViewSet(viewsets.ViewSet):
     @action(detail=False, methods=['get'], url_path='export')
     def export(self, request):
         from config.export_utils import xlsx_response, pdf_response
-        accounts = list(Account.nodes.filter(is_active=True))
+        company_id = get_active_company_id(request)
+        accounts = list(Account.nodes.filter(is_active=True, company_id=company_id))
         accounts = sorted(accounts, key=lambda a: a.code)
         fmt = request.query_params.get('format', 'xlsx')
         headers = ['Code', 'Name', 'Type', 'Normal Balance', 'Balance (N)']
@@ -78,7 +88,8 @@ class AccountViewSet(viewsets.ViewSet):
 
     @action(detail=True, methods=['get'], url_path='balance')
     def balance(self, request, pk=None):
-        account = Account.nodes.get_or_none(account_id=pk)
+        company_id = get_active_company_id(request)
+        account = Account.nodes.get_or_none(account_id=pk, company_id=company_id)
         if not account:
             return Response({'detail': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
         from .services import compute_account_balance
@@ -88,13 +99,14 @@ class AccountViewSet(viewsets.ViewSet):
 
     @action(detail=True, methods=['get'], url_path='ledger')
     def ledger(self, request, pk=None):
-        account = Account.nodes.get_or_none(account_id=pk)
+        company_id = get_active_company_id(request)
+        account = Account.nodes.get_or_none(account_id=pk, company_id=company_id)
         if not account:
             return Response({'detail': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
         from neomodel import db
-        params = {'account_id': pk}
+        params = {'account_id': pk, 'company_id': company_id}
         query = """
-            MATCH (e:JournalEntry)-[:HAS_LINE]->(l:JournalLine)-[:AFFECTS_ACCOUNT]->(a:Account {account_id: $account_id})
+            MATCH (e:JournalEntry {company_id: $company_id})-[:HAS_LINE]->(l:JournalLine)-[:AFFECTS_ACCOUNT]->(a:Account {account_id: $account_id})
             WHERE e.status = 'POSTED'
             RETURN e.entry_id, e.reference, e.date, e.description, l.side, l.amount, l.description, e.entry_type
             ORDER BY e.date DESC

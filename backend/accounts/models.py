@@ -7,7 +7,8 @@ from .enums import AccountType
 
 class Account(StructuredNode):
     account_id = UniqueIdProperty()
-    code = StringProperty(unique_index=True, required=True)
+    company_id = StringProperty(required=True, index=True)
+    code = StringProperty(required=True)
     name = StringProperty(required=True)
     account_type = StringProperty(choices=AccountType.choices(), required=True)
     normal_balance = StringProperty(choices=[('DEBIT', 'Debit'), ('CREDIT', 'Credit')], required=True)

@@ -1,4 +1,5 @@
 from rest_framework import serializers
+from config.auth import get_active_company_id
 from .models import Account
 from .enums import AccountType
 
@@ -23,34 +24,36 @@ class AccountSerializer(serializers.Serializer):
         return compute_account_balance(obj.account_id)
 
     def validate_code(self, value):
-        # If code is provided, check if it's unique
-        if value and Account.nodes.filter(code=value).exists():
+        # If code is provided, check if it's unique within the active company
+        company_id = get_active_company_id(self.context['request'])
+        if value and Account.nodes.filter(code=value, company_id=company_id).first_or_none() is not None:
             raise serializers.ValidationError("An account with this code already exists.")
         return value
 
     def create(self, validated_data):
         parent_id = validated_data.pop('parent_id', None)
+        company_id = get_active_company_id(self.context['request'])
 
         # Auto-generate code if not provided
         if 'code' not in validated_data or not validated_data['code']:
             validated_data['code'] = self._generate_account_code(
-                validated_data.get('account_type')
+                validated_data.get('account_type'), company_id
             )
 
-        account = Account(**validated_data)
+        account = Account(company_id=company_id, **validated_data)
         account.save()
         if validated_data.get('opening_balance'):
             from .services import post_opening_balance_entry
             from datetime import date
             post_opening_balance_entry(account, account.opening_balance, date.today(), self.context['request'].user.username)
         if parent_id:
-            parent = Account.nodes.get_or_none(account_id=parent_id)
+            parent = Account.nodes.get_or_none(account_id=parent_id, company_id=company_id)
             if parent:
                 account.parent.connect(parent)
         return account
 
-    def _generate_account_code(self, account_type):
-        """Generate a sequential account code based on account type."""
+    def _generate_account_code(self, account_type, company_id):
+        """Generate a sequential account code based on account type, unique within the company."""
         # Define account type to code prefix mapping
         type_prefixes = {
             'Sales': '4000',           # Revenue
@@ -67,8 +70,8 @@ class AccountSerializer(serializers.Serializer):
 
         prefix = type_prefixes.get(account_type, '9000')  # Default to 9000 for others
 
-        # Find the highest existing code for this prefix and increment
-        existing_accounts = Account.nodes.filter(code__startswith=prefix)
+        # Find the highest existing code for this prefix (within this company) and increment
+        existing_accounts = Account.nodes.filter(code__startswith=prefix, company_id=company_id)
         if existing_accounts:
             # Extract numeric part and find max
             max_seq = 0

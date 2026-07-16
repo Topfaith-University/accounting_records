@@ -31,12 +31,13 @@ def compute_account_balance(account_id: str, as_of_date=None) -> float:
         return round(total_credits - total_debits, 2)
 
 
-def get_or_create_opening_balance_equity_account():
+def get_or_create_opening_balance_equity_account(company_id):
     from .models import Account
-    acct = Account.nodes.get_or_none(code='3900')
+    acct = Account.nodes.get_or_none(code='3900', company_id=company_id)
     if acct:
         return acct
     acct = Account(
+        company_id=company_id,
         code='3900',
         name='Opening Balance Equity',
         account_type="Owner's Equity",
@@ -48,22 +49,36 @@ def get_or_create_opening_balance_equity_account():
     return acct
 
 
-def post_opening_balance_entry(account, opening_balance, as_of_date, username):
+def post_opening_balance_entry(account, opening_balance, as_of_date, username, reference_key=None):
     """Posts a journal entry seeding `account`'s opening balance against
-    Opening Balance Equity. Idempotent — skips if already posted for this account."""
+    Opening Balance Equity. Idempotent — skips if already posted for this
+    reference_key (defaults to the GL account's own id).
+
+    `reference_key` matters when the caller isn't the GL account itself — e.g.
+    a BankAccount posting its opening balance into a *linked* GL account. Two
+    different bank accounts can legitimately share one GL account, each with
+    its own opening balance, so callers in that position must pass their own
+    stable id (e.g. the bank account's id) combined with the GL account's id
+    — the combination, not the bank account id alone, because re-linking the
+    *same* bank account to a *different* GL account must still re-trigger a
+    fresh posting into that new account (existing, intended behavior).
+    """
     from journals.models import JournalEntry, JournalLine
     from datetime import datetime
 
     if not opening_balance:
         return None
 
-    reference = f'OB-{account.account_id}'
-    if JournalEntry.nodes.get_or_none(reference=reference):
+    company_id = account.company_id
+    key = f'{reference_key}-{account.account_id}' if reference_key else account.account_id
+    reference = f'OB-{key}'
+    if JournalEntry.nodes.get_or_none(reference=reference, company_id=company_id):
         return None  # already posted, never repost
 
-    equity_acct = get_or_create_opening_balance_equity_account()
+    equity_acct = get_or_create_opening_balance_equity_account(company_id)
 
     entry = JournalEntry(
+        company_id=company_id,
         reference=reference,
         date=as_of_date,
         description=f'Opening balance — {account.name}',
@@ -84,12 +99,12 @@ def post_opening_balance_entry(account, opening_balance, as_of_date, username):
     if opening_balance < 0:
         account_side, equity_side = equity_side, account_side
 
-    acct_line = JournalLine(side=account_side, amount=abs(opening_balance), description='Opening balance')
+    acct_line = JournalLine(company_id=company_id, side=account_side, amount=abs(opening_balance), description='Opening balance')
     acct_line.save()
     entry.lines.connect(acct_line)
     acct_line.account.connect(account)
 
-    equity_line = JournalLine(side=equity_side, amount=abs(opening_balance), description=f'Opening balance — {account.name}')
+    equity_line = JournalLine(company_id=company_id, side=equity_side, amount=abs(opening_balance), description=f'Opening balance — {account.name}')
     equity_line.save()
     entry.lines.connect(equity_line)
     equity_line.account.connect(equity_acct)
