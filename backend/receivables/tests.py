@@ -195,8 +195,8 @@ class RecordReceiptReferenceTests(TestCase):
             invoice_nodes.get_or_none.return_value = invoice
             bank_nodes.get_or_none.return_value = bank
 
-            record_receipt('invoice-1', '2026-07-01', 40.0, '', 'bank-1', 'tester')
-            record_receipt('invoice-1', '2026-07-02', 60.0, '', 'bank-1', 'tester')
+            record_receipt('invoice-1', 'company-1', '2026-07-01', 40.0, '', 'bank-1', 'tester')
+            record_receipt('invoice-1', 'company-1', '2026-07-02', 60.0, '', 'bank-1', 'tester')
 
         self.assertEqual(
             [call.kwargs['reference'] for call in journal_entry.call_args_list],
