@@ -1,9 +1,10 @@
 import { Injectable } from '@angular/core';
 import axios from 'axios';
+import { API_ROOT } from './api-base';
 
 @Injectable({ providedIn: 'root' })
 export class BankTransactionsService {
-  private baseUrl = 'http://localhost:8002/api/banks/transactions/';
+  private baseUrl = `${API_ROOT}banks/transactions/`;
 
   getAll(bankAccountId?: string, dateFrom?: string, dateTo?: string) {
     const params: Record<string, string> = {};

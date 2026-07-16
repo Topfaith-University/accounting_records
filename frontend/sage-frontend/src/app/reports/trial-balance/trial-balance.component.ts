@@ -40,12 +40,20 @@ export class TrialBalanceComponent {
     this.reports.exportFile('trial-balance', { date_from: this.dateFrom, date_to: this.dateTo }, 'xlsx', `trial-balance-${this.dateFrom}-${this.dateTo}.xlsx`);
   }
 
+  rowDebit(row: any): number {
+    return Math.max(0, (row.total_debits ?? 0) - (row.total_credits ?? 0));
+  }
+
+  rowCredit(row: any): number {
+    return Math.max(0, (row.total_credits ?? 0) - (row.total_debits ?? 0));
+  }
+
   get grandTotalDebits(): number {
-    return this.data?.total_debits ?? 0;
+    return (this.data?.rows ?? []).reduce((s: number, r: any) => s + this.rowDebit(r), 0);
   }
 
   get grandTotalCredits(): number {
-    return this.data?.total_credits ?? 0;
+    return (this.data?.rows ?? []).reduce((s: number, r: any) => s + this.rowCredit(r), 0);
   }
 
   get groupedRows(): { type: string; rows: any[] }[] {

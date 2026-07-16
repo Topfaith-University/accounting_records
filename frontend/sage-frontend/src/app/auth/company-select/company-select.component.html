@@ -1,0 +1,92 @@
+<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:var(--canvas, #F0F4FB)">
+  <div style="width:420px;max-width:92vw;background:#fff;border-radius:var(--radius-lg, 12px);box-shadow:0 8px 32px rgba(0,0,0,.12);padding:2rem">
+    <h1 style="margin:0 0 .25rem;font-family:var(--font-serif);font-size:1.5rem;color:var(--navy-deep, #10002B)">Choose a company</h1>
+    <p style="margin:0 0 1.5rem;color:var(--text-muted, #7B87B0);font-size:.9rem">
+      @if (memberships.length > 0) {
+        Pick which company to work in.
+      } @else {
+        Join a company with an invite code, or create your own.
+      }
+    </p>
+
+    @if (loading) {
+      <p style="color:var(--text-muted, #7B87B0)">Loading…</p>
+    }
+
+    @if (error) {
+      <p style="color:var(--danger, #B91C1C);font-size:.875rem;margin-bottom:1rem">{{ error }}</p>
+    }
+
+    @if (!loading && memberships.length > 0) {
+      <div style="display:flex;flex-direction:column;gap:.6rem;margin-bottom:1.25rem">
+        @for (m of memberships; track m.company_id) {
+          <button
+            (click)="select(m)"
+            [disabled]="switching"
+            style="display:flex;justify-content:space-between;align-items:center;width:100%;padding:.85rem 1rem;border:1.5px solid var(--border, #DDE3F0);border-radius:var(--radius-sm, 6px);background:var(--navy-subtle, #F0F4FB);cursor:pointer;text-align:left;font-family:var(--font-body)"
+          >
+            <span style="font-weight:700;color:var(--navy-deep, #10002B)">{{ m.company_name }}</span>
+            <span style="font-size:.75rem;color:var(--text-muted, #7B87B0);text-transform:uppercase;letter-spacing:.03em">{{ m.role }}</span>
+          </button>
+        }
+      </div>
+    }
+
+    @if (!loading && !showAddForm) {
+      <button (click)="toggleAddForm()"
+        style="width:100%;padding:.7rem;border:1.5px dashed var(--border, #DDE3F0);border-radius:var(--radius-sm, 6px);background:none;cursor:pointer;font-size:.85rem;font-weight:700;color:var(--navy-primary, #314991);font-family:var(--font-body)">
+        + Add a company
+      </button>
+    }
+
+    @if (showAddForm) {
+      <div style="border:1.5px solid var(--border, #DDE3F0);border-radius:var(--radius-sm, 6px);padding:1rem">
+        <div style="display:flex;gap:1rem;margin-bottom:1rem;border-bottom:1.5px solid var(--border,#DDE3F0)">
+          <button type="button" (click)="setAddMode('join')"
+            [style.font-weight]="addMode === 'join' ? 700 : 400"
+            [style.border-bottom]="addMode === 'join' ? '2px solid var(--navy-primary,#314991)' : '2px solid transparent'"
+            style="background:none;border-top:none;border-left:none;border-right:none;padding:.4rem .1rem;cursor:pointer;font-size:.8rem;color:var(--navy-deep,#10002B)">
+            Join with invite code
+          </button>
+          <button type="button" (click)="setAddMode('create')"
+            [style.font-weight]="addMode === 'create' ? 700 : 400"
+            [style.border-bottom]="addMode === 'create' ? '2px solid var(--navy-primary,#314991)' : '2px solid transparent'"
+            style="background:none;border-top:none;border-left:none;border-right:none;padding:.4rem .1rem;cursor:pointer;font-size:.8rem;color:var(--navy-deep,#10002B)">
+            Create a company
+          </button>
+        </div>
+
+        <form (ngSubmit)="submitAdd()">
+          @if (addMode === 'join') {
+            <label style="display:block;font-size:.75rem;font-weight:700;color:var(--text-muted,#7B87B0);margin-bottom:.3rem">Invite Code</label>
+            <input [(ngModel)]="inviteCode" name="inviteCode" type="text" required placeholder="Enter the invite code"
+              style="width:100%;padding:.5rem .65rem;border:1.5px solid var(--border,#DDE3F0);border-radius:var(--radius-sm,6px);box-sizing:border-box;font-size:.85rem;margin-bottom:.85rem" />
+          } @else {
+            <label style="display:block;font-size:.75rem;font-weight:700;color:var(--text-muted,#7B87B0);margin-bottom:.3rem">Company Name</label>
+            <input [(ngModel)]="companyName" name="companyName" type="text" required placeholder="Your organization's name"
+              style="width:100%;padding:.5rem .65rem;border:1.5px solid var(--border,#DDE3F0);border-radius:var(--radius-sm,6px);box-sizing:border-box;font-size:.85rem;margin-bottom:.85rem" />
+          }
+
+          @if (addError) {
+            <p style="color:var(--danger, #B91C1C);font-size:.8rem;margin:0 0 .75rem">{{ addError }}</p>
+          }
+
+          <div style="display:flex;gap:.6rem">
+            <button type="submit" [disabled]="adding"
+              style="flex:1;padding:.6rem;background:var(--navy-primary,#314991);color:#fff;border:none;border-radius:var(--radius-sm,6px);cursor:pointer;font-weight:700;font-size:.85rem">
+              {{ adding ? 'Please wait…' : (addMode === 'join' ? 'Join Company' : 'Create Company') }}
+            </button>
+            <button type="button" (click)="toggleAddForm()" [disabled]="adding"
+              style="padding:.6rem 1rem;border:1.5px solid var(--border,#DDE3F0);background:#fff;border-radius:var(--radius-sm,6px);cursor:pointer;font-size:.85rem">
+              Cancel
+            </button>
+          </div>
+        </form>
+      </div>
+    }
+
+    <button (click)="logout()" style="margin-top:1.5rem;background:none;border:none;color:var(--text-muted, #7B87B0);font-size:.85rem;cursor:pointer;text-decoration:underline">
+      Sign out
+    </button>
+  </div>
+</div>

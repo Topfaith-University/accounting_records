@@ -25,7 +25,12 @@ export class LoginComponent {
     this.loading = true;
     try {
       await this.auth.login(this.username, this.password);
-      this.router.navigate(['/accounts']);
+      if (this.auth.hasActiveCompany()) {
+        this.router.navigate(['/accounts']);
+      } else {
+        // 0 or >1 memberships — let the picker resolve (or explain) it.
+        this.router.navigate(['/select-company']);
+      }
     } catch {
       this.error = 'Invalid username or password.';
     } finally {

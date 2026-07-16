@@ -1,0 +1,58 @@
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Team Members</h1>
+    <p class="page-subtitle">Change what each member of this company can do</p>
+  </div>
+</div>
+
+@if (error) {
+  <p style="color:var(--danger);margin-bottom:1rem">{{ error }}</p>
+}
+
+@if (loading) {
+  <p style="color:var(--text-muted);padding:.5rem 0">Loading…</p>
+}
+
+@if (!loading) {
+  <div class="card">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Username</th>
+          <th>Email</th>
+          <th>Role</th>
+          <th>Member Since</th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (member of members; track member.membership_id) {
+          <tr>
+            <td>
+              {{ member.username }}
+              @if (member.username === currentUsername) {
+                <span style="color:var(--text-muted);font-size:.75rem"> (you)</span>
+              }
+            </td>
+            <td style="color:var(--text-muted)">{{ member.email || '—' }}</td>
+            <td>
+              <select
+                [ngModel]="member.role"
+                (ngModelChange)="changeRole(member, $event)"
+                [disabled]="savingId === member.membership_id"
+                style="padding:.4rem .6rem;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-family:var(--font-body);font-size:.85rem"
+              >
+                @for (role of roles; track role) {
+                  <option [value]="role">{{ role }}</option>
+                }
+              </select>
+              @if (savingId === member.membership_id) {
+                <span style="color:var(--text-muted);font-size:.75rem;margin-left:.4rem">Saving…</span>
+              }
+            </td>
+            <td style="color:var(--text-muted)">{{ formatDate(member.created_at) }}</td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  </div>
+}

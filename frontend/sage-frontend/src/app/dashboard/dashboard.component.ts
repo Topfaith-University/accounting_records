@@ -2,6 +2,7 @@ import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
 import axios from 'axios';
+import { API_ROOT } from '../services/api-base';
 
 @Component({
   selector: 'app-dashboard',
@@ -16,7 +17,7 @@ export class DashboardComponent implements OnInit {
 
   async ngOnInit() {
     try {
-      const res = await axios.get('http://localhost:8002/api/reports/dashboard/');
+      const res = await axios.get(`${API_ROOT}reports/dashboard/`);
       this.data = res.data;
     } catch {
       this.error = 'Failed to load dashboard.';

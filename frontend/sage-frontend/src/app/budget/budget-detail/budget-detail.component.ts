@@ -21,7 +21,7 @@ export class BudgetDetailComponent implements OnInit {
 
   get isManagerOrAdmin(): boolean {
     const user = this.auth.getCurrentUser();
-    return user?.roles.some((r: string) => ['Manager', 'Admin'].includes(r)) ?? false;
+    return user?.roles.some((r: string) => ['Admin', 'Manager'].includes(r)) ?? false;
   }
 
   constructor(

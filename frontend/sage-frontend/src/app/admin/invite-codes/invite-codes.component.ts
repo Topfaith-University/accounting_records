@@ -1,5 +1,6 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { AuthService } from '../../services/auth.service';
 import { UsersService } from '../../services/users.service';
@@ -7,11 +8,14 @@ import { UsersService } from '../../services/users.service';
 @Component({
   selector: 'app-invite-codes',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, FormsModule],
   templateUrl: './invite-codes.component.html',
   styleUrls: ['./invite-codes.component.css'],
 })
 export class InviteCodesComponent implements OnInit {
+  roles = ['Staff', 'Accountant', 'Manager', 'Admin'];
+  selectedRole = 'Staff';
+
   codes: any[] = [];
   loading = true;
   error = '';
@@ -27,7 +31,7 @@ export class InviteCodesComponent implements OnInit {
 
   async ngOnInit() {
     const user = this.auth.getCurrentUser();
-    if (!user || (!user.roles.includes('Admin') && !user.roles.includes('Manager'))) {
+    if (!user || !user.roles.includes('Admin')) {
       this.router.navigate(['/dashboard']);
       return;
     }
@@ -50,7 +54,7 @@ export class InviteCodesComponent implements OnInit {
     this.generating = true;
     this.error = '';
     try {
-      const code = await this.usersService.generateInviteCode();
+      const code = await this.usersService.generateInviteCode(this.selectedRole);
       this.codes = [code, ...this.codes];
     } catch {
       this.error = 'Failed to generate code.';

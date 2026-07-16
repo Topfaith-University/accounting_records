@@ -3,7 +3,7 @@
     <!-- Brand -->
     <div class="nav-brand">
       <div class="nav-brand-wordmark">Pa<span>ge</span></div>
-      <div class="nav-brand-sub">Topfaith University Finance</div>
+      <div class="nav-brand-sub">{{ companyName }}</div>
     </div>
 
     <!-- Scrollable nav body -->
@@ -81,12 +81,16 @@
         </button>
         @if (open['admin']) {
           <a routerLink="/admin/invite-codes" routerLinkActive="active-link" class="nav-child-link">Invite Codes</a>
+          <a routerLink="/admin/members" routerLinkActive="active-link" class="nav-child-link">Team Members</a>
         }
       }
     </div>
 
     <!-- Footer -->
     <div class="nav-footer">
+      <button (click)="switchCompany()" class="btn-secondary" style="width:100%;margin-bottom:.5rem">
+        {{ companyControlLabel }}
+      </button>
       <button (click)="logout()" class="btn-secondary" style="width:100%">
         Sign Out
       </button>

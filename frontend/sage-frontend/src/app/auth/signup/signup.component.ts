@@ -12,11 +12,14 @@ import { AuthService } from '../../services/auth.service';
   styleUrls: ['./signup.component.css'],
 })
 export class SignupComponent {
+  mode: 'join' | 'create' = 'join';
+
   username = '';
   email = '';
   password = '';
   confirmPassword = '';
   inviteCode = '';
+  companyName = '';
 
   error = '';
   loading = false;
@@ -28,6 +31,11 @@ export class SignupComponent {
 
   constructor(private auth: AuthService) {}
 
+  setMode(mode: 'join' | 'create') {
+    this.mode = mode;
+    this.error = '';
+  }
+
   async onSubmit() {
     this.error = '';
     if (this.password !== this.confirmPassword) {
@@ -36,7 +44,11 @@ export class SignupComponent {
     }
     this.loading = true;
     try {
-      await this.auth.register(this.username, this.email, this.password, this.confirmPassword, this.inviteCode);
+      if (this.mode === 'join') {
+        await this.auth.register(this.username, this.email, this.password, this.confirmPassword, this.inviteCode);
+      } else {
+        await this.auth.registerCompany(this.companyName, this.username, this.email, this.password, this.confirmPassword);
+      }
       this.success = true;
     } catch (e: any) {
       this.error = e.response?.data?.detail ?? 'Registration failed. Please try again.';

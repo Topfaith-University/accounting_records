@@ -1,9 +1,10 @@
 import { Injectable } from '@angular/core';
 import axios from 'axios';
+import { API_ROOT } from './api-base';
 
 @Injectable({ providedIn: 'root' })
 export class ReportsService {
-  private base = 'http://localhost:8002/api/reports/';
+  private base = `${API_ROOT}reports/`;
 
   getTrialBalance(dateFrom: string, dateTo: string) {
     return axios.get(this.base + 'trial-balance/', {

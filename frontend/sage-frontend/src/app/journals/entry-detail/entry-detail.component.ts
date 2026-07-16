@@ -18,7 +18,7 @@ export class EntryDetailComponent implements OnInit {
 
   get isManagerOrAdmin(): boolean {
     const user = this.auth.getCurrentUser();
-    return user?.roles.some(r => ['Manager', 'Admin'].includes(r)) ?? false;
+    return user?.roles.some((r: string) => ['Admin', 'Manager'].includes(r)) ?? false;
   }
 
   get canEditDraft(): boolean {
