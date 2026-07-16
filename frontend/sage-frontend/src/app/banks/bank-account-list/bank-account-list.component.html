@@ -110,7 +110,6 @@
             <th>Name</th>
             <th>Bank</th>
             <th>Account No.</th>
-            <th style="text-align:right">Opening Balance</th>
             <th style="text-align:right">Current Balance</th>
             <th style="width:230px;">Actions</th>
           </tr>
@@ -125,7 +124,6 @@
               </td>
               <td>{{ acct.bank_name }}</td>
               <td style="font-family:monospace;font-weight:500;">{{ acct.account_number }}</td>
-              <td style="text-align:right;font-weight:500;">₦{{ acct.opening_balance | number:'1.2-2' }}</td>
               <td style="text-align:right;font-weight:600;" [style.color]="acct.current_balance == null ? 'var(--charcoal-light)' : (acct.current_balance >= 0 ? 'inherit' : 'var(--error)')">
                 {{ acct.current_balance == null ? '—' : ('₦' + (acct.current_balance | number:'1.2-2')) }}
               </td>
@@ -156,7 +154,7 @@
           }
           @empty {
             <tr>
-              <td colspan="6" style="padding:2rem;text-align:center;color:var(--charcoal-light);font-style:italic;">
+              <td colspan="5" style="padding:2rem;text-align:center;color:var(--charcoal-light);font-style:italic;">
                 No bank accounts yet. Click "+ New" to add your first bank account.
               </td>
             </tr>
