@@ -3,6 +3,7 @@ from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from config.export_utils import pdf_response
+from config.auth import get_active_company_id
 from .models import Vendor, PurchaseInvoice, APPayment, Item
 from .serializers import VendorSerializer, PurchaseInvoiceSerializer, APPaymentSerializer, PurchaseInvoiceLineSerializer, ItemSerializer
 from . import services
@@ -37,42 +38,71 @@ class VendorViewSet(viewsets.ViewSet):
     permission_classes = [IsAuthenticated]
 
     def list(self, request):
-        vendors = [v for v in Vendor.nodes.all() if v.is_active]
+        company_id = get_active_company_id(request)
+        if not company_id:
+            return Response({'detail': 'No active company.'}, status=status.HTTP_400_BAD_REQUEST)
+        vendors = [v for v in Vendor.nodes.filter(company_id=company_id) if v.is_active]
         return Response(VendorSerializer(vendors, many=True).data)
 
     def retrieve(self, request, pk=None):
-        vendor = Vendor.nodes.get_or_none(vendor_id=pk)
+        company_id = get_active_company_id(request)
+        vendor = Vendor.nodes.get_or_none(vendor_id=pk, company_id=company_id)
         if not vendor:
             return Response({'detail': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
         return Response(VendorSerializer(vendor).data)
 
     def create(self, request):
-        serializer = VendorSerializer(data=request.data)
+        if not get_active_company_id(request):
+            return Response({'detail': 'No active company.'}, status=status.HTTP_400_BAD_REQUEST)
+        serializer = VendorSerializer(data=request.data, context={'request': request})
         serializer.is_valid(raise_exception=True)
         vendor = serializer.save()
         return Response(VendorSerializer(vendor).data, status=status.HTTP_201_CREATED)
 
     def partial_update(self, request, pk=None):
-        vendor = Vendor.nodes.get_or_none(vendor_id=pk)
+        company_id = get_active_company_id(request)
+        vendor = Vendor.nodes.get_or_none(vendor_id=pk, company_id=company_id)
         if not vendor:
             return Response({'detail': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
-        serializer = VendorSerializer(vendor, data=request.data, partial=True)
+        serializer = VendorSerializer(vendor, data=request.data, partial=True, context={'request': request})
         serializer.is_valid(raise_exception=True)
         vendor = serializer.save()
         return Response(VendorSerializer(vendor).data)
 
     def destroy(self, request, pk=None):
-        vendor = Vendor.nodes.get_or_none(vendor_id=pk)
+        company_id = get_active_company_id(request)
+        vendor = Vendor.nodes.get_or_none(vendor_id=pk, company_id=company_id)
         if not vendor:
             return Response({'detail': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
         vendor.is_active = False
         vendor.save()
         return Response(status=status.HTTP_204_NO_CONTENT)
 
+    @action(detail=True, methods=['get'], url_path='statement')
+    def statement(self, request, pk=None):
+        from config.export_utils import xlsx_response, pdf_response
+        company_id = get_active_company_id(request)
+        data = services.get_vendor_statement(pk, company_id)
+        if data is None:
+            return Response({'detail': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
+        fmt = request.query_params.get('format', 'json')
+        if fmt == 'pdf':
+            return pdf_response('payables/vendor_statement.html', data, f'vendor-statement-{pk}')
+        if fmt == 'xlsx':
+            headers = ['Date', 'Type', 'Reference', 'Description', 'Debit (N)', 'Credit (N)', 'Running Balance (N)']
+            rows = [
+                [l['date'], l['type'], l['reference'], l['description'], l['debit'], l['credit'], l['running_balance']]
+                for l in data['lines']
+            ]
+            rows.append(['', '', '', '', '', 'CLOSING BALANCE', data['closing_balance']])
+            return xlsx_response(headers, rows, f'vendor-statement-{pk}', 'Statement')
+        return Response(data)
+
     @action(detail=False, methods=['get'], url_path='export')
     def export(self, request):
         from config.export_utils import xlsx_response, pdf_response
-        vendors = sorted([v for v in Vendor.nodes.all() if v.is_active], key=lambda v: v.name)
+        company_id = get_active_company_id(request)
+        vendors = sorted([v for v in Vendor.nodes.filter(company_id=company_id) if v.is_active], key=lambda v: v.name)
         fmt = request.query_params.get('format', 'xlsx')
         headers = ['Name', 'Email', 'Phone', 'Address']
         rows = [[v.name, v.email, v.phone, v.address] for v in vendors]
@@ -86,7 +116,10 @@ class PurchaseInvoiceViewSet(viewsets.ViewSet):
     permission_classes = [IsAuthenticated]
 
     def list(self, request):
-        invoices = PurchaseInvoice.nodes.all()
+        company_id = get_active_company_id(request)
+        if not company_id:
+            return Response({'detail': 'No active company.'}, status=status.HTTP_400_BAD_REQUEST)
+        invoices = PurchaseInvoice.nodes.filter(company_id=company_id)
         inv_status = request.query_params.get('status')
         vendor_id = request.query_params.get('vendor_id')
         invoices = list(invoices)
@@ -98,14 +131,16 @@ class PurchaseInvoiceViewSet(viewsets.ViewSet):
         return Response(PurchaseInvoiceSerializer(invoices, many=True).data)
 
     def retrieve(self, request, pk=None):
-        invoice = PurchaseInvoice.nodes.get_or_none(invoice_id=pk)
+        company_id = get_active_company_id(request)
+        invoice = PurchaseInvoice.nodes.get_or_none(invoice_id=pk, company_id=company_id)
         if not invoice:
             return Response({'detail': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
         return Response(_serialize_invoice(invoice))
 
     @action(detail=True, methods=['get'], url_path='print')
     def print_invoice(self, request, pk=None):
-        invoice = PurchaseInvoice.nodes.get_or_none(invoice_id=pk)
+        company_id = get_active_company_id(request)
+        invoice = PurchaseInvoice.nodes.get_or_none(invoice_id=pk, company_id=company_id)
         if not invoice:
             return Response({'detail': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
         vendor = invoice.vendor.single()
@@ -119,40 +154,39 @@ class PurchaseInvoiceViewSet(viewsets.ViewSet):
         }, f'purchase-invoice-{invoice.invoice_number}')
 
     def create(self, request):
-        serializer = PurchaseInvoiceSerializer(data=request.data)
+        if not get_active_company_id(request):
+            return Response({'detail': 'No active company.'}, status=status.HTTP_400_BAD_REQUEST)
+        serializer = PurchaseInvoiceSerializer(data=request.data, context={'request': request})
         serializer.is_valid(raise_exception=True)
         invoice = serializer.save(created_by=request.user.username)
         return Response(_serialize_invoice(invoice), status=status.HTTP_201_CREATED)
 
     def partial_update(self, request, pk=None):
-        invoice = PurchaseInvoice.nodes.get_or_none(invoice_id=pk)
+        company_id = get_active_company_id(request)
+        invoice = PurchaseInvoice.nodes.get_or_none(invoice_id=pk, company_id=company_id)
         if not invoice:
             return Response({'detail': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
         if invoice.status != 'DRAFT':
             return Response({'detail': 'Only draft invoices can be edited.'}, status=status.HTTP_400_BAD_REQUEST)
-        serializer = PurchaseInvoiceSerializer(invoice, data=request.data, partial=True)
+        serializer = PurchaseInvoiceSerializer(invoice, data=request.data, partial=True, context={'request': request})
         serializer.is_valid(raise_exception=True)
         invoice = serializer.save()
         return Response(_serialize_invoice(invoice))
 
     def destroy(self, request, pk=None):
-        invoice = PurchaseInvoice.nodes.get_or_none(invoice_id=pk)
+        company_id = get_active_company_id(request)
+        invoice = PurchaseInvoice.nodes.get_or_none(invoice_id=pk, company_id=company_id)
         if not invoice:
             return Response({'detail': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
         if invoice.status != 'DRAFT':
             return Response({'detail': 'Only draft invoices can be deleted.'}, status=status.HTTP_400_BAD_REQUEST)
+        # Node.delete() is DETACH DELETE — it removes every relationship on the
+        # node regardless of cardinality, so there's nothing to disconnect first.
+        # (Calling .disconnect() on a cardinality=One relationship like
+        # expense_account/vendor/ap_account raises AttemptedCardinalityViolation —
+        # those relationships only support .reconnect(), never .disconnect().)
         for line in list(invoice.lines.all()):
-            invoice.lines.disconnect(line)
-            expense_account = line.expense_account.single()
-            if expense_account:
-                line.expense_account.disconnect(expense_account)
             line.delete()
-        vendor = invoice.vendor.single()
-        if vendor:
-            invoice.vendor.disconnect(vendor)
-        ap_account = invoice.ap_account.single()
-        if ap_account:
-            invoice.ap_account.disconnect(ap_account)
         invoice.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
 
@@ -160,8 +194,9 @@ class PurchaseInvoiceViewSet(viewsets.ViewSet):
     def post_invoice(self, request, pk=None):
         if not request.user.groups.filter(name__in=['Manager', 'Admin']).exists():
             return Response({'detail': 'Forbidden.'}, status=status.HTTP_403_FORBIDDEN)
+        company_id = get_active_company_id(request)
         try:
-            invoice = services.post_invoice(pk, request.user.username)
+            invoice = services.post_invoice(pk, company_id, request.user.username)
         except Exception as e:
             return Response({'detail': str(e)}, status=status.HTTP_400_BAD_REQUEST)
         return Response(_serialize_invoice(invoice))
@@ -170,8 +205,9 @@ class PurchaseInvoiceViewSet(viewsets.ViewSet):
     def void_invoice(self, request, pk=None):
         if not request.user.groups.filter(name__in=['Manager', 'Admin']).exists():
             return Response({'detail': 'Forbidden.'}, status=status.HTTP_403_FORBIDDEN)
+        company_id = get_active_company_id(request)
         try:
-            invoice = services.void_invoice(pk, request.user.username)
+            invoice = services.void_invoice(pk, company_id, request.user.username)
         except Exception as e:
             return Response({'detail': str(e)}, status=status.HTTP_400_BAD_REQUEST)
         return Response(_serialize_invoice(invoice))
@@ -179,7 +215,8 @@ class PurchaseInvoiceViewSet(viewsets.ViewSet):
     @action(detail=False, methods=['get'], url_path='export')
     def export(self, request):
         from config.export_utils import xlsx_response, pdf_response
-        invoices = list(PurchaseInvoice.nodes.all())
+        company_id = get_active_company_id(request)
+        invoices = list(PurchaseInvoice.nodes.filter(company_id=company_id))
         invoices = sorted(invoices, key=lambda i: str(i.date), reverse=True)
         fmt = request.query_params.get('format', 'xlsx')
         headers = ['Invoice #', 'Vendor', 'Date', 'Due Date', 'Total (N)', 'Paid (N)', 'Status']
@@ -199,6 +236,7 @@ class PurchaseInvoiceViewSet(viewsets.ViewSet):
 
     @action(detail=True, methods=['post'], url_path='pay')
     def pay(self, request, pk=None):
+        company_id = get_active_company_id(request)
         payment_date = request.data.get('payment_date')
         amount = request.data.get('amount')
         reference = request.data.get('reference', '')
@@ -212,7 +250,7 @@ class PurchaseInvoiceViewSet(viewsets.ViewSet):
             return Response({'detail': 'amount must be a valid number.'}, status=status.HTTP_400_BAD_REQUEST)
         try:
             payment = services.record_payment(
-                pk, payment_date, amount, reference, bank_account_id, request.user.username
+                pk, company_id, payment_date, amount, reference, bank_account_id, request.user.username
             )
         except Exception as e:
             return Response({'detail': str(e)}, status=status.HTTP_400_BAD_REQUEST)
@@ -223,34 +261,58 @@ class ItemViewSet(viewsets.ViewSet):
     permission_classes = [IsAuthenticated]
 
     def list(self, request):
-        items = [i for i in Item.nodes.all() if i.is_active]
+        company_id = get_active_company_id(request)
+        items = [i for i in Item.nodes.filter(company_id=company_id) if i.is_active]
         return Response([_serialize_item(i) for i in items])
 
     def retrieve(self, request, pk=None):
-        item = Item.nodes.get_or_none(item_id=pk)
+        company_id = get_active_company_id(request)
+        item = Item.nodes.get_or_none(item_id=pk, company_id=company_id)
         if not item:
             return Response({'detail': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
         return Response(_serialize_item(item))
 
     def create(self, request):
-        serializer = ItemSerializer(data=request.data)
+        if not get_active_company_id(request):
+            return Response({'detail': 'No active company.'}, status=status.HTTP_400_BAD_REQUEST)
+        serializer = ItemSerializer(data=request.data, context={'request': request})
         serializer.is_valid(raise_exception=True)
         item = serializer.save()
         return Response(_serialize_item(item), status=status.HTTP_201_CREATED)
 
     def partial_update(self, request, pk=None):
-        item = Item.nodes.get_or_none(item_id=pk)
+        company_id = get_active_company_id(request)
+        item = Item.nodes.get_or_none(item_id=pk, company_id=company_id)
         if not item:
             return Response({'detail': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
-        serializer = ItemSerializer(item, data=request.data, partial=True)
+        serializer = ItemSerializer(item, data=request.data, partial=True, context={'request': request})
         serializer.is_valid(raise_exception=True)
         item = serializer.save()
         return Response(_serialize_item(item))
 
     def destroy(self, request, pk=None):
-        item = Item.nodes.get_or_none(item_id=pk)
+        company_id = get_active_company_id(request)
+        item = Item.nodes.get_or_none(item_id=pk, company_id=company_id)
         if not item:
             return Response({'detail': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
         item.is_active = False
         item.save()
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+    @action(detail=False, methods=['get'], url_path='export')
+    def export(self, request):
+        from config.export_utils import xlsx_response, pdf_response
+        company_id = get_active_company_id(request)
+        items = sorted([i for i in Item.nodes.filter(company_id=company_id) if i.is_active], key=lambda i: i.name)
+        fmt = request.query_params.get('format', 'xlsx')
+        headers = ['Name', 'Type', 'Vendor', 'Cost Price (N)', 'Selling Price (N)']
+        rows = []
+        for i in items:
+            vendor = i.vendor.single()
+            rows.append([i.name, i.item_type, vendor.name if vendor else '', i.cost_price, i.selling_price])
+        if fmt == 'pdf':
+            ctx = {'rows': [dict(zip(
+                ['name', 'item_type', 'vendor', 'cost_price', 'selling_price'], r
+            )) for r in rows]}
+            return pdf_response('payables/item_list.html', ctx, 'items')
+        return xlsx_response(headers, rows, 'items', 'Items')

@@ -1,6 +1,6 @@
 from datetime import datetime, date as _date
 from rest_framework.exceptions import ValidationError
-from .models import PurchaseInvoice, APPayment
+from .models import PurchaseInvoice, APPayment, Vendor
 
 
 def _to_date(val):
@@ -9,8 +9,8 @@ def _to_date(val):
     return _date.fromisoformat(str(val))
 
 
-def post_invoice(invoice_id: str, approver: str) -> PurchaseInvoice:
-    invoice = PurchaseInvoice.nodes.get_or_none(invoice_id=invoice_id)
+def post_invoice(invoice_id: str, company_id: str, approver: str) -> PurchaseInvoice:
+    invoice = PurchaseInvoice.nodes.get_or_none(invoice_id=invoice_id, company_id=company_id)
     if not invoice:
         raise ValidationError('Invoice not found.')
     if invoice.status != 'DRAFT':
@@ -27,6 +27,7 @@ def post_invoice(invoice_id: str, approver: str) -> PurchaseInvoice:
 
     from journals.models import JournalEntry, JournalLine
     entry = JournalEntry(
+        company_id=company_id,
         reference=f'AP-{invoice.invoice_number}',
         date=_to_date(invoice.date),
         description=f'Purchase Invoice {invoice.invoice_number}',
@@ -44,12 +45,12 @@ def post_invoice(invoice_id: str, approver: str) -> PurchaseInvoice:
         expense_acct = line.expense_account.single()
         if not expense_acct:
             raise ValidationError(f'Line {line.line_id} has no expense account.')
-        jl = JournalLine(side='DEBIT', amount=line.amount, description=line.description)
+        jl = JournalLine(company_id=company_id, side='DEBIT', amount=line.amount, description=line.description)
         jl.save()
         entry.lines.connect(jl)
         jl.account.connect(expense_acct)
 
-    credit_line = JournalLine(side='CREDIT', amount=total, description=f'AP — {invoice.invoice_number}')
+    credit_line = JournalLine(company_id=company_id, side='CREDIT', amount=total, description=f'AP — {invoice.invoice_number}')
     credit_line.save()
     entry.lines.connect(credit_line)
     credit_line.account.connect(ap_acct)
@@ -61,8 +62,8 @@ def post_invoice(invoice_id: str, approver: str) -> PurchaseInvoice:
     return invoice
 
 
-def void_invoice(invoice_id: str, voider: str) -> PurchaseInvoice:
-    invoice = PurchaseInvoice.nodes.get_or_none(invoice_id=invoice_id)
+def void_invoice(invoice_id: str, company_id: str, voider: str) -> PurchaseInvoice:
+    invoice = PurchaseInvoice.nodes.get_or_none(invoice_id=invoice_id, company_id=company_id)
     if not invoice:
         raise ValidationError('Invoice not found.')
     if invoice.status not in ('DRAFT', 'POSTED'):
@@ -79,9 +80,9 @@ def void_invoice(invoice_id: str, voider: str) -> PurchaseInvoice:
     return invoice
 
 
-def record_payment(invoice_id: str, payment_date, amount: float,
+def record_payment(invoice_id: str, company_id: str, payment_date, amount: float,
                    reference: str, bank_account_id: str, username: str) -> APPayment:
-    invoice = PurchaseInvoice.nodes.get_or_none(invoice_id=invoice_id)
+    invoice = PurchaseInvoice.nodes.get_or_none(invoice_id=invoice_id, company_id=company_id)
     if not invoice:
         raise ValidationError('Invoice not found.')
     if invoice.status != 'POSTED':
@@ -92,7 +93,7 @@ def record_payment(invoice_id: str, payment_date, amount: float,
         raise ValidationError(f'Payment amount {amount:.2f} exceeds remaining balance {remaining:.2f}.')
 
     from banks.models import BankAccount
-    bank = BankAccount.nodes.get_or_none(bank_account_id=bank_account_id)
+    bank = BankAccount.nodes.get_or_none(bank_account_id=bank_account_id, company_id=company_id)
     if not bank:
         raise ValidationError('Bank account not found.')
     bank_gl = bank.gl_account.single()
@@ -108,7 +109,8 @@ def record_payment(invoice_id: str, payment_date, amount: float,
         generate_invoice_settlement_reference,
     )
     entry = JournalEntry(
-        reference=generate_invoice_settlement_reference('APPay', invoice.invoice_number),
+        company_id=company_id,
+        reference=generate_invoice_settlement_reference('APPay', invoice.invoice_number, company_id),
         date=_to_date(payment_date),
         description=f'Payment for {invoice.invoice_number}',
         status='POSTED',
@@ -121,17 +123,18 @@ def record_payment(invoice_id: str, payment_date, amount: float,
     )
     entry.save()
 
-    dr = JournalLine(side='DEBIT', amount=amount, description='AP payment')
+    dr = JournalLine(company_id=company_id, side='DEBIT', amount=amount, description='AP payment')
     dr.save()
     entry.lines.connect(dr)
     dr.account.connect(ap_acct)
 
-    cr = JournalLine(side='CREDIT', amount=amount, description='Bank payment')
+    cr = JournalLine(company_id=company_id, side='CREDIT', amount=amount, description='Bank payment')
     cr.save()
     entry.lines.connect(cr)
     cr.account.connect(bank_gl)
 
     payment = APPayment(
+        company_id=company_id,
         payment_date=_to_date(payment_date),
         amount=amount,
         reference=reference,
@@ -144,7 +147,8 @@ def record_payment(invoice_id: str, payment_date, amount: float,
 
     from banks.models import BankTransaction
     bank_txn = BankTransaction(
-        reference=generate_bank_transaction_reference(),
+        company_id=company_id,
+        reference=generate_bank_transaction_reference(company_id),
         transaction_type='PAYMENT',
         date=_to_date(payment_date),
         amount=amount,
@@ -163,3 +167,54 @@ def record_payment(invoice_id: str, payment_date, amount: float,
         invoice.status = 'PAID'
     invoice.save()
     return payment
+
+
+def get_vendor_statement(vendor_id: str, company_id: str) -> dict | None:
+    vendor = Vendor.nodes.get_or_none(vendor_id=vendor_id, company_id=company_id)
+    if not vendor:
+        return None
+
+    invoices = [i for i in vendor.invoices.all() if i.status in ('POSTED', 'PAID')]
+
+    events = []
+    for invoice in invoices:
+        events.append({
+            'date': invoice.date,
+            'type': 'INVOICE',
+            'reference': invoice.invoice_number,
+            'description': invoice.description or f'Invoice {invoice.invoice_number}',
+            'debit': 0.0,
+            'credit': round(invoice.total_amount, 2),
+        })
+        for payment in invoice.payments.all():
+            events.append({
+                'date': payment.payment_date,
+                'type': 'PAYMENT',
+                'reference': payment.reference or '',
+                'description': f'Payment for {invoice.invoice_number}',
+                'debit': round(payment.amount, 2),
+                'credit': 0.0,
+            })
+
+    events.sort(key=lambda e: (str(e['date']), 0 if e['type'] == 'INVOICE' else 1))
+
+    running_balance = 0.0
+    lines = []
+    for e in events:
+        running_balance += e['credit'] - e['debit']
+        lines.append({
+            'date': str(e['date']),
+            'type': e['type'],
+            'reference': e['reference'],
+            'description': e['description'],
+            'debit': e['debit'],
+            'credit': e['credit'],
+            'running_balance': round(running_balance, 2),
+        })
+
+    return {
+        'entity_id': vendor.vendor_id,
+        'entity_name': vendor.name,
+        'lines': lines,
+        'closing_balance': round(running_balance, 2),
+    }
