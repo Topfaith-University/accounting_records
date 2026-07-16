@@ -7,6 +7,7 @@ from neomodel import (
 
 class Budget(StructuredNode):
     budget_id = UniqueIdProperty()
+    company_id = StringProperty(required=True, index=True)
     name = StringProperty(required=True)
     fiscal_year = StringProperty(required=True)
     status = StringProperty(
@@ -22,6 +23,7 @@ class Budget(StructuredNode):
 
 class BudgetLine(StructuredNode):
     line_id = UniqueIdProperty()
+    company_id = StringProperty(required=True, index=True)
     budgeted_amount = FloatProperty(required=True)
     created_at = DateTimeProperty(default_now=True)
 

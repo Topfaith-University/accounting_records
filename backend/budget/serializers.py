@@ -1,4 +1,5 @@
 from rest_framework import serializers
+from config.auth import get_active_company_id
 from .models import Budget, BudgetLine
 
 
@@ -58,15 +59,16 @@ class BudgetSerializer(serializers.Serializer):
 
     def create(self, validated_data):
         from accounts.models import Account
+        company_id = get_active_company_id(self.context['request'])
         lines_data = validated_data.pop('lines', [])
-        budget = Budget(**validated_data)
+        budget = Budget(company_id=company_id, **validated_data)
         budget.save()
         for line_data in lines_data:
             account_id = line_data.pop('account_id')
-            line = BudgetLine(**line_data)
+            line = BudgetLine(company_id=company_id, **line_data)
             line.save()
             budget.lines.connect(line)
-            account = Account.nodes.get_or_none(account_id=account_id)
+            account = Account.nodes.get_or_none(account_id=account_id, company_id=company_id)
             if account:
                 line.account.connect(account)
         return budget

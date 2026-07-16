@@ -2,6 +2,7 @@ import io
 from django.http import JsonResponse, HttpResponse
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
+from config.auth import get_active_company_id
 from . import services
 
 
@@ -38,6 +39,9 @@ def _xlsx_response(wb, filename):
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def trial_balance(request):
+    company_id = get_active_company_id(request)
+    if not company_id:
+        return JsonResponse({'detail': 'No active company.'}, status=400)
     date_from = request.query_params.get('date_from', '')
     date_to = request.query_params.get('date_to', '')
     fmt = request.query_params.get('format', 'json')
@@ -46,7 +50,7 @@ def trial_balance(request):
     if not _parse_date(date_from, 'date_from') or not _parse_date(date_to, 'date_to'):
         return JsonResponse({'detail': 'Invalid date format. Use YYYY-MM-DD.'}, status=400)
 
-    rows = services.compute_trial_balance(date_from, date_to)
+    rows = services.compute_trial_balance(company_id, date_from, date_to)
     ctx = {
         'rows': rows,
         'date_from': date_from,
@@ -56,20 +60,37 @@ def trial_balance(request):
     }
 
     if fmt == 'pdf':
-        return _pdf_response('reports/trial_balance.html', ctx, f'trial-balance-{date_from}-{date_to}.pdf')
+        pdf_rows = []
+        for r in rows:
+            d = max(0.0, r['total_debits'] - r['total_credits'])
+            c = max(0.0, r['total_credits'] - r['total_debits'])
+            pdf_rows.append({**r, 'display_debit': round(d, 2), 'display_credit': round(c, 2)})
+        pdf_ctx = {
+            'rows': pdf_rows,
+            'date_from': date_from,
+            'date_to': date_to,
+            'total_debits': round(sum(r['display_debit'] for r in pdf_rows), 2),
+            'total_credits': round(sum(r['display_credit'] for r in pdf_rows), 2),
+        }
+        return _pdf_response('reports/trial_balance.html', pdf_ctx, f'trial-balance-{date_from}-{date_to}.pdf')
     if fmt == 'xlsx':
         from openpyxl import Workbook
         from openpyxl.styles import Font
         wb = Workbook()
         ws = wb.active
         ws.title = 'Trial Balance'
-        ws.append(['Code', 'Account', 'Type', 'Debit (N)', 'Credit (N)', 'Balance (N)'])
+        ws.append(['Code', 'Account', 'Type', 'Debit (N)', 'Credit (N)'])
         for cell in ws[1]:
             cell.font = Font(bold=True)
         for r in rows:
+            d = max(0.0, r['total_debits'] - r['total_credits'])
+            c = max(0.0, r['total_credits'] - r['total_debits'])
             ws.append([r['code'], r['name'], r['account_type'],
-                       r['total_debits'], r['total_credits'], r['balance']])
-        ws.append(['', 'TOTALS', '', ctx['total_debits'], ctx['total_credits'], ''])
+                       round(d, 2) if d > 0 else None,
+                       round(c, 2) if c > 0 else None])
+        total_d = round(sum(max(0.0, r['total_debits'] - r['total_credits']) for r in rows), 2)
+        total_c = round(sum(max(0.0, r['total_credits'] - r['total_debits']) for r in rows), 2)
+        ws.append(['', 'TOTALS', '', total_d, total_c])
         return _xlsx_response(wb, f'trial-balance-{date_from}-{date_to}.xlsx')
     return JsonResponse(ctx)
 
@@ -77,6 +98,9 @@ def trial_balance(request):
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def income_statement(request):
+    company_id = get_active_company_id(request)
+    if not company_id:
+        return JsonResponse({'detail': 'No active company.'}, status=400)
     date_from = request.query_params.get('date_from', '')
     date_to = request.query_params.get('date_to', '')
     fmt = request.query_params.get('format', 'json')
@@ -85,7 +109,7 @@ def income_statement(request):
     if not _parse_date(date_from, 'date_from') or not _parse_date(date_to, 'date_to'):
         return JsonResponse({'detail': 'Invalid date format. Use YYYY-MM-DD.'}, status=400)
 
-    data = services.compute_income_statement(date_from, date_to)
+    data = services.compute_income_statement(company_id, date_from, date_to)
 
     if fmt == 'pdf':
         return _pdf_response('reports/income_statement.html', data, f'income-statement-{date_from}-{date_to}.pdf')
@@ -118,6 +142,9 @@ def income_statement(request):
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def balance_sheet(request):
+    company_id = get_active_company_id(request)
+    if not company_id:
+        return JsonResponse({'detail': 'No active company.'}, status=400)
     as_of_date = request.query_params.get('as_of_date', '')
     fmt = request.query_params.get('format', 'json')
     if not as_of_date:
@@ -125,7 +152,7 @@ def balance_sheet(request):
     if not _parse_date(as_of_date, 'as_of_date'):
         return JsonResponse({'detail': 'Invalid date format. Use YYYY-MM-DD.'}, status=400)
 
-    data = services.compute_balance_sheet(as_of_date)
+    data = services.compute_balance_sheet(company_id, as_of_date)
 
     if fmt == 'pdf':
         return _pdf_response('reports/balance_sheet.html', data, f'balance-sheet-{as_of_date}.pdf')
@@ -154,6 +181,9 @@ def balance_sheet(request):
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def gl_detail(request):
+    company_id = get_active_company_id(request)
+    if not company_id:
+        return JsonResponse({'detail': 'No active company.'}, status=400)
     account_id = request.query_params.get('account_id', '')
     date_from = request.query_params.get('date_from', '')
     date_to = request.query_params.get('date_to', '')
@@ -163,7 +193,7 @@ def gl_detail(request):
     if not _parse_date(date_from, 'date_from') or not _parse_date(date_to, 'date_to'):
         return JsonResponse({'detail': 'Invalid date format. Use YYYY-MM-DD.'}, status=400)
 
-    data = services.compute_gl_detail(account_id, date_from, date_to)
+    data = services.compute_gl_detail(company_id, account_id, date_from, date_to)
     if data is None:
         return JsonResponse({'detail': 'Account not found.'}, status=404)
 
@@ -194,15 +224,19 @@ def gl_detail(request):
 def dashboard(request):
     from neomodel import db
 
+    company_id = get_active_company_id(request)
+    if not company_id:
+        return JsonResponse({'detail': 'No active company.'}, status=400)
+
     # Balances per account type (group by type and normal_balance)
     results, _ = db.cypher_query("""
-        MATCH (a:Account) WHERE a.is_active = true
-        OPTIONAL MATCH (e:JournalEntry)-[:HAS_LINE]->(l:JournalLine)-[:AFFECTS_ACCOUNT]->(a)
+        MATCH (a:Account {company_id: $company_id}) WHERE a.is_active = true
+        OPTIONAL MATCH (e:JournalEntry {company_id: $company_id})-[:HAS_LINE]->(l:JournalLine)-[:AFFECTS_ACCOUNT]->(a)
         WHERE e.status = 'POSTED'
         RETURN a.account_type, a.normal_balance,
                coalesce(sum(CASE WHEN l.side = 'DEBIT' THEN l.amount ELSE 0 END), 0) AS debits,
                coalesce(sum(CASE WHEN l.side = 'CREDIT' THEN l.amount ELSE 0 END), 0) AS credits
-    """, {})
+    """, {'company_id': company_id})
 
     ASSET_TYPES = {'Current Assets', 'Non-Current Assets'}
     LIABILITY_TYPES = {'Current Liabilities', 'Non-Current Liabilities'}
@@ -222,26 +256,26 @@ def dashboard(request):
 
     # AP outstanding: POSTED or PARTIAL PurchaseInvoices
     ap_results, _ = db.cypher_query(
-        "MATCH (inv:PurchaseInvoice) WHERE inv.status IN ['POSTED', 'PARTIAL'] "
+        "MATCH (inv:PurchaseInvoice {company_id: $company_id}) WHERE inv.status IN ['POSTED', 'PARTIAL'] "
         "RETURN coalesce(sum(inv.total_amount - inv.amount_paid), 0.0)",
-        {}
+        {'company_id': company_id}
     )
     ap_outstanding = float(ap_results[0][0]) if ap_results else 0.0
 
     # AR outstanding: POSTED or PARTIAL SalesInvoices
     ar_results, _ = db.cypher_query(
-        "MATCH (inv:SalesInvoice) WHERE inv.status IN ['POSTED', 'PARTIAL'] "
+        "MATCH (inv:SalesInvoice {company_id: $company_id}) WHERE inv.status IN ['POSTED', 'PARTIAL'] "
         "RETURN coalesce(sum(inv.total_amount - inv.amount_received), 0.0)",
-        {}
+        {'company_id': company_id}
     )
     ar_outstanding = float(ar_results[0][0]) if ar_results else 0.0
 
     # Recent 10 POSTED journal entries
     je_results, _ = db.cypher_query("""
-        MATCH (e:JournalEntry) WHERE e.status = 'POSTED'
+        MATCH (e:JournalEntry {company_id: $company_id}) WHERE e.status = 'POSTED'
         RETURN e.entry_id, e.reference, e.date, e.description, e.total_debit
         ORDER BY e.date DESC, e.created_at DESC LIMIT 10
-    """, {})
+    """, {'company_id': company_id})
     recent_entries = [
         {
             'entry_id': r[0],

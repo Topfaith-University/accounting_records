@@ -7,8 +7,9 @@ from neomodel import (
 
 class BankAccount(StructuredNode):
     bank_account_id = UniqueIdProperty()
+    company_id = StringProperty(required=True, index=True)
     name = StringProperty(required=True)
-    account_number = StringProperty(unique_index=True)
+    account_number = StringProperty()
     bank_name = StringProperty(required=True)
     currency = StringProperty(default='NGN')
     opening_balance = FloatProperty(default=0.0)
@@ -22,6 +23,7 @@ class BankAccount(StructuredNode):
 
 class BankReconciliation(StructuredNode):
     reconciliation_id = UniqueIdProperty()
+    company_id = StringProperty(required=True, index=True)
     period_start = DateProperty(required=True)
     period_end = DateProperty(required=True)
     statement_balance = FloatProperty(required=True)
@@ -38,7 +40,8 @@ class BankReconciliation(StructuredNode):
 
 class BankTransaction(StructuredNode):
     transaction_id = UniqueIdProperty()
-    reference = StringProperty(unique_index=True, required=True)
+    company_id = StringProperty(required=True, index=True)
+    reference = StringProperty(required=True)
     transaction_type = StringProperty(
         choices=[('RECEIPT', 'Receipt'), ('PAYMENT', 'Payment'), ('TRANSFER', 'Transfer')],
         required=True

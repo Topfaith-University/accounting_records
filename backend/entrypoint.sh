@@ -25,4 +25,8 @@ for user in User.objects.filter(is_superuser=True):
     user.groups.add(admin_group)
 PYEOF
 
+# Ensure every existing user has a company Membership (idempotent; also covers
+# a fresh container's newly-created superuser on first boot).
+python manage.py migrate_to_companies
+
 exec "$@"

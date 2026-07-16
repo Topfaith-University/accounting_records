@@ -1,4 +1,5 @@
 from rest_framework import serializers
+from config.auth import get_active_company_id
 from .models import JournalEntry, JournalLine, FiscalYear, AccountingPeriod
 
 
@@ -56,8 +57,9 @@ class JournalEntrySerializer(serializers.Serializer):
     lines = JournalLineSerializer(many=True, required=False)
 
     def validate_reference(self, value):
-        # If reference is provided, check if it's unique
-        if value and JournalEntry.nodes.filter(reference=value).exists():
+        # If reference is provided, check if it's unique within the active company
+        company_id = get_active_company_id(self.context['request'])
+        if value and JournalEntry.nodes.filter(reference=value, company_id=company_id).first_or_none() is not None:
             raise serializers.ValidationError("A journal entry with this reference already exists.")
         return value
 
@@ -77,22 +79,23 @@ class JournalEntrySerializer(serializers.Serializer):
 
     def create(self, validated_data):
         from accounts.models import Account
+        company_id = get_active_company_id(self.context['request'])
         lines_data = validated_data.pop('lines', [])
 
         # Auto-generate reference if not provided
         if 'reference' not in validated_data or not validated_data['reference']:
-            validated_data['reference'] = self._generate_journal_entry_reference()
+            validated_data['reference'] = self._generate_journal_entry_reference(company_id)
 
-        entry = JournalEntry(**validated_data)
+        entry = JournalEntry(company_id=company_id, **validated_data)
         entry.save()
         total_debit = 0.0
         total_credit = 0.0
         for line_data in lines_data:
             account_id = line_data.pop('account_id')
-            line = JournalLine(**line_data)
+            line = JournalLine(company_id=company_id, **line_data)
             line.save()
             entry.lines.connect(line)
-            account = Account.nodes.get_or_none(account_id=account_id)
+            account = Account.nodes.get_or_none(account_id=account_id, company_id=company_id)
             if account:
                 line.account.connect(account)
             if line_data['side'] == 'DEBIT':
@@ -106,6 +109,7 @@ class JournalEntrySerializer(serializers.Serializer):
 
     def update(self, instance, validated_data):
         from accounts.models import Account
+        company_id = get_active_company_id(self.context['request'])
 
         lines_data = validated_data.pop('lines', None)
         for attr, value in validated_data.items():
@@ -119,10 +123,10 @@ class JournalEntrySerializer(serializers.Serializer):
                 existing_line.delete()
             for line_data in lines_data:
                 account_id = line_data.pop('account_id')
-                line = JournalLine(**line_data)
+                line = JournalLine(company_id=company_id, **line_data)
                 line.save()
                 instance.lines.connect(line)
-                account = Account.nodes.get_or_none(account_id=account_id)
+                account = Account.nodes.get_or_none(account_id=account_id, company_id=company_id)
                 if account:
                     line.account.connect(account)
                 if line_data['side'] == 'DEBIT':
@@ -135,14 +139,14 @@ class JournalEntrySerializer(serializers.Serializer):
         instance.save()
         return instance
 
-    def _generate_journal_entry_reference(self):
-        """Generate a journal entry reference based on date and sequence."""
+    def _generate_journal_entry_reference(self, company_id):
+        """Generate a journal entry reference based on date and sequence, unique within the company."""
         from datetime import datetime
         # Format: JN-YYYYMMDD-XXXX (e.g., JN-20260526-0001)
         date_prefix = datetime.now().strftime('%Y%m%d')
 
-        # Find the highest existing sequence for today and increment
-        today_entries = JournalEntry.nodes.filter(reference__startswith=f'JN-{date_prefix}-')
+        # Find the highest existing sequence for today (within this company) and increment
+        today_entries = JournalEntry.nodes.filter(reference__startswith=f'JN-{date_prefix}-', company_id=company_id)
         if today_entries:
             # Extract sequence number and find max
             max_seq = 0
@@ -171,15 +175,16 @@ class FiscalYearSerializer(serializers.Serializer):
     created_at = serializers.DateTimeField(read_only=True)
 
     def create(self, validated_data):
-        from datetime import date
         from dateutil.relativedelta import relativedelta
-        year = FiscalYear(**validated_data)
+        company_id = get_active_company_id(self.context['request'])
+        year = FiscalYear(company_id=company_id, **validated_data)
         year.save()
         start = validated_data['start_date']
         for i in range(12):
             period_start = start + relativedelta(months=i)
             period_end = period_start + relativedelta(months=1) - relativedelta(days=1)
             period = AccountingPeriod(
+                company_id=company_id,
                 name=period_start.strftime('%B %Y'),
                 start_date=period_start,
                 end_date=period_end,

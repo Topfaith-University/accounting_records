@@ -7,6 +7,7 @@ from neomodel import (
 
 class Vendor(StructuredNode):
     vendor_id = UniqueIdProperty()
+    company_id = StringProperty(required=True, index=True)
     name = StringProperty(required=True)
     email = StringProperty(default='')
     phone = StringProperty(default='')
@@ -19,7 +20,8 @@ class Vendor(StructuredNode):
 
 class PurchaseInvoice(StructuredNode):
     invoice_id = UniqueIdProperty()
-    invoice_number = StringProperty(unique_index=True, required=True)
+    company_id = StringProperty(required=True, index=True)
+    invoice_number = StringProperty(required=True)
     date = DateProperty(required=True)
     due_date = DateProperty(required=True)
     description = StringProperty(default='')
@@ -41,6 +43,7 @@ class PurchaseInvoice(StructuredNode):
 
 class PurchaseInvoiceLine(StructuredNode):
     line_id = UniqueIdProperty()
+    company_id = StringProperty(required=True, index=True)
     description = StringProperty(default='')
     quantity = FloatProperty(default=1.0)
     unit_price = FloatProperty(default=0.0)
@@ -51,9 +54,11 @@ class PurchaseInvoiceLine(StructuredNode):
 
 class Item(StructuredNode):
     item_id = UniqueIdProperty()
+    company_id = StringProperty(required=True, index=True)
     name = StringProperty(required=True)
     description = StringProperty(default='')
-    unit_price = FloatProperty(default=0.0)
+    cost_price = FloatProperty(default=0.0)
+    selling_price = FloatProperty(default=0.0)
     item_type = StringProperty(
         choices=[('PRODUCT', 'Product'), ('SERVICE', 'Service')],
         default='SERVICE'
@@ -68,6 +73,7 @@ class Item(StructuredNode):
 
 class APPayment(StructuredNode):
     payment_id = UniqueIdProperty()
+    company_id = StringProperty(required=True, index=True)
     payment_date = DateProperty(required=True)
     amount = FloatProperty(required=True)
     reference = StringProperty(default='')

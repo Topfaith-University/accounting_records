@@ -14,10 +14,10 @@ def _account_balance(normal_balance, debits, credits):
     return round(credits - debits, 2)
 
 
-def compute_trial_balance(date_from: str, date_to: str) -> list:
+def compute_trial_balance(company_id: str, date_from: str, date_to: str) -> list:
     query = """
-        MATCH (a:Account {is_active: true})
-        OPTIONAL MATCH (e:JournalEntry)-[:HAS_LINE]->(l:JournalLine)-[:AFFECTS_ACCOUNT]->(a)
+        MATCH (a:Account {is_active: true, company_id: $company_id})
+        OPTIONAL MATCH (e:JournalEntry {company_id: $company_id})-[:HAS_LINE]->(l:JournalLine)-[:AFFECTS_ACCOUNT]->(a)
         WHERE e.status = 'POSTED' AND e.date >= $date_from AND e.date <= $date_to
         RETURN
             a.account_id AS account_id,
@@ -29,7 +29,7 @@ def compute_trial_balance(date_from: str, date_to: str) -> list:
             coalesce(sum(CASE WHEN l.side = 'CREDIT' THEN l.amount ELSE 0 END), 0) AS credits
         ORDER BY a.code
     """
-    results, _ = db.cypher_query(query, {'date_from': date_from, 'date_to': date_to})
+    results, _ = db.cypher_query(query, {'company_id': company_id, 'date_from': date_from, 'date_to': date_to})
     rows = []
     for r in results:
         account_id, code, name, acct_type, normal_bal, debits, credits = r
@@ -48,12 +48,12 @@ def compute_trial_balance(date_from: str, date_to: str) -> list:
     return rows
 
 
-def compute_income_statement(date_from: str, date_to: str) -> dict:
+def compute_income_statement(company_id: str, date_from: str, date_to: str) -> dict:
     all_types = REVENUE_TYPES + COS_TYPES + EXPENSE_TYPES
     query = """
-        MATCH (a:Account {is_active: true})
+        MATCH (a:Account {is_active: true, company_id: $company_id})
         WHERE a.account_type IN $types
-        OPTIONAL MATCH (e:JournalEntry)-[:HAS_LINE]->(l:JournalLine)-[:AFFECTS_ACCOUNT]->(a)
+        OPTIONAL MATCH (e:JournalEntry {company_id: $company_id})-[:HAS_LINE]->(l:JournalLine)-[:AFFECTS_ACCOUNT]->(a)
         WHERE e.status = 'POSTED' AND e.date >= $date_from AND e.date <= $date_to
         RETURN
             a.account_id, a.code, a.name, a.account_type, a.normal_balance,
@@ -62,7 +62,7 @@ def compute_income_statement(date_from: str, date_to: str) -> dict:
         ORDER BY a.code
     """
     results, _ = db.cypher_query(query, {
-        'types': all_types, 'date_from': date_from, 'date_to': date_to
+        'company_id': company_id, 'types': all_types, 'date_from': date_from, 'date_to': date_to
     })
     revenue, cos, expenses = [], [], []
     for r in results:
@@ -101,12 +101,12 @@ def compute_income_statement(date_from: str, date_to: str) -> dict:
     }
 
 
-def compute_balance_sheet(as_of_date: str) -> dict:
+def compute_balance_sheet(company_id: str, as_of_date: str) -> dict:
     all_types = ASSET_TYPES + LIABILITY_TYPES + EQUITY_TYPES
     query = """
-        MATCH (a:Account {is_active: true})
+        MATCH (a:Account {is_active: true, company_id: $company_id})
         WHERE a.account_type IN $types
-        OPTIONAL MATCH (e:JournalEntry)-[:HAS_LINE]->(l:JournalLine)-[:AFFECTS_ACCOUNT]->(a)
+        OPTIONAL MATCH (e:JournalEntry {company_id: $company_id})-[:HAS_LINE]->(l:JournalLine)-[:AFFECTS_ACCOUNT]->(a)
         WHERE e.status = 'POSTED' AND e.date <= $as_of_date
         RETURN
             a.account_id, a.code, a.name, a.account_type, a.normal_balance,
@@ -114,7 +114,7 @@ def compute_balance_sheet(as_of_date: str) -> dict:
             coalesce(sum(CASE WHEN l.side = 'CREDIT' THEN l.amount ELSE 0 END), 0) AS credits
         ORDER BY a.code
     """
-    results, _ = db.cypher_query(query, {'types': all_types, 'as_of_date': as_of_date})
+    results, _ = db.cypher_query(query, {'company_id': company_id, 'types': all_types, 'as_of_date': as_of_date})
     assets, liabilities, equity = [], [], []
     for r in results:
         account_id, code, name, acct_type, normal_bal, debits, credits = r
@@ -134,7 +134,7 @@ def compute_balance_sheet(as_of_date: str) -> dict:
 
     # Cumulative Profit/Loss since inception, rolled into Equity (no closing-entry
     # mechanism exists yet, so this is computed live rather than posted).
-    pl = compute_income_statement('0001-01-01', as_of_date)
+    pl = compute_income_statement(company_id, '0001-01-01', as_of_date)
     if pl['net_surplus'] != 0:
         equity.append({
             'account_id': None,
@@ -160,23 +160,23 @@ def compute_balance_sheet(as_of_date: str) -> dict:
     }
 
 
-def compute_gl_detail(account_id: str, date_from: str, date_to: str) -> dict:
-    account_query = "MATCH (a:Account {account_id: $account_id}) RETURN a.code, a.name, a.normal_balance"
-    acct_result, _ = db.cypher_query(account_query, {'account_id': account_id})
+def compute_gl_detail(company_id: str, account_id: str, date_from: str, date_to: str) -> dict:
+    account_query = "MATCH (a:Account {account_id: $account_id, company_id: $company_id}) RETURN a.code, a.name, a.normal_balance"
+    acct_result, _ = db.cypher_query(account_query, {'account_id': account_id, 'company_id': company_id})
     if not acct_result:
         return None
     code, name, normal_balance = acct_result[0]
 
     lines_query = """
-        MATCH (a:Account {account_id: $account_id})
-        MATCH (e:JournalEntry)-[:HAS_LINE]->(l:JournalLine)-[:AFFECTS_ACCOUNT]->(a)
+        MATCH (a:Account {account_id: $account_id, company_id: $company_id})
+        MATCH (e:JournalEntry {company_id: $company_id})-[:HAS_LINE]->(l:JournalLine)-[:AFFECTS_ACCOUNT]->(a)
         WHERE e.status = 'POSTED' AND e.date >= $date_from AND e.date <= $date_to
         RETURN l.line_id, e.entry_id, e.reference, e.date, e.description,
                l.side, l.amount, l.description, e.entry_type
         ORDER BY e.date ASC, e.reference ASC
     """
     results, _ = db.cypher_query(lines_query, {
-        'account_id': account_id, 'date_from': date_from, 'date_to': date_to
+        'account_id': account_id, 'company_id': company_id, 'date_from': date_from, 'date_to': date_to
     })
 
     running_balance = 0.0

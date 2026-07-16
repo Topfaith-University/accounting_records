@@ -1,16 +1,17 @@
 from rest_framework import serializers
+from config.auth import get_active_company_id
 from .models import Customer, SalesInvoice, SalesInvoiceLine, ARReceipt
 
 
-def _next_invoice_number(prefix: str, label: str) -> str:
+def _next_invoice_number(prefix: str, label: str, company_id: str) -> str:
     from neomodel import db
     from datetime import datetime
     year = datetime.now().year
     pattern = f'{prefix}-{year}-'
     results, _ = db.cypher_query(
-        f"MATCH (n:{label}) WHERE n.invoice_number STARTS WITH $pattern "
+        f"MATCH (n:{label} {{company_id: $company_id}}) WHERE n.invoice_number STARTS WITH $pattern "
         f"RETURN n.invoice_number ORDER BY n.invoice_number DESC LIMIT 1",
-        {'pattern': pattern}
+        {'pattern': pattern, 'company_id': company_id}
     )
     if results and results[0][0]:
         try:
@@ -33,7 +34,8 @@ class CustomerSerializer(serializers.Serializer):
     created_at = serializers.DateTimeField(read_only=True)
 
     def create(self, validated_data):
-        customer = Customer(**validated_data)
+        company_id = get_active_company_id(self.context['request'])
+        customer = Customer(company_id=company_id, **validated_data)
         customer.save()
         return customer
 
@@ -108,30 +110,31 @@ class SalesInvoiceSerializer(serializers.Serializer):
 
     def create(self, validated_data):
         from accounts.models import Account
+        company_id = get_active_company_id(self.context['request'])
         lines_data = validated_data.pop('lines', [])
         customer_id = validated_data.pop('customer_id')
         ar_account_id = validated_data.pop('ar_account_id')
 
         if not validated_data.get('invoice_number'):
-            validated_data['invoice_number'] = _next_invoice_number('SI', 'SalesInvoice')
+            validated_data['invoice_number'] = _next_invoice_number('SI', 'SalesInvoice', company_id)
 
-        invoice = SalesInvoice(**validated_data)
+        invoice = SalesInvoice(company_id=company_id, **validated_data)
         invoice.save()
 
-        customer = Customer.nodes.get_or_none(customer_id=customer_id)
+        customer = Customer.nodes.get_or_none(customer_id=customer_id, company_id=company_id)
         if customer:
             invoice.customer.connect(customer)
 
-        ar_acct = Account.nodes.get_or_none(account_id=ar_account_id)
+        ar_acct = Account.nodes.get_or_none(account_id=ar_account_id, company_id=company_id)
         if ar_acct:
             invoice.ar_account.connect(ar_acct)
 
         for line_data in lines_data:
             revenue_account_id = line_data.pop('revenue_account_id')
-            line = SalesInvoiceLine(**line_data)
+            line = SalesInvoiceLine(company_id=company_id, **line_data)
             line.save()
             invoice.lines.connect(line)
-            revenue_acct = Account.nodes.get_or_none(account_id=revenue_account_id)
+            revenue_acct = Account.nodes.get_or_none(account_id=revenue_account_id, company_id=company_id)
             if revenue_acct:
                 line.revenue_account.connect(revenue_acct)
 
@@ -139,6 +142,7 @@ class SalesInvoiceSerializer(serializers.Serializer):
 
     def update(self, instance, validated_data):
         from accounts.models import Account
+        company_id = get_active_company_id(self.context['request'])
 
         lines_data = validated_data.pop('lines', None)
         customer_id = validated_data.pop('customer_id', None)
@@ -149,35 +153,41 @@ class SalesInvoiceSerializer(serializers.Serializer):
         instance.save()
 
         if customer_id:
-            current_customer = instance.customer.single()
-            if current_customer:
-                instance.customer.disconnect(current_customer)
-            customer = Customer.nodes.get_or_none(customer_id=customer_id)
+            # customer is cardinality=One — must go through reconnect(), not
+            # disconnect()+connect() (disconnecting a cardinality=One relationship
+            # raises AttemptedCardinalityViolation; only reconnect() is allowed).
+            customer = Customer.nodes.get_or_none(customer_id=customer_id, company_id=company_id)
             if customer:
-                instance.customer.connect(customer)
+                current_customer = instance.customer.single()
+                if current_customer:
+                    instance.customer.reconnect(current_customer, customer)
+                else:
+                    instance.customer.connect(customer)
 
         if ar_account_id:
-            current_ar_account = instance.ar_account.single()
-            if current_ar_account:
-                instance.ar_account.disconnect(current_ar_account)
-            ar_account = Account.nodes.get_or_none(account_id=ar_account_id)
+            ar_account = Account.nodes.get_or_none(account_id=ar_account_id, company_id=company_id)
             if ar_account:
-                instance.ar_account.connect(ar_account)
+                current_ar_account = instance.ar_account.single()
+                if current_ar_account:
+                    instance.ar_account.reconnect(current_ar_account, ar_account)
+                else:
+                    instance.ar_account.connect(ar_account)
 
         if lines_data is not None:
+            # existing_line.delete() is DETACH DELETE — it removes the line's
+            # revenue_account relationship (cardinality=One) automatically, so
+            # there's nothing to disconnect first (disconnect() would raise
+            # AttemptedCardinalityViolation on a cardinality=One relationship).
             for existing_line in list(instance.lines.all()):
                 instance.lines.disconnect(existing_line)
-                revenue_account = existing_line.revenue_account.single()
-                if revenue_account:
-                    existing_line.revenue_account.disconnect(revenue_account)
                 existing_line.delete()
 
             for line_data in lines_data:
                 revenue_account_id = line_data.pop('revenue_account_id')
-                line = SalesInvoiceLine(**line_data)
+                line = SalesInvoiceLine(company_id=company_id, **line_data)
                 line.save()
                 instance.lines.connect(line)
-                revenue_account = Account.nodes.get_or_none(account_id=revenue_account_id)
+                revenue_account = Account.nodes.get_or_none(account_id=revenue_account_id, company_id=company_id)
                 if revenue_account:
                     line.revenue_account.connect(revenue_account)
 

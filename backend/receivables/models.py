@@ -7,6 +7,7 @@ from neomodel import (
 
 class Customer(StructuredNode):
     customer_id = UniqueIdProperty()
+    company_id = StringProperty(required=True, index=True)
     name = StringProperty(required=True)
     email = StringProperty(default='')
     phone = StringProperty(default='')
@@ -23,7 +24,8 @@ class Customer(StructuredNode):
 
 class SalesInvoice(StructuredNode):
     invoice_id = UniqueIdProperty()
-    invoice_number = StringProperty(unique_index=True, required=True)
+    company_id = StringProperty(required=True, index=True)
+    invoice_number = StringProperty(required=True)
     date = DateProperty(required=True)
     due_date = DateProperty(required=True)
     description = StringProperty(default='')
@@ -45,6 +47,7 @@ class SalesInvoice(StructuredNode):
 
 class SalesInvoiceLine(StructuredNode):
     line_id = UniqueIdProperty()
+    company_id = StringProperty(required=True, index=True)
     description = StringProperty(default='')
     quantity = FloatProperty(default=1.0)
     unit_price = FloatProperty(default=0.0)
@@ -55,6 +58,7 @@ class SalesInvoiceLine(StructuredNode):
 
 class ARReceipt(StructuredNode):
     receipt_id = UniqueIdProperty()
+    company_id = StringProperty(required=True, index=True)
     receipt_date = DateProperty(required=True)
     amount = FloatProperty(required=True)
     reference = StringProperty(default='')

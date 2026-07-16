@@ -1,4 +1,5 @@
 from rest_framework import serializers
+from config.auth import get_active_company_id
 from .models import BankAccount
 
 
@@ -26,21 +27,19 @@ class BankAccountSerializer(serializers.Serializer):
 
     def get_current_balance(self, obj):
         try:
-            acct = obj.gl_account.single()
-            if not acct:
-                return None
-            from accounts.services import compute_account_balance
-            return compute_account_balance(acct.account_id)
+            from .services import compute_bank_current_balance
+            return compute_bank_current_balance(obj.bank_account_id, obj.company_id)
         except Exception:
             return None
 
     def create(self, validated_data):
+        company_id = get_active_company_id(self.context['request'])
         gl_account_id = validated_data.pop('gl_account_id_input', None)
-        bank_account = BankAccount(**validated_data)
+        bank_account = BankAccount(company_id=company_id, **validated_data)
         bank_account.save()
         if gl_account_id:
             from accounts.models import Account
-            acct = Account.nodes.get_or_none(account_id=gl_account_id)
+            acct = Account.nodes.get_or_none(account_id=gl_account_id, company_id=company_id)
             if acct:
                 bank_account.gl_account.connect(acct)
                 if bank_account.opening_balance:
@@ -48,10 +47,12 @@ class BankAccountSerializer(serializers.Serializer):
                     post_opening_balance_entry(
                         acct, bank_account.opening_balance, bank_account.opening_balance_date,
                         self.context['request'].user.username,
+                        reference_key=bank_account.bank_account_id,
                     )
         return bank_account
 
     def update(self, instance, validated_data):
+        company_id = get_active_company_id(self.context['request'])
         gl_account_id = validated_data.pop('gl_account_id_input', None)
         # Immutable after creation, like AccountSerializer.update()'s `code`/`opening_balance`
         # handling — editing it here would desync the bank's displayed opening_balance from
@@ -66,19 +67,27 @@ class BankAccountSerializer(serializers.Serializer):
             except Exception:
                 current_account = None
             unchanged = bool(current_account) and current_account.account_id == gl_account_id
-            if current_account and not unchanged:
-                instance.gl_account.disconnect(current_account)
+            # gl_account is cardinality=One — changing the link must go through
+            # reconnect(), not disconnect()+connect() (disconnecting a
+            # cardinality=One relationship raises AttemptedCardinalityViolation;
+            # only reconnect() is allowed). An explicit unlink (gl_account_id
+            # falsy while a link exists) is left as a no-op rather than crashing,
+            # since the model has no valid "no GL account" state to fall back to.
             if gl_account_id:
                 from accounts.models import Account
-                new_account = current_account if unchanged else Account.nodes.get_or_none(account_id=gl_account_id)
+                new_account = current_account if unchanged else Account.nodes.get_or_none(account_id=gl_account_id, company_id=company_id)
                 if new_account:
                     if not unchanged:
-                        instance.gl_account.connect(new_account)
+                        if current_account:
+                            instance.gl_account.reconnect(current_account, new_account)
+                        else:
+                            instance.gl_account.connect(new_account)
                     if instance.opening_balance:
                         from accounts.services import post_opening_balance_entry
                         post_opening_balance_entry(
                             new_account, instance.opening_balance, instance.opening_balance_date,
                             self.context['request'].user.username,
+                            reference_key=instance.bank_account_id,
                         )
         return instance
 
@@ -103,8 +112,9 @@ class BankReconciliationSerializer(serializers.Serializer):
 
     def create(self, validated_data):
         from .models import BankReconciliation
+        company_id = get_active_company_id(self.context['request'])
         bank_account = validated_data.pop('bank_account')
-        recon = BankReconciliation(**validated_data)
+        recon = BankReconciliation(company_id=company_id, **validated_data)
         recon.save()
         recon.bank_account.connect(bank_account)
         return recon

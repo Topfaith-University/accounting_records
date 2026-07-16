@@ -2,8 +2,8 @@ from rest_framework.exceptions import ValidationError
 from .models import JournalEntry
 
 
-def post_entry(entry_id: str, approver_username: str) -> JournalEntry:
-    entry = JournalEntry.nodes.get_or_none(entry_id=entry_id)
+def post_entry(entry_id: str, company_id: str, approver_username: str) -> JournalEntry:
+    entry = JournalEntry.nodes.get_or_none(entry_id=entry_id, company_id=company_id)
     if not entry:
         raise ValidationError('Journal entry not found.')
     if entry.status != 'DRAFT':
@@ -31,8 +31,8 @@ def post_entry(entry_id: str, approver_username: str) -> JournalEntry:
     return entry
 
 
-def void_entry(entry_id: str, voider_username: str) -> JournalEntry:
-    entry = JournalEntry.nodes.get_or_none(entry_id=entry_id)
+def void_entry(entry_id: str, company_id: str, voider_username: str) -> JournalEntry:
+    entry = JournalEntry.nodes.get_or_none(entry_id=entry_id, company_id=company_id)
     if not entry:
         raise ValidationError('Journal entry not found.')
     if entry.status != 'POSTED':

@@ -1,16 +1,17 @@
 from rest_framework import serializers
+from config.auth import get_active_company_id
 from .models import Vendor, PurchaseInvoice, PurchaseInvoiceLine, APPayment, Item
 
 
-def _next_invoice_number(prefix: str, label: str) -> str:
+def _next_invoice_number(prefix: str, label: str, company_id: str) -> str:
     from neomodel import db
     from datetime import datetime
     year = datetime.now().year
     pattern = f'{prefix}-{year}-'
     results, _ = db.cypher_query(
-        f"MATCH (n:{label}) WHERE n.invoice_number STARTS WITH $pattern "
+        f"MATCH (n:{label} {{company_id: $company_id}}) WHERE n.invoice_number STARTS WITH $pattern "
         f"RETURN n.invoice_number ORDER BY n.invoice_number DESC LIMIT 1",
-        {'pattern': pattern}
+        {'pattern': pattern, 'company_id': company_id}
     )
     if results and results[0][0]:
         try:
@@ -32,7 +33,8 @@ class VendorSerializer(serializers.Serializer):
     created_at = serializers.DateTimeField(read_only=True)
 
     def create(self, validated_data):
-        vendor = Vendor(**validated_data)
+        company_id = get_active_company_id(self.context['request'])
+        vendor = Vendor(company_id=company_id, **validated_data)
         vendor.save()
         return vendor
 
@@ -107,30 +109,31 @@ class PurchaseInvoiceSerializer(serializers.Serializer):
 
     def create(self, validated_data):
         from accounts.models import Account
+        company_id = get_active_company_id(self.context['request'])
         lines_data = validated_data.pop('lines', [])
         vendor_id = validated_data.pop('vendor_id')
         ap_account_id = validated_data.pop('ap_account_id')
 
         if not validated_data.get('invoice_number'):
-            validated_data['invoice_number'] = _next_invoice_number('PI', 'PurchaseInvoice')
+            validated_data['invoice_number'] = _next_invoice_number('PI', 'PurchaseInvoice', company_id)
 
-        invoice = PurchaseInvoice(**validated_data)
+        invoice = PurchaseInvoice(company_id=company_id, **validated_data)
         invoice.save()
 
-        vendor = Vendor.nodes.get_or_none(vendor_id=vendor_id)
+        vendor = Vendor.nodes.get_or_none(vendor_id=vendor_id, company_id=company_id)
         if vendor:
             invoice.vendor.connect(vendor)
 
-        ap_acct = Account.nodes.get_or_none(account_id=ap_account_id)
+        ap_acct = Account.nodes.get_or_none(account_id=ap_account_id, company_id=company_id)
         if ap_acct:
             invoice.ap_account.connect(ap_acct)
 
         for line_data in lines_data:
             expense_account_id = line_data.pop('expense_account_id')
-            line = PurchaseInvoiceLine(**line_data)
+            line = PurchaseInvoiceLine(company_id=company_id, **line_data)
             line.save()
             invoice.lines.connect(line)
-            expense_acct = Account.nodes.get_or_none(account_id=expense_account_id)
+            expense_acct = Account.nodes.get_or_none(account_id=expense_account_id, company_id=company_id)
             if expense_acct:
                 line.expense_account.connect(expense_acct)
 
@@ -138,6 +141,7 @@ class PurchaseInvoiceSerializer(serializers.Serializer):
 
     def update(self, instance, validated_data):
         from accounts.models import Account
+        company_id = get_active_company_id(self.context['request'])
 
         lines_data = validated_data.pop('lines', None)
         vendor_id = validated_data.pop('vendor_id', None)
@@ -148,35 +152,42 @@ class PurchaseInvoiceSerializer(serializers.Serializer):
         instance.save()
 
         if vendor_id:
-            current_vendor = instance.vendor.single()
-            if current_vendor:
-                instance.vendor.disconnect(current_vendor)
-            vendor = Vendor.nodes.get_or_none(vendor_id=vendor_id)
+            # vendor is cardinality=One — a saved invoice always has exactly one,
+            # so this must go through reconnect(), not disconnect()+connect()
+            # (disconnecting a cardinality=One relationship raises
+            # AttemptedCardinalityViolation; only reconnect() is allowed).
+            vendor = Vendor.nodes.get_or_none(vendor_id=vendor_id, company_id=company_id)
             if vendor:
-                instance.vendor.connect(vendor)
+                current_vendor = instance.vendor.single()
+                if current_vendor:
+                    instance.vendor.reconnect(current_vendor, vendor)
+                else:
+                    instance.vendor.connect(vendor)
 
         if ap_account_id:
-            current_ap_account = instance.ap_account.single()
-            if current_ap_account:
-                instance.ap_account.disconnect(current_ap_account)
-            ap_account = Account.nodes.get_or_none(account_id=ap_account_id)
+            ap_account = Account.nodes.get_or_none(account_id=ap_account_id, company_id=company_id)
             if ap_account:
-                instance.ap_account.connect(ap_account)
+                current_ap_account = instance.ap_account.single()
+                if current_ap_account:
+                    instance.ap_account.reconnect(current_ap_account, ap_account)
+                else:
+                    instance.ap_account.connect(ap_account)
 
         if lines_data is not None:
+            # existing_line.delete() is DETACH DELETE — it removes the line's
+            # expense_account relationship (cardinality=One) automatically, so
+            # there's nothing to disconnect first (disconnect() would raise
+            # AttemptedCardinalityViolation on a cardinality=One relationship).
             for existing_line in list(instance.lines.all()):
                 instance.lines.disconnect(existing_line)
-                expense_account = existing_line.expense_account.single()
-                if expense_account:
-                    existing_line.expense_account.disconnect(expense_account)
                 existing_line.delete()
 
             for line_data in lines_data:
                 expense_account_id = line_data.pop('expense_account_id')
-                line = PurchaseInvoiceLine(**line_data)
+                line = PurchaseInvoiceLine(company_id=company_id, **line_data)
                 line.save()
                 instance.lines.connect(line)
-                expense_account = Account.nodes.get_or_none(account_id=expense_account_id)
+                expense_account = Account.nodes.get_or_none(account_id=expense_account_id, company_id=company_id)
                 if expense_account:
                     line.expense_account.connect(expense_account)
 
@@ -187,7 +198,8 @@ class ItemSerializer(serializers.Serializer):
     item_id = serializers.CharField(read_only=True)
     name = serializers.CharField(max_length=200)
     description = serializers.CharField(default='', allow_blank=True)
-    unit_price = serializers.FloatField(default=0.0, min_value=0)
+    cost_price = serializers.FloatField(default=0.0, min_value=0)
+    selling_price = serializers.FloatField(default=0.0, min_value=0)
     item_type = serializers.ChoiceField(choices=['PRODUCT', 'SERVICE'], default='SERVICE')
     is_active = serializers.BooleanField(default=True)
     created_at = serializers.DateTimeField(read_only=True)
@@ -223,12 +235,13 @@ class ItemSerializer(serializers.Serializer):
 
     def _connect_relations(self, instance, vendor_id, expense_account_id, revenue_account_id):
         from accounts.models import Account
+        company_id = get_active_company_id(self.context['request'])
         if vendor_id is not None:
             current = instance.vendor.single()
             if current:
                 instance.vendor.disconnect(current)
             if vendor_id:
-                vendor = Vendor.nodes.get_or_none(vendor_id=vendor_id)
+                vendor = Vendor.nodes.get_or_none(vendor_id=vendor_id, company_id=company_id)
                 if vendor:
                     instance.vendor.connect(vendor)
         if expense_account_id is not None:
@@ -236,7 +249,7 @@ class ItemSerializer(serializers.Serializer):
             if current:
                 instance.expense_account.disconnect(current)
             if expense_account_id:
-                acct = Account.nodes.get_or_none(account_id=expense_account_id)
+                acct = Account.nodes.get_or_none(account_id=expense_account_id, company_id=company_id)
                 if acct:
                     instance.expense_account.connect(acct)
         if revenue_account_id is not None:
@@ -244,15 +257,16 @@ class ItemSerializer(serializers.Serializer):
             if current:
                 instance.revenue_account.disconnect(current)
             if revenue_account_id:
-                acct = Account.nodes.get_or_none(account_id=revenue_account_id)
+                acct = Account.nodes.get_or_none(account_id=revenue_account_id, company_id=company_id)
                 if acct:
                     instance.revenue_account.connect(acct)
 
     def create(self, validated_data):
+        company_id = get_active_company_id(self.context['request'])
         vendor_id = validated_data.pop('vendor_id', None)
         expense_account_id = validated_data.pop('expense_account_id', None)
         revenue_account_id = validated_data.pop('revenue_account_id', None)
-        item = Item(**validated_data)
+        item = Item(company_id=company_id, **validated_data)
         item.save()
         self._connect_relations(item, vendor_id, expense_account_id, revenue_account_id)
         return item

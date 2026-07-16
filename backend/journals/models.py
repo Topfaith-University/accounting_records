@@ -7,6 +7,7 @@ from neomodel import (
 
 class FiscalYear(StructuredNode):
     year_id = UniqueIdProperty()
+    company_id = StringProperty(required=True, index=True)
     name = StringProperty(required=True)
     start_date = DateProperty(required=True)
     end_date = DateProperty(required=True)
@@ -20,6 +21,7 @@ class FiscalYear(StructuredNode):
 
 class AccountingPeriod(StructuredNode):
     period_id = UniqueIdProperty()
+    company_id = StringProperty(required=True, index=True)
     name = StringProperty(required=True)
     start_date = DateProperty(required=True)
     end_date = DateProperty(required=True)
@@ -33,7 +35,8 @@ class AccountingPeriod(StructuredNode):
 
 class JournalEntry(StructuredNode):
     entry_id = UniqueIdProperty()
-    reference = StringProperty(unique_index=True, required=True)
+    company_id = StringProperty(required=True, index=True)
+    reference = StringProperty(required=True)
     date = DateProperty(required=True)
     description = StringProperty(required=True)
     status = StringProperty(
@@ -66,6 +69,7 @@ class JournalEntry(StructuredNode):
 
 class JournalLine(StructuredNode):
     line_id = UniqueIdProperty()
+    company_id = StringProperty(required=True, index=True)
     side = StringProperty(
         choices=[('DEBIT', 'Debit'), ('CREDIT', 'Credit')], required=True
     )
