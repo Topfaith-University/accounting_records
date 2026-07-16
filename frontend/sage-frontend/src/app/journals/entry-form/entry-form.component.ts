@@ -22,23 +22,21 @@ export class EntryFormComponent implements OnInit {
   entryId: string | null = null;
 
   get isManagerOrAdmin(): boolean {
-    const user = this.auth.getCurrentUser();
-    return user?.roles.some((r: string) => ['Manager', 'Admin'].includes(r)) ?? false;
+    return !!this.auth.getCurrentUser();
   }
 
   get isEditMode(): boolean { return !!this.entryId; }
   get lines(): FormArray { return this.form.get('lines') as FormArray; }
 
-  get totalDebit(): number {
-    return this.lines.controls.reduce((sum, l) => sum + (Number(l.value.debit_amount) || 0), 0);
-  }
-
-  get totalCredit(): number {
-    return this.lines.controls.reduce((sum, l) => sum + (Number(l.value.credit_amount) || 0), 0);
+  get totalAmount(): number {
+    return this.lines.controls.reduce((sum, l) => sum + (Number(l.value.amount) || 0), 0);
   }
 
   get isBalanced(): boolean {
-    return this.lines.length >= 2 && Math.abs(this.totalDebit - this.totalCredit) < 0.005;
+    return this.lines.length >= 1 &&
+      this.lines.controls.every(l =>
+        l.value.from_account_id && l.value.to_account_id && Number(l.value.amount) > 0
+      );
   }
 
   constructor(
@@ -53,7 +51,6 @@ export class EntryFormComponent implements OnInit {
   async ngOnInit() {
     this.form = this.fb.group({
       date: [new Date().toISOString().slice(0, 10), Validators.required],
-      description: ['', Validators.required],
       entry_type: ['MANUAL'],
       lines: this.fb.array([]),
     });
@@ -65,56 +62,58 @@ export class EntryFormComponent implements OnInit {
         const entry = await this.journalsService.getEntry(this.entryId);
         this.form.patchValue({
           date: entry.date ?? '',
-          description: entry.description ?? '',
           entry_type: entry.entry_type ?? 'MANUAL',
         });
         this.lines.clear();
-        for (const line of (entry.lines ?? [])) {
+        // Pair DEBIT lines with CREDIT lines by index
+        const debitLines = (entry.lines ?? []).filter((l: any) => l.side === 'DEBIT');
+        const creditLines = (entry.lines ?? []).filter((l: any) => l.side === 'CREDIT');
+        const count = Math.max(debitLines.length, creditLines.length);
+        for (let i = 0; i < count; i++) {
           this.lines.push(this.fb.group({
-            account_id: [line.account_id ?? '', Validators.required],
-            debit_amount: [line.side === 'DEBIT' ? line.amount : null],
-            credit_amount: [line.side === 'CREDIT' ? line.amount : null],
-            description: [line.description ?? ''],
+            from_account_id: [debitLines[i]?.account_id ?? '', Validators.required],
+            to_account_id:   [creditLines[i]?.account_id ?? '', Validators.required],
+            amount:      [debitLines[i]?.amount ?? creditLines[i]?.amount ?? null, [Validators.required, Validators.min(0.01)]],
+            description: [debitLines[i]?.description ?? creditLines[i]?.description ?? ''],
           }));
         }
       }
       if (this.lines.length === 0) {
-        this.addLine('DEBIT');
-        this.addLine('CREDIT');
+        this.addLine();
       }
     } catch {
       this.error = 'Failed to load journal entry form. Please refresh.';
     }
   }
 
-  addLine(side: 'DEBIT' | 'CREDIT' = 'DEBIT') {
+  addLine() {
     this.lines.push(this.fb.group({
-      account_id: ['', Validators.required],
-      debit_amount: [null],
-      credit_amount: [null],
+      from_account_id: ['', Validators.required],
+      to_account_id:   ['', Validators.required],
+      amount:      [null, [Validators.required, Validators.min(0.01)]],
       description: [''],
     }));
   }
 
   removeLine(i: number) {
-    if (this.lines.length > 2) this.lines.removeAt(i);
+    if (this.lines.length > 1) this.lines.removeAt(i);
   }
 
   private buildPayload() {
     const val = this.form.value;
-    return {
-      date: val.date,
-      description: val.description,
-      entry_type: val.entry_type,
-      lines: val.lines
-        .filter((l: any) => Number(l.debit_amount) > 0 || Number(l.credit_amount) > 0)
-        .map((l: any) => ({
-          account_id: l.account_id,
-          side: Number(l.debit_amount) > 0 ? 'DEBIT' : 'CREDIT',
-          amount: Number(l.debit_amount) > 0 ? Number(l.debit_amount) : Number(l.credit_amount),
-          description: l.description,
-        })),
-    };
+    const lines: any[] = [];
+    const descriptions: string[] = [];
+    for (const row of val.lines) {
+      const amt = Number(row.amount);
+      if (amt > 0 && row.from_account_id && row.to_account_id) {
+        const desc = (row.description || '').trim();
+        lines.push({ account_id: row.from_account_id, side: 'DEBIT',  amount: amt, description: desc });
+        lines.push({ account_id: row.to_account_id,   side: 'CREDIT', amount: amt, description: desc });
+        if (desc) descriptions.push(desc);
+      }
+    }
+    const entryDescription = descriptions.join('; ') || 'Journal Entry';
+    return { date: val.date, description: entryDescription, entry_type: val.entry_type, lines };
   }
 
   async save() {
