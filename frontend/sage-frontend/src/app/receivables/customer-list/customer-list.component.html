@@ -70,6 +70,7 @@
           <th style="text-align:left;padding:.75rem 1rem">Type</th>
           <th style="text-align:left;padding:.75rem 1rem">Email</th>
           <th style="text-align:left;padding:.75rem 1rem">Phone</th>
+          <th style="text-align:right;padding:.75rem 1rem">Amount Owed</th>
           <th style="text-align:right;padding:.75rem 1rem">Actions</th>
         </tr>
       </thead>
@@ -80,6 +81,7 @@
             <td style="padding:.75rem 1rem;color:#555">{{ customer.customer_type }}</td>
             <td style="padding:.75rem 1rem;color:#555">{{ customer.email }}</td>
             <td style="padding:.75rem 1rem;color:#555">{{ customer.phone }}</td>
+            <td style="padding:.75rem 1rem;text-align:right;font-family:var(--font-mono)">₦{{ customer.balance | number:'1.2-2' }}</td>
             <td style="padding:.75rem 1rem;text-align:right">
               <a [routerLink]="['/receivables/customers', customer.customer_id]"
                 style="margin-right:.5rem;padding:.35rem .75rem;background:none;border:1px solid #ccc;border-radius:4px;cursor:pointer;text-decoration:none;color:inherit;display:inline-block">
@@ -97,7 +99,7 @@
           </tr>
         } @empty {
           <tr>
-            <td colspan="5" style="padding:2.5rem;text-align:center;color:var(--text-muted)">
+            <td colspan="6" style="padding:2.5rem;text-align:center;color:var(--text-muted)">
               No customers yet.
               <br><br>
               <button (click)="showForm = true" class="btn-primary" style="padding:.5rem 1.25rem;font-size:.875rem">+ Add first customer</button>

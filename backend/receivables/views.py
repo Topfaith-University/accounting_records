@@ -9,6 +9,15 @@ from .serializers import CustomerSerializer, SalesInvoiceSerializer, ARReceiptSe
 from . import services
 
 
+def _serialize_customer(customer):
+    data = CustomerSerializer(customer).data
+    data['balance'] = round(sum(
+        max(0, inv.total_amount - inv.amount_received)
+        for inv in customer.invoices.all() if inv.status in ('POSTED', 'PAID')
+    ), 2)
+    return data
+
+
 def _serialize_invoice(invoice):
     data = SalesInvoiceSerializer(invoice).data
     lines = list(invoice.lines.all())
@@ -31,14 +40,14 @@ class CustomerViewSet(viewsets.ViewSet):
         if not company_id:
             return Response({'detail': 'No active company.'}, status=status.HTTP_400_BAD_REQUEST)
         customers = [c for c in Customer.nodes.filter(company_id=company_id) if c.is_active]
-        return Response(CustomerSerializer(customers, many=True).data)
+        return Response([_serialize_customer(c) for c in customers])
 
     def retrieve(self, request, pk=None):
         company_id = get_active_company_id(request)
         customer = Customer.nodes.get_or_none(customer_id=pk, company_id=company_id)
         if not customer:
             return Response({'detail': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
-        return Response(CustomerSerializer(customer).data)
+        return Response(_serialize_customer(customer))
 
     def create(self, request):
         if not get_active_company_id(request):
@@ -46,7 +55,7 @@ class CustomerViewSet(viewsets.ViewSet):
         serializer = CustomerSerializer(data=request.data, context={'request': request})
         serializer.is_valid(raise_exception=True)
         customer = serializer.save()
-        return Response(CustomerSerializer(customer).data, status=status.HTTP_201_CREATED)
+        return Response(_serialize_customer(customer), status=status.HTTP_201_CREATED)
 
     def partial_update(self, request, pk=None):
         company_id = get_active_company_id(request)
@@ -56,7 +65,7 @@ class CustomerViewSet(viewsets.ViewSet):
         serializer = CustomerSerializer(customer, data=request.data, partial=True, context={'request': request})
         serializer.is_valid(raise_exception=True)
         customer = serializer.save()
-        return Response(CustomerSerializer(customer).data)
+        return Response(_serialize_customer(customer))
 
     def destroy(self, request, pk=None):
         company_id = get_active_company_id(request)

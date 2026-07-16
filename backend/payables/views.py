@@ -9,6 +9,15 @@ from .serializers import VendorSerializer, PurchaseInvoiceSerializer, APPaymentS
 from . import services
 
 
+def _serialize_vendor(vendor):
+    data = VendorSerializer(vendor).data
+    data['balance'] = round(sum(
+        max(0, inv.total_amount - inv.amount_paid)
+        for inv in vendor.invoices.all() if inv.status in ('POSTED', 'PAID')
+    ), 2)
+    return data
+
+
 def _serialize_item(item):
     data = ItemSerializer(item).data
     vendor = item.vendor.single()
@@ -42,14 +51,14 @@ class VendorViewSet(viewsets.ViewSet):
         if not company_id:
             return Response({'detail': 'No active company.'}, status=status.HTTP_400_BAD_REQUEST)
         vendors = [v for v in Vendor.nodes.filter(company_id=company_id) if v.is_active]
-        return Response(VendorSerializer(vendors, many=True).data)
+        return Response([_serialize_vendor(v) for v in vendors])
 
     def retrieve(self, request, pk=None):
         company_id = get_active_company_id(request)
         vendor = Vendor.nodes.get_or_none(vendor_id=pk, company_id=company_id)
         if not vendor:
             return Response({'detail': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
-        return Response(VendorSerializer(vendor).data)
+        return Response(_serialize_vendor(vendor))
 
     def create(self, request):
         if not get_active_company_id(request):
@@ -57,7 +66,7 @@ class VendorViewSet(viewsets.ViewSet):
         serializer = VendorSerializer(data=request.data, context={'request': request})
         serializer.is_valid(raise_exception=True)
         vendor = serializer.save()
-        return Response(VendorSerializer(vendor).data, status=status.HTTP_201_CREATED)
+        return Response(_serialize_vendor(vendor), status=status.HTTP_201_CREATED)
 
     def partial_update(self, request, pk=None):
         company_id = get_active_company_id(request)
@@ -67,7 +76,7 @@ class VendorViewSet(viewsets.ViewSet):
         serializer = VendorSerializer(vendor, data=request.data, partial=True, context={'request': request})
         serializer.is_valid(raise_exception=True)
         vendor = serializer.save()
-        return Response(VendorSerializer(vendor).data)
+        return Response(_serialize_vendor(vendor))
 
     def destroy(self, request, pk=None):
         company_id = get_active_company_id(request)
