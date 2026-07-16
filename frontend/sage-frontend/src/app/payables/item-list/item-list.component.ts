@@ -6,11 +6,13 @@ import { PayablesService } from '../../services/payables.service';
 import { AccountsService } from '../../services/accounts.service';
 import { AccountSelectComponent } from '../../shared/account-select/account-select.component';
 import { VendorSelectComponent } from '../../shared/vendor-select/vendor-select.component';
+import { PaginatePipe } from '../../shared/paginate.pipe';
+import { PaginationComponent } from '../../shared/pagination/pagination.component';
 
 @Component({
   selector: 'app-item-list',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, RouterModule, AccountSelectComponent, VendorSelectComponent],
+  imports: [CommonModule, ReactiveFormsModule, RouterModule, AccountSelectComponent, VendorSelectComponent, PaginatePipe, PaginationComponent],
   templateUrl: './item-list.component.html',
 })
 export class ItemListComponent implements OnInit {
@@ -19,6 +21,8 @@ export class ItemListComponent implements OnInit {
   allAccounts: any[] = [];
   loading = true;
   error = '';
+  page = 1;
+  pageSize = 25;
   showForm = false;
   saving = false;
   formError = '';
@@ -54,7 +58,8 @@ export class ItemListComponent implements OnInit {
       name: ['', Validators.required],
       item_type: ['SERVICE', Validators.required],
       description: [''],
-      unit_price: [0, [Validators.required, Validators.min(0)]],
+      cost_price: [0, [Validators.required, Validators.min(0)]],
+      selling_price: [0, [Validators.required, Validators.min(0)]],
       vendor_id: [''],
       expense_account_id: [''],
       revenue_account_id: [''],
@@ -68,7 +73,8 @@ export class ItemListComponent implements OnInit {
       name: item.name,
       item_type: item.item_type,
       description: item.description ?? '',
-      unit_price: item.unit_price ?? 0,
+      cost_price: item.cost_price ?? 0,
+      selling_price: item.selling_price ?? 0,
       vendor_id: item.vendor_id ?? '',
       expense_account_id: item.expense_account_id ?? '',
       revenue_account_id: item.revenue_account_id ?? '',
@@ -112,6 +118,14 @@ export class ItemListComponent implements OnInit {
       this.items = this.items.filter(i => i.item_id !== item.item_id);
     } catch (e: any) {
       this.error = e.response?.data?.detail ?? 'Delete failed.';
+    }
+  }
+
+  async exportFile(format: 'pdf' | 'xlsx') {
+    try {
+      await this.payables.exportItems(format);
+    } catch {
+      this.error = 'Export failed.';
     }
   }
 }

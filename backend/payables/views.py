@@ -303,3 +303,21 @@ class ItemViewSet(viewsets.ViewSet):
         item.is_active = False
         item.save()
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+    @action(detail=False, methods=['get'], url_path='export')
+    def export(self, request):
+        from config.export_utils import xlsx_response, pdf_response
+        company_id = get_active_company_id(request)
+        items = sorted([i for i in Item.nodes.filter(company_id=company_id) if i.is_active], key=lambda i: i.name)
+        fmt = request.query_params.get('format', 'xlsx')
+        headers = ['Name', 'Type', 'Vendor', 'Cost Price (N)', 'Selling Price (N)']
+        rows = []
+        for i in items:
+            vendor = i.vendor.single()
+            rows.append([i.name, i.item_type, vendor.name if vendor else '', i.cost_price, i.selling_price])
+        if fmt == 'pdf':
+            ctx = {'rows': [dict(zip(
+                ['name', 'item_type', 'vendor', 'cost_price', 'selling_price'], r
+            )) for r in rows]}
+            return pdf_response('payables/item_list.html', ctx, 'items')
+        return xlsx_response(headers, rows, 'items', 'Items')

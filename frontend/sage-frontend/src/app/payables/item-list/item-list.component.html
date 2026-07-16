@@ -1,8 +1,16 @@
 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem">
   <h2 class="page-title" style="margin:0">Items</h2>
-  <button (click)="showForm ? cancelForm() : (showForm = true)" class="btn-primary" style="padding:.5rem 1rem">
-    {{ showForm ? 'Cancel' : '+ New Item' }}
-  </button>
+  <div style="display:flex;gap:.5rem">
+    <button (click)="exportFile('pdf')" class="btn-secondary" style="padding:.5rem 1rem">
+      Export PDF
+    </button>
+    <button (click)="exportFile('xlsx')" class="btn-secondary" style="padding:.5rem 1rem">
+      Export XLSX
+    </button>
+    <button (click)="showForm ? cancelForm() : (showForm = true)" class="btn-primary" style="padding:.5rem 1rem">
+      {{ showForm ? 'Cancel' : '+ New Item' }}
+    </button>
+  </div>
 </div>
 
 @if (showForm) {
@@ -24,8 +32,13 @@
         </select>
       </div>
       <div>
-        <label style="display:block;font-size:.8rem;font-weight:700;color:var(--text-muted);margin-bottom:.3rem">Unit Price (₦)</label>
-        <input formControlName="unit_price" type="number" min="0" step="0.01" placeholder="0.00"
+        <label style="display:block;font-size:.8rem;font-weight:700;color:var(--text-muted);margin-bottom:.3rem">Cost Price (₦)</label>
+        <input formControlName="cost_price" type="number" min="0" step="0.01" placeholder="0.00"
+          style="width:100%;padding:.5rem;border:1.5px solid var(--border);border-radius:var(--radius-sm);box-sizing:border-box;font-family:var(--font-mono);font-size:.875rem;text-align:right" />
+      </div>
+      <div>
+        <label style="display:block;font-size:.8rem;font-weight:700;color:var(--text-muted);margin-bottom:.3rem">Selling Price (₦)</label>
+        <input formControlName="selling_price" type="number" min="0" step="0.01" placeholder="0.00"
           style="width:100%;padding:.5rem;border:1.5px solid var(--border);border-radius:var(--radius-sm);box-sizing:border-box;font-family:var(--font-mono);font-size:.875rem;text-align:right" />
       </div>
       <div style="overflow:visible">
@@ -78,7 +91,8 @@
         <tr>
           <th style="text-align:left;padding:.75rem 1rem;font-size:.8rem;font-weight:700;color:var(--navy-deep)">Name</th>
           <th style="text-align:left;padding:.75rem 1rem;font-size:.8rem;font-weight:700;color:var(--navy-deep)">Type</th>
-          <th style="text-align:right;padding:.75rem 1rem;font-size:.8rem;font-weight:700;color:var(--navy-deep)">Unit Price</th>
+          <th style="text-align:right;padding:.75rem 1rem;font-size:.8rem;font-weight:700;color:var(--navy-deep)">Cost Price</th>
+          <th style="text-align:right;padding:.75rem 1rem;font-size:.8rem;font-weight:700;color:var(--navy-deep)">Selling Price</th>
           <th style="text-align:left;padding:.75rem 1rem;font-size:.8rem;font-weight:700;color:var(--navy-deep)">Vendor</th>
           <th style="text-align:left;padding:.75rem 1rem;font-size:.8rem;font-weight:700;color:var(--navy-deep)">Expense Account</th>
           <th style="text-align:left;padding:.75rem 1rem;font-size:.8rem;font-weight:700;color:var(--navy-deep)">Revenue Account</th>
@@ -86,11 +100,12 @@
         </tr>
       </thead>
       <tbody>
-        @for (item of items; track item.item_id) {
+        @for (item of items | paginate:page:pageSize; track item.item_id) {
           <tr style="border-top:1px solid var(--border)">
             <td style="padding:.75rem 1rem;font-weight:500">{{ item.name }}</td>
             <td style="padding:.75rem 1rem;color:var(--text-secondary);font-size:.85rem">{{ item.item_type }}</td>
-            <td style="padding:.75rem 1rem;text-align:right;font-family:var(--font-mono);font-size:.875rem">₦{{ item.unit_price | number:'1.2-2' }}</td>
+            <td style="padding:.75rem 1rem;text-align:right;font-family:var(--font-mono);font-size:.875rem">₦{{ item.cost_price | number:'1.2-2' }}</td>
+            <td style="padding:.75rem 1rem;text-align:right;font-family:var(--font-mono);font-size:.875rem">₦{{ item.selling_price | number:'1.2-2' }}</td>
             <td style="padding:.75rem 1rem;color:var(--text-secondary);font-size:.85rem">{{ item.vendor_name ?? '—' }}</td>
             <td style="padding:.75rem 1rem;color:var(--text-secondary);font-size:.8rem">{{ item.expense_account_label ?? '—' }}</td>
             <td style="padding:.75rem 1rem;color:var(--text-secondary);font-size:.8rem">{{ item.revenue_account_label ?? '—' }}</td>
@@ -107,7 +122,7 @@
           </tr>
         } @empty {
           <tr>
-            <td colspan="7" style="padding:2.5rem;text-align:center;color:var(--text-muted)">
+            <td colspan="8" style="padding:2.5rem;text-align:center;color:var(--text-muted)">
               No items yet.<br><br>
               <button (click)="showForm = true" class="btn-primary" style="padding:.5rem 1.25rem;font-size:.875rem">+ Create first item</button>
             </td>
@@ -115,5 +130,6 @@
         }
       </tbody>
     </table>
+    <app-pagination [total]="items.length" [page]="page" [pageSize]="pageSize" (pageChange)="page = $event"></app-pagination>
   </div>
 }
