@@ -169,18 +169,25 @@ class SalesInvoiceViewSet(viewsets.ViewSet):
             return Response({'detail': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
         if invoice.status != 'DRAFT':
             return Response({'detail': 'Only draft invoices can be deleted.'}, status=status.HTTP_400_BAD_REQUEST)
-        # Node.delete() is DETACH DELETE — it removes every relationship on the
-        # node regardless of cardinality, so there's nothing to disconnect first.
-        # (Calling .disconnect() on a cardinality=One relationship like
-        # revenue_account/customer/ar_account raises AttemptedCardinalityViolation —
-        # those relationships only support .reconnect(), never .disconnect().)
         for line in list(invoice.lines.all()):
+            invoice.lines.disconnect(line)
+            revenue_account = line.revenue_account.single()
+            if revenue_account:
+                line.revenue_account.disconnect(revenue_account)
             line.delete()
+        customer = invoice.customer.single()
+        if customer:
+            invoice.customer.disconnect(customer)
+        ar_account = invoice.ar_account.single()
+        if ar_account:
+            invoice.ar_account.disconnect(ar_account)
         invoice.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
 
     @action(detail=True, methods=['post'], url_path='post')
     def post_invoice(self, request, pk=None):
+        if not request.user.groups.filter(name__in=['Manager', 'Admin']).exists():
+            return Response({'detail': 'Forbidden.'}, status=status.HTTP_403_FORBIDDEN)
         company_id = get_active_company_id(request)
         try:
             invoice = services.post_invoice(pk, company_id, request.user.username)
@@ -190,6 +197,8 @@ class SalesInvoiceViewSet(viewsets.ViewSet):
 
     @action(detail=True, methods=['post'], url_path='void')
     def void_invoice(self, request, pk=None):
+        if not request.user.groups.filter(name__in=['Manager', 'Admin']).exists():
+            return Response({'detail': 'Forbidden.'}, status=status.HTTP_403_FORBIDDEN)
         company_id = get_active_company_id(request)
         try:
             invoice = services.void_invoice(pk, company_id, request.user.username)
