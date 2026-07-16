@@ -58,4 +58,20 @@ export class ReceivablesService {
     a.click();
     URL.revokeObjectURL(url);
   }
+
+  getCustomerStatement(id: string) { return axios.get(this.base + `customers/${id}/statement/`).then(r => r.data); }
+
+  async exportCustomerStatement(id: string, format: 'pdf' | 'xlsx'): Promise<void> {
+    const response = await axios.get(this.base + `customers/${id}/statement/`, {
+      params: { format },
+      responseType: 'blob',
+    });
+    const blob = new Blob([response.data], { type: response.headers['content-type'] });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `customer-statement.${format}`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
 }

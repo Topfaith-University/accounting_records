@@ -1,0 +1,64 @@
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem">
+  <div>
+    <a routerLink="/receivables/customers" style="font-size:.85rem;color:#555;text-decoration:none">&larr; Back to Customers</a>
+    <h2 style="margin:.35rem 0 0">{{ statement?.entity_name }}</h2>
+  </div>
+  @if (statement) {
+    <div style="display:flex;gap:.5rem">
+      <button (click)="exportFile('pdf')"
+        style="background:white;color:#555;padding:.5rem 1rem;border:1px solid #ccc;border-radius:4px;cursor:pointer;font-size:.875rem">
+        Export PDF
+      </button>
+      <button (click)="exportFile('xlsx')"
+        style="background:white;color:#555;padding:.5rem 1rem;border:1px solid #ccc;border-radius:4px;cursor:pointer;font-size:.875rem">
+        Export XLSX
+      </button>
+    </div>
+  }
+</div>
+
+@if (loading) { <p>Loading…</p> }
+@if (error) { <p style="color:red">{{ error }}</p> }
+@if (!loading && !error && statement) {
+  <div style="background:white;border-radius:8px;padding:1rem 1.25rem;margin-bottom:1rem;box-shadow:0 1px 4px rgba(0,0,0,.1)">
+    <span style="color:#555;font-size:.875rem">Amount Owed to Us</span>
+    <div style="font-size:1.5rem;font-weight:700"
+      [style.color]="statement.closing_balance > 0 ? '#b42318' : 'inherit'">
+      ₦{{ statement.closing_balance | number:'1.2-2' }}
+    </div>
+  </div>
+  <div style="background:white;border-radius:8px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.1)">
+    <table style="width:100%;border-collapse:collapse">
+      <thead style="background:#f0f0f5">
+        <tr>
+          <th style="text-align:left;padding:.75rem 1rem">Date</th>
+          <th style="text-align:left;padding:.75rem 1rem">Type</th>
+          <th style="text-align:left;padding:.75rem 1rem">Reference</th>
+          <th style="text-align:left;padding:.75rem 1rem">Description</th>
+          <th style="text-align:right;padding:.75rem 1rem">Debit</th>
+          <th style="text-align:right;padding:.75rem 1rem">Credit</th>
+          <th style="text-align:right;padding:.75rem 1rem">Running Balance</th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (line of statement.lines; track $index) {
+          <tr style="border-top:1px solid #eee">
+            <td style="padding:.75rem 1rem">{{ line.date }}</td>
+            <td style="padding:.75rem 1rem">{{ line.type }}</td>
+            <td style="padding:.75rem 1rem">{{ line.reference }}</td>
+            <td style="padding:.75rem 1rem">{{ line.description }}</td>
+            <td style="padding:.75rem 1rem;text-align:right">{{ line.debit ? ('₦' + (line.debit | number:'1.2-2')) : '' }}</td>
+            <td style="padding:.75rem 1rem;text-align:right">{{ line.credit ? ('₦' + (line.credit | number:'1.2-2')) : '' }}</td>
+            <td style="padding:.75rem 1rem;text-align:right;font-weight:600">₦{{ line.running_balance | number:'1.2-2' }}</td>
+          </tr>
+        } @empty {
+          <tr>
+            <td colspan="7" style="padding:2.5rem;text-align:center;color:var(--text-muted)">
+              No transactions yet.
+            </td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  </div>
+}

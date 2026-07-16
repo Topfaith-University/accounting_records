@@ -1,6 +1,7 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ReactiveFormsModule, FormBuilder, FormGroup, Validators } from '@angular/forms';
+import { RouterModule } from '@angular/router';
 import { ReceivablesService } from '../../services/receivables.service';
 import { PaginatePipe } from '../../shared/paginate.pipe';
 import { PaginationComponent } from '../../shared/pagination/pagination.component';
@@ -8,7 +9,7 @@ import { PaginationComponent } from '../../shared/pagination/pagination.componen
 @Component({
   selector: 'app-customer-list',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, PaginatePipe, PaginationComponent],
+  imports: [CommonModule, ReactiveFormsModule, RouterModule, PaginatePipe, PaginationComponent],
   templateUrl: './customer-list.component.html',
 })
 export class CustomerListComponent implements OnInit {
@@ -55,7 +56,7 @@ export class CustomerListComponent implements OnInit {
       } else {
         await this.receivables.createCustomer(this.form.value);
       }
-      this.form.reset({ customer_type: 'EXTERNAL' });
+      this.form.reset({ name: '', customer_type: 'EXTERNAL', email: '', phone: '', address: '' });
       this.editingCustomerId = null;
       this.showForm = false;
       await this.load();
@@ -81,7 +82,7 @@ export class CustomerListComponent implements OnInit {
     this.showForm = false;
     this.editingCustomerId = null;
     this.formError = '';
-    this.form.reset({ customer_type: 'EXTERNAL' });
+    this.form.reset({ name: '', customer_type: 'EXTERNAL', email: '', phone: '', address: '' });
   }
 
   async deleteCustomer(customer: any) {

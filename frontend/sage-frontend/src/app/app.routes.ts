@@ -95,6 +95,7 @@ export const routes: Routes = [
       { path: 'receivables/invoices/:id', loadComponent: () => import('./receivables/invoice-detail/invoice-detail.component').then(m => m.SalesInvoiceDetailComponent) },
       { path: 'receivables/invoices', loadComponent: () => import('./receivables/invoice-list/invoice-list.component').then(m => m.SalesInvoiceListComponent) },
       { path: 'receivables/customers', loadComponent: () => import('./receivables/customer-list/customer-list.component').then(m => m.CustomerListComponent) },
+      { path: 'receivables/customers/:id', loadComponent: () => import('./receivables/customer-statement/customer-statement.component').then(m => m.CustomerStatementComponent) },
       // Budget — /new before /:id to avoid "new" matching as param
       { path: 'budget/new', loadComponent: () => import('./budget/budget-form/budget-form.component').then(m => m.BudgetFormComponent) },
       { path: 'budget/:id', loadComponent: () => import('./budget/budget-detail/budget-detail.component').then(m => m.BudgetDetailComponent) },

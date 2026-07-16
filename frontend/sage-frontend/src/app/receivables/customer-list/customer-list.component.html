@@ -81,6 +81,10 @@
             <td style="padding:.75rem 1rem;color:#555">{{ customer.email }}</td>
             <td style="padding:.75rem 1rem;color:#555">{{ customer.phone }}</td>
             <td style="padding:.75rem 1rem;text-align:right">
+              <a [routerLink]="['/receivables/customers', customer.customer_id]"
+                style="margin-right:.5rem;padding:.35rem .75rem;background:none;border:1px solid #ccc;border-radius:4px;cursor:pointer;text-decoration:none;color:inherit;display:inline-block">
+                Statement
+              </a>
               <button (click)="startEdit(customer)"
                 style="margin-right:.5rem;padding:.35rem .75rem;background:none;border:1px solid #ccc;border-radius:4px;cursor:pointer">
                 Edit
