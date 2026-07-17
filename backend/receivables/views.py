@@ -143,7 +143,7 @@ class SalesInvoiceViewSet(viewsets.ViewSet):
             return Response({'detail': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
         customer = invoice.customer.single()
         lines = list(invoice.lines.all())
-        return pdf_response('receivables/sales_invoice.html', {
+        return pdf_response(request, 'receivables/sales_invoice.html', {
             'invoice': invoice,
             'customer': customer,
             'lines': lines,

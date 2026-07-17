@@ -154,7 +154,7 @@ class PurchaseInvoiceViewSet(viewsets.ViewSet):
             return Response({'detail': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
         vendor = invoice.vendor.single()
         lines = list(invoice.lines.all())
-        return pdf_response('payables/purchase_invoice.html', {
+        return pdf_response(request, 'payables/purchase_invoice.html', {
             'invoice': invoice,
             'vendor': vendor,
             'lines': lines,

@@ -27,6 +27,7 @@
 </head>
 <body>
   <header class="header">
+    {% if company_name %}<div style="font-size: 12px; letter-spacing: 0.5px; text-transform: uppercase; color: #52606d; margin-bottom: 4px;">{{ company_name }}</div>{% endif %}
     <h1>Sales Invoice</h1>
     <div class="invoice-number">Invoice #{{ invoice.invoice_number }}</div>
   </header>

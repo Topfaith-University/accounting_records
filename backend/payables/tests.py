@@ -30,9 +30,9 @@ class PurchaseInvoicePrintTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         pdf_response.assert_called_once()
-        self.assertEqual(pdf_response.call_args.args[0], 'payables/purchase_invoice.html')
-        self.assertEqual(pdf_response.call_args.args[2], 'purchase-invoice-PI-0001')
-        self.assertEqual(pdf_response.call_args.args[1]['outstanding_amount'], 1300.0)
+        self.assertEqual(pdf_response.call_args.args[1], 'payables/purchase_invoice.html')
+        self.assertEqual(pdf_response.call_args.args[3], 'purchase-invoice-PI-0001')
+        self.assertEqual(pdf_response.call_args.args[2]['outstanding_amount'], 1300.0)
 
     @patch('payables.views.PurchaseInvoice.nodes', new_callable=Mock)
     def test_print_returns_not_found_for_missing_invoice(self, nodes):
