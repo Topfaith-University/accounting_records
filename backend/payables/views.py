@@ -96,7 +96,7 @@ class VendorViewSet(viewsets.ViewSet):
             return Response({'detail': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
         fmt = request.query_params.get('format', 'json')
         if fmt == 'pdf':
-            return pdf_response('payables/vendor_statement.html', data, f'vendor-statement-{pk}')
+            return pdf_response(request, 'payables/vendor_statement.html', data, f'vendor-statement-{pk}')
         if fmt == 'xlsx':
             headers = ['Date', 'Type', 'Reference', 'Description', 'Debit (N)', 'Credit (N)', 'Running Balance (N)']
             rows = [
@@ -104,7 +104,7 @@ class VendorViewSet(viewsets.ViewSet):
                 for l in data['lines']
             ]
             rows.append(['', '', '', '', '', 'CLOSING BALANCE', data['closing_balance']])
-            return xlsx_response(headers, rows, f'vendor-statement-{pk}', 'Statement')
+            return xlsx_response(request, headers, rows, f'vendor-statement-{pk}', 'Statement')
         return Response(data)
 
     @action(detail=False, methods=['get'], url_path='export')
@@ -117,8 +117,8 @@ class VendorViewSet(viewsets.ViewSet):
         rows = [[v.name, v.email, v.phone, v.address] for v in vendors]
         if fmt == 'pdf':
             ctx = {'rows': [dict(zip(['name', 'email', 'phone', 'address'], r)) for r in rows]}
-            return pdf_response('payables/vendor_list.html', ctx, 'vendors')
-        return xlsx_response(headers, rows, 'vendors', 'Vendors')
+            return pdf_response(request, 'payables/vendor_list.html', ctx, 'vendors')
+        return xlsx_response(request, headers, rows, 'vendors', 'Vendors')
 
 
 class PurchaseInvoiceViewSet(viewsets.ViewSet):
@@ -245,8 +245,8 @@ class PurchaseInvoiceViewSet(viewsets.ViewSet):
             ctx = {'rows': [dict(zip(
                 ['invoice_number', 'vendor', 'date', 'due_date', 'total_amount', 'amount_paid', 'status'], r
             )) for r in rows]}
-            return pdf_response('payables/invoice_list.html', ctx, 'purchase-invoices')
-        return xlsx_response(headers, rows, 'purchase-invoices', 'Purchase Invoices')
+            return pdf_response(request, 'payables/invoice_list.html', ctx, 'purchase-invoices')
+        return xlsx_response(request, headers, rows, 'purchase-invoices', 'Purchase Invoices')
 
     @action(detail=True, methods=['post'], url_path='pay')
     def pay(self, request, pk=None):
@@ -328,5 +328,5 @@ class ItemViewSet(viewsets.ViewSet):
             ctx = {'rows': [dict(zip(
                 ['name', 'item_type', 'vendor', 'cost_price', 'selling_price'], r
             )) for r in rows]}
-            return pdf_response('payables/item_list.html', ctx, 'items')
-        return xlsx_response(headers, rows, 'items', 'Items')
+            return pdf_response(request, 'payables/item_list.html', ctx, 'items')
+        return xlsx_response(request, headers, rows, 'items', 'Items')
