@@ -4,7 +4,7 @@ import { Kysely } from 'kysely';
 import { Database } from '../db/types';
 import { requireAuth } from '../middleware/auth';
 import { requireActiveCompany, requireLegacyGroup } from '../middleware/legacyRbac';
-import { getActiveCompanyId } from '../lib/rbac';
+import { getActiveCompanyId, getActiveCompanyName } from '../lib/rbac';
 import { nextInvoiceNumber, postPurchaseInvoice, recordApPayment, ServiceError, voidPurchaseInvoice, getVendorStatement } from '../services/payables.service';
 import { sendXlsx } from '../exports/xlsx';
 import { sendTablePdf, sendPdf } from '../exports/pdf';
@@ -88,19 +88,21 @@ export function payablesRouter(db: Kysely<Database>): Router {
 
   vendors.get('/export/', async (req, res) => {
     const companyId = getActiveCompanyId(req);
+    const companyName = getActiveCompanyName(req);
     const rows = await db.selectFrom('vendors').selectAll().where('company_id', '=', companyId ?? '').where('is_active', '=', 1).orderBy('name').execute();
     const headers = ['Name', 'Email', 'Phone', 'Address'];
     const dataRows = rows.map((v) => [v.name, v.email, v.phone, v.address]);
     const fmt = (req.query.format as string) || 'xlsx';
     if (fmt === 'pdf') {
-      sendTablePdf(res, 'vendors', 'Vendors', headers, dataRows);
+      sendTablePdf(res, 'vendors', 'Vendors', headers, dataRows, companyName);
       return;
     }
-    await sendXlsx(res, 'vendors', 'Vendors', headers, dataRows);
+    await sendXlsx(res, 'vendors', 'Vendors', headers, dataRows, companyName);
   });
 
   vendors.get('/:id/statement/', async (req, res) => {
     const companyId = getActiveCompanyId(req)!;
+    const companyName = getActiveCompanyName(req);
     const data = await getVendorStatement(db, req.params.id, companyId);
     if (!data) {
       res.status(404).json({ detail: 'Not found.' });
@@ -124,14 +126,14 @@ export function payablesRouter(db: Kysely<Database>): Router {
           },
         ],
         styles: { title: { fontSize: 14, bold: true, margin: [0, 0, 0, 10] } },
-      });
+      }, companyName);
       return;
     }
     if (fmt === 'xlsx') {
       const headers = ['Date', 'Type', 'Reference', 'Description', 'Debit (N)', 'Credit (N)', 'Running Balance (N)'];
       const dataRows: any[][] = data.lines.map((l) => [l.date, l.type, l.reference, l.description, l.debit, l.credit, l.running_balance]);
       dataRows.push(['', '', '', '', '', 'CLOSING BALANCE', data.closing_balance]);
-      await sendXlsx(res, `vendor-statement-${req.params.id}`, 'Statement', headers, dataRows);
+      await sendXlsx(res, `vendor-statement-${req.params.id}`, 'Statement', headers, dataRows, companyName);
       return;
     }
     res.json(data);
@@ -207,6 +209,7 @@ export function payablesRouter(db: Kysely<Database>): Router {
 
   invoices.get('/export/', async (req, res) => {
     const companyId = getActiveCompanyId(req);
+    const companyName = getActiveCompanyName(req);
     const rows = await db.selectFrom('purchase_invoices').selectAll().where('company_id', '=', companyId ?? '').orderBy('date', 'desc').execute();
     const dataRows = await Promise.all(
       rows.map(async (inv) => {
@@ -217,10 +220,10 @@ export function payablesRouter(db: Kysely<Database>): Router {
     const headers = ['Invoice #', 'Vendor', 'Date', 'Due Date', 'Total (N)', 'Paid (N)', 'Status'];
     const fmt = (req.query.format as string) || 'xlsx';
     if (fmt === 'pdf') {
-      sendTablePdf(res, 'purchase-invoices', 'Purchase Invoices', headers, dataRows);
+      sendTablePdf(res, 'purchase-invoices', 'Purchase Invoices', headers, dataRows, companyName);
       return;
     }
-    await sendXlsx(res, 'purchase-invoices', 'Purchase Invoices', headers, dataRows);
+    await sendXlsx(res, 'purchase-invoices', 'Purchase Invoices', headers, dataRows, companyName);
   });
 
   invoices.get('/:id/', async (req, res) => {
@@ -235,6 +238,7 @@ export function payablesRouter(db: Kysely<Database>): Router {
 
   invoices.get('/:id/print/', async (req, res) => {
     const companyId = getActiveCompanyId(req);
+    const companyName = getActiveCompanyName(req);
     const invoice = await db.selectFrom('purchase_invoices').selectAll().where('invoice_id', '=', req.params.id).where('company_id', '=', companyId ?? '').executeTakeFirst();
     if (!invoice) {
       res.status(404).json({ detail: 'Not found.' });
@@ -263,7 +267,7 @@ export function payablesRouter(db: Kysely<Database>): Router {
         { text: `Outstanding: ₦${outstanding.toLocaleString()}`, bold: true },
       ],
       styles: { title: { fontSize: 14, bold: true, margin: [0, 0, 0, 10] } },
-    });
+    }, companyName);
   });
 
   invoices.post('/', requireActiveCompany, async (req, res) => {
@@ -440,6 +444,7 @@ export function payablesRouter(db: Kysely<Database>): Router {
 
   items.get('/export/', async (req, res) => {
     const companyId = getActiveCompanyId(req);
+    const companyName = getActiveCompanyName(req);
     const rows = await db.selectFrom('items').selectAll().where('company_id', '=', companyId ?? '').where('is_active', '=', 1).orderBy('name').execute();
     const dataRows = await Promise.all(
       rows.map(async (i) => {
@@ -450,10 +455,10 @@ export function payablesRouter(db: Kysely<Database>): Router {
     const headers = ['Name', 'Type', 'Vendor', 'Cost Price (N)', 'Selling Price (N)'];
     const fmt = (req.query.format as string) || 'xlsx';
     if (fmt === 'pdf') {
-      sendTablePdf(res, 'items', 'Items', headers, dataRows);
+      sendTablePdf(res, 'items', 'Items', headers, dataRows, companyName);
       return;
     }
-    await sendXlsx(res, 'items', 'Items', headers, dataRows);
+    await sendXlsx(res, 'items', 'Items', headers, dataRows, companyName);
   });
 
   items.get('/:id/', async (req, res) => {
