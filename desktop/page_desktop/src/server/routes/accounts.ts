@@ -4,7 +4,7 @@ import { Kysely } from 'kysely';
 import { Database } from '../db/types';
 import { requireAuth } from '../middleware/auth';
 import { requireActiveCompany, requireLegacyGroup } from '../middleware/legacyRbac';
-import { getActiveCompanyId } from '../lib/rbac';
+import { getActiveCompanyId, getActiveCompanyName } from '../lib/rbac';
 import { ACCOUNT_TYPES } from '../lib/accountTypes';
 import { computeAccountBalance, generateAccountCode } from '../services/accounts.service';
 import { postOpeningBalanceEntry } from '../services/journalPosting.service';
@@ -45,15 +45,16 @@ export function accountsRouter(db: Kysely<Database>): Router {
 
   router.get('/export/', async (req, res) => {
     const companyId = getActiveCompanyId(req);
+    const companyName = getActiveCompanyName(req);
     const rows = await db.selectFrom('accounts').selectAll().where('company_id', '=', companyId ?? '').where('is_active', '=', 1).orderBy('code').execute();
     const headers = ['Code', 'Name', 'Type', 'Normal Balance', 'Balance (N)'];
     const dataRows = await Promise.all(rows.map(async (a) => [a.code, a.name, a.account_type, a.normal_balance, await computeAccountBalance(db, a.account_id)]));
     const fmt = (req.query.format as string) || 'xlsx';
     if (fmt === 'pdf') {
-      sendTablePdf(res, 'accounts', 'Chart of Accounts', headers, dataRows);
+      sendTablePdf(res, 'accounts', 'Chart of Accounts', headers, dataRows, companyName);
       return;
     }
-    await sendXlsx(res, 'accounts', 'Accounts', headers, dataRows);
+    await sendXlsx(res, 'accounts', 'Accounts', headers, dataRows, companyName);
   });
 
   router.get('/types/', (_req, res) => {

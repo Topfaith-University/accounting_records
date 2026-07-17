@@ -4,7 +4,7 @@ import { Kysely } from 'kysely';
 import { Database } from '../db/types';
 import { requireAuth } from '../middleware/auth';
 import { requireActiveCompany, requireLegacyGroup } from '../middleware/legacyRbac';
-import { getActiveCompanyId } from '../lib/rbac';
+import { getActiveCompanyId, getActiveCompanyName } from '../lib/rbac';
 import { sendXlsx } from '../exports/xlsx';
 import { sendTablePdf } from '../exports/pdf';
 
@@ -47,6 +47,7 @@ export function budgetRouter(db: Kysely<Database>): Router {
 
   budgets.get('/export/', async (req, res) => {
     const companyId = getActiveCompanyId(req);
+    const companyName = getActiveCompanyName(req);
     const rows = await db.selectFrom('budgets').selectAll().where('company_id', '=', companyId ?? '').orderBy('created_at', 'desc').execute();
     const dataRows = await Promise.all(
       rows.map(async (b) => {
@@ -58,10 +59,10 @@ export function budgetRouter(db: Kysely<Database>): Router {
     const headers = ['Name', 'Fiscal Year', 'Total Budgeted (N)', 'Status', 'Created By'];
     const fmt = (req.query.format as string) || 'xlsx';
     if (fmt === 'pdf') {
-      sendTablePdf(res, 'budgets', 'Budgets', headers, dataRows);
+      sendTablePdf(res, 'budgets', 'Budgets', headers, dataRows, companyName);
       return;
     }
-    await sendXlsx(res, 'budgets', 'Budgets', headers, dataRows);
+    await sendXlsx(res, 'budgets', 'Budgets', headers, dataRows, companyName);
   });
 
   budgets.get('/:id/', async (req, res) => {

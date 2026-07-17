@@ -4,7 +4,7 @@ import { Kysely } from 'kysely';
 import { Database } from '../db/types';
 import { requireAuth } from '../middleware/auth';
 import { requireActiveCompany, requireLegacyGroup } from '../middleware/legacyRbac';
-import { getActiveCompanyId } from '../lib/rbac';
+import { getActiveCompanyId, getActiveCompanyName } from '../lib/rbac';
 import { addDays, addMonthsClamped, monthYearLabel } from '../lib/dates';
 import { generateJournalEntryReference, postJournalEntry, ServiceError, voidJournalEntry } from '../services/journals.service';
 import { userHasAnyGroup } from '../lib/rbac';
@@ -63,6 +63,7 @@ export function journalsRouter(db: Kysely<Database>): Router {
 
   entries.get('/export/', async (req, res) => {
     const companyId = getActiveCompanyId(req);
+    const companyName = getActiveCompanyName(req);
     const rows = await db
       .selectFrom('journal_entries')
       .selectAll()
@@ -73,10 +74,10 @@ export function journalsRouter(db: Kysely<Database>): Router {
     const dataRows = rows.map((e) => [e.reference, e.date, e.description, e.total_debit, e.total_credit, e.status]);
     const fmt = (req.query.format as string) || 'xlsx';
     if (fmt === 'pdf') {
-      sendTablePdf(res, 'journal-entries', 'Journal Entries', headers, dataRows);
+      sendTablePdf(res, 'journal-entries', 'Journal Entries', headers, dataRows, companyName);
       return;
     }
-    await sendXlsx(res, 'journal-entries', 'Journal Entries', headers, dataRows);
+    await sendXlsx(res, 'journal-entries', 'Journal Entries', headers, dataRows, companyName);
   });
 
   entries.get('/:id/', async (req, res) => {
