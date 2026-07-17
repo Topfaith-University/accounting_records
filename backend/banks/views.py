@@ -83,8 +83,8 @@ class BankAccountViewSet(viewsets.ViewSet):
             ctx = {'rows': [dict(zip(
                 ['name', 'bank_name', 'account_number', 'opening_balance', 'current_balance'], r
             )) for r in rows]}
-            return pdf_response('banks/bank_account_list.html', ctx, 'bank-accounts')
-        return xlsx_response(headers, rows, 'bank-accounts', 'Bank Accounts')
+            return pdf_response(request, 'banks/bank_account_list.html', ctx, 'bank-accounts')
+        return xlsx_response(request, headers, rows, 'bank-accounts', 'Bank Accounts')
 
     @action(detail=True, methods=['get'], url_path='reconciliations')
     def reconciliations(self, request, pk=None):
