@@ -68,8 +68,8 @@ class BudgetViewSet(viewsets.ViewSet):
             ctx = {'rows': [dict(zip(
                 ['name', 'fiscal_year', 'total_budgeted', 'status', 'created_by'], r
             )) for r in rows]}
-            return pdf_response('budget/budget_list.html', ctx, 'budgets')
-        return xlsx_response(headers, rows, 'budgets', 'Budgets')
+            return pdf_response(request, 'budget/budget_list.html', ctx, 'budgets')
+        return xlsx_response(request, headers, rows, 'budgets', 'Budgets')
 
     @action(detail=True, methods=['post'], url_path='approve')
     def approve(self, request, pk=None):
