@@ -10,6 +10,10 @@ export function getActiveCompanyId(req: Request): string | null {
   return req.auth?.company_id ?? null;
 }
 
+export function getActiveCompanyName(req: Request): string | null {
+  return req.auth?.company_name ?? null;
+}
+
 export function getActiveRole(req: Request): string | null {
   return req.auth?.role ?? null;
 }
