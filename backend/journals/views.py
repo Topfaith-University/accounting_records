@@ -109,8 +109,8 @@ class JournalEntryViewSet(viewsets.ViewSet):
             ctx = {'rows': [dict(zip(
                 ['reference', 'date', 'description', 'total_debit', 'total_credit', 'status'], r
             )) for r in rows]}
-            return pdf_response('journals/entry_list.html', ctx, 'journal-entries')
-        return xlsx_response(headers, rows, 'journal-entries', 'Journal Entries')
+            return pdf_response(request, 'journals/entry_list.html', ctx, 'journal-entries')
+        return xlsx_response(request, headers, rows, 'journal-entries', 'Journal Entries')
 
 
 class FiscalYearViewSet(viewsets.ViewSet):
