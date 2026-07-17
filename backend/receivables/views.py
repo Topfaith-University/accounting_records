@@ -85,7 +85,7 @@ class CustomerViewSet(viewsets.ViewSet):
             return Response({'detail': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
         fmt = request.query_params.get('format', 'json')
         if fmt == 'pdf':
-            return pdf_response('receivables/customer_statement.html', data, f'customer-statement-{pk}')
+            return pdf_response(request, 'receivables/customer_statement.html', data, f'customer-statement-{pk}')
         if fmt == 'xlsx':
             headers = ['Date', 'Type', 'Reference', 'Description', 'Debit (N)', 'Credit (N)', 'Running Balance (N)']
             rows = [
@@ -93,7 +93,7 @@ class CustomerViewSet(viewsets.ViewSet):
                 for l in data['lines']
             ]
             rows.append(['', '', '', '', '', 'CLOSING BALANCE', data['closing_balance']])
-            return xlsx_response(headers, rows, f'customer-statement-{pk}', 'Statement')
+            return xlsx_response(request, headers, rows, f'customer-statement-{pk}', 'Statement')
         return Response(data)
 
     @action(detail=False, methods=['get'], url_path='export')
@@ -106,8 +106,8 @@ class CustomerViewSet(viewsets.ViewSet):
         rows = [[c.name, c.customer_type, c.email, c.phone] for c in customers]
         if fmt == 'pdf':
             ctx = {'rows': [dict(zip(['name', 'customer_type', 'email', 'phone'], r)) for r in rows]}
-            return pdf_response('receivables/customer_list.html', ctx, 'customers')
-        return xlsx_response(headers, rows, 'customers', 'Customers')
+            return pdf_response(request, 'receivables/customer_list.html', ctx, 'customers')
+        return xlsx_response(request, headers, rows, 'customers', 'Customers')
 
 
 class SalesInvoiceViewSet(viewsets.ViewSet):
@@ -234,8 +234,8 @@ class SalesInvoiceViewSet(viewsets.ViewSet):
             ctx = {'rows': [dict(zip(
                 ['invoice_number', 'customer', 'date', 'due_date', 'total_amount', 'amount_received', 'status'], r
             )) for r in rows]}
-            return pdf_response('receivables/invoice_list.html', ctx, 'sales-invoices')
-        return xlsx_response(headers, rows, 'sales-invoices', 'Sales Invoices')
+            return pdf_response(request, 'receivables/invoice_list.html', ctx, 'sales-invoices')
+        return xlsx_response(request, headers, rows, 'sales-invoices', 'Sales Invoices')
 
     @action(detail=True, methods=['post'], url_path='receive')
     def receive(self, request, pk=None):
