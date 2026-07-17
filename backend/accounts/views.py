@@ -83,8 +83,8 @@ class AccountViewSet(viewsets.ViewSet):
         ]
         if fmt == 'pdf':
             ctx = {'rows': [dict(zip(['code', 'name', 'account_type', 'normal_balance', 'balance'], r)) for r in rows]}
-            return pdf_response('accounts/account_list.html', ctx, 'accounts')
-        return xlsx_response(headers, rows, 'accounts', 'Accounts')
+            return pdf_response(request, 'accounts/account_list.html', ctx, 'accounts')
+        return xlsx_response(request, headers, rows, 'accounts', 'Accounts')
 
     @action(detail=True, methods=['get'], url_path='balance')
     def balance(self, request, pk=None):
