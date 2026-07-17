@@ -17,6 +17,15 @@ def get_active_company_id(request):
     return auth.get('company_id')
 
 
+def get_active_company_name(request):
+    """Returns the active company_name claim from the validated JWT, or None
+    for a pre-company token. Mirrors get_active_company_id."""
+    auth = getattr(request, 'auth', None)
+    if auth is None:
+        return None
+    return auth.get('company_name')
+
+
 def get_active_role(request):
     auth = getattr(request, 'auth', None)
     if auth is None:
