@@ -6,7 +6,7 @@ import { Kysely } from 'kysely';
 import { Database } from '../db/types';
 import { requireAuth } from '../middleware/auth';
 import { requireActiveCompany, requireLegacyGroup } from '../middleware/legacyRbac';
-import { getActiveCompanyId } from '../lib/rbac';
+import { getActiveCompanyId, getActiveCompanyName } from '../lib/rbac';
 import { computeBankCurrentBalance, createBankTransaction, getBankGlLines, ServiceError } from '../services/banks.service';
 import { sendXlsx } from '../exports/xlsx';
 import { sendTablePdf } from '../exports/pdf';
@@ -88,16 +88,17 @@ export function banksRouter(db: Kysely<Database>): Router {
 
   accounts.get('/export/', async (req, res) => {
     const companyId = getActiveCompanyId(req);
+    const companyName = getActiveCompanyName(req);
     const rows = await db.selectFrom('bank_accounts').selectAll().where('company_id', '=', companyId ?? '').where('is_active', '=', 1).orderBy('name').execute();
     const serialized = await Promise.all(rows.map((r) => serializeBankAccount(db, r)));
     const headers = ['Name', 'Bank', 'Account No.', 'Opening Balance (N)', 'Current Balance (N)'];
     const dataRows = serialized.map((r) => [r.name, r.bank_name, r.account_number, r.opening_balance, r.current_balance]);
     const fmt = (req.query.format as string) || 'xlsx';
     if (fmt === 'pdf') {
-      sendTablePdf(res, 'bank-accounts', 'Bank Accounts', headers, dataRows);
+      sendTablePdf(res, 'bank-accounts', 'Bank Accounts', headers, dataRows, companyName);
       return;
     }
-    await sendXlsx(res, 'bank-accounts', 'Bank Accounts', headers, dataRows);
+    await sendXlsx(res, 'bank-accounts', 'Bank Accounts', headers, dataRows, companyName);
   });
 
   accounts.get('/:id/', async (req, res) => {
@@ -362,6 +363,7 @@ export function banksRouter(db: Kysely<Database>): Router {
 
   transactions.get('/export/', async (req, res) => {
     const companyId = getActiveCompanyId(req)!;
+    const companyName = getActiveCompanyName(req);
     const rows = await queryTransactions(
       companyId,
       (req.query.bank_account_id as string) || undefined,
@@ -373,7 +375,7 @@ export function banksRouter(db: Kysely<Database>): Router {
     const dataRows = serialized.map((r) => [r.reference, r.date, r.source_bank_name ?? '', r.transaction_type, r.description ?? '', r.amount]);
     const fmt = (req.query.format as string) || 'csv';
     if (fmt === 'xlsx') {
-      await sendXlsx(res, 'bank-transactions', 'Bank Transactions', headers, dataRows);
+      await sendXlsx(res, 'bank-transactions', 'Bank Transactions', headers, dataRows, companyName);
       return;
     }
     const csv = [headers.join(','), ...dataRows.map((r) => r.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(','))].join('\n');
