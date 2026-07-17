@@ -1,8 +1,8 @@
-import io
-from django.http import JsonResponse, HttpResponse
+from django.http import JsonResponse
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from config.auth import get_active_company_id
+from config.export_utils import pdf_response, xlsx_response
 from . import services
 
 
@@ -12,28 +12,6 @@ def _parse_date(value: str, param_name: str):
         return date.fromisoformat(value)
     except ValueError:
         return None
-
-
-def _pdf_response(template_name, context, filename):
-    from django.template.loader import render_to_string
-    from weasyprint import HTML
-    html = render_to_string(template_name, context)
-    pdf = HTML(string=html).write_pdf()
-    response = HttpResponse(pdf, content_type='application/pdf')
-    response['Content-Disposition'] = f'inline; filename="{filename}"'
-    return response
-
-
-def _xlsx_response(wb, filename):
-    buf = io.BytesIO()
-    wb.save(buf)
-    buf.seek(0)
-    response = HttpResponse(
-        buf.read(),
-        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-    )
-    response['Content-Disposition'] = f'attachment; filename="{filename}"'
-    return response
 
 
 @api_view(['GET'])
@@ -72,26 +50,20 @@ def trial_balance(request):
             'total_debits': round(sum(r['display_debit'] for r in pdf_rows), 2),
             'total_credits': round(sum(r['display_credit'] for r in pdf_rows), 2),
         }
-        return _pdf_response('reports/trial_balance.html', pdf_ctx, f'trial-balance-{date_from}-{date_to}.pdf')
+        return pdf_response(request, 'reports/trial_balance.html', pdf_ctx, f'trial-balance-{date_from}-{date_to}')
     if fmt == 'xlsx':
-        from openpyxl import Workbook
-        from openpyxl.styles import Font
-        wb = Workbook()
-        ws = wb.active
-        ws.title = 'Trial Balance'
-        ws.append(['Code', 'Account', 'Type', 'Debit (N)', 'Credit (N)'])
-        for cell in ws[1]:
-            cell.font = Font(bold=True)
+        headers = ['Code', 'Account', 'Type', 'Debit (N)', 'Credit (N)']
+        xlsx_rows = []
         for r in rows:
             d = max(0.0, r['total_debits'] - r['total_credits'])
             c = max(0.0, r['total_credits'] - r['total_debits'])
-            ws.append([r['code'], r['name'], r['account_type'],
-                       round(d, 2) if d > 0 else None,
-                       round(c, 2) if c > 0 else None])
+            xlsx_rows.append([r['code'], r['name'], r['account_type'],
+                               round(d, 2) if d > 0 else None,
+                               round(c, 2) if c > 0 else None])
         total_d = round(sum(max(0.0, r['total_debits'] - r['total_credits']) for r in rows), 2)
         total_c = round(sum(max(0.0, r['total_credits'] - r['total_debits']) for r in rows), 2)
-        ws.append(['', 'TOTALS', '', total_d, total_c])
-        return _xlsx_response(wb, f'trial-balance-{date_from}-{date_to}.xlsx')
+        xlsx_rows.append(['', 'TOTALS', '', total_d, total_c])
+        return xlsx_response(request, headers, xlsx_rows, f'trial-balance-{date_from}-{date_to}', 'Trial Balance')
     return JsonResponse(ctx)
 
 
@@ -112,30 +84,20 @@ def income_statement(request):
     data = services.compute_income_statement(company_id, date_from, date_to)
 
     if fmt == 'pdf':
-        return _pdf_response('reports/income_statement.html', data, f'income-statement-{date_from}-{date_to}.pdf')
+        return pdf_response(request, 'reports/income_statement.html', data, f'income-statement-{date_from}-{date_to}')
     if fmt == 'xlsx':
-        from openpyxl import Workbook
-        from openpyxl.styles import Font
-        wb = Workbook()
-        ws = wb.active
-        ws.title = 'Income Statement'
-        ws.append(['Account', 'Type', 'Amount (N)'])
-        for cell in ws[1]:
-            cell.font = Font(bold=True)
-        ws.append(['REVENUE', '', ''])
-        for r in data['revenue']:
-            ws.append([r['name'], r['account_type'], r['balance']])
-        ws.append(['Total Revenue', '', data['total_revenue']])
-        ws.append(['COST OF SALES', '', ''])
-        for r in data['cost_of_sales']:
-            ws.append([r['name'], r['account_type'], r['balance']])
-        ws.append(['Gross Profit', '', data['gross_profit']])
-        ws.append(['EXPENSES', '', ''])
-        for r in data['expenses']:
-            ws.append([r['name'], r['account_type'], r['balance']])
-        ws.append(['Total Expenses', '', data['total_expenses']])
-        ws.append(['Net Surplus / (Deficit)', '', data['net_surplus']])
-        return _xlsx_response(wb, f'income-statement-{date_from}-{date_to}.xlsx')
+        headers = ['Account', 'Type', 'Amount (N)']
+        xlsx_rows = [['REVENUE', '', '']]
+        xlsx_rows += [[r['name'], r['account_type'], r['balance']] for r in data['revenue']]
+        xlsx_rows.append(['Total Revenue', '', data['total_revenue']])
+        xlsx_rows.append(['COST OF SALES', '', ''])
+        xlsx_rows += [[r['name'], r['account_type'], r['balance']] for r in data['cost_of_sales']]
+        xlsx_rows.append(['Gross Profit', '', data['gross_profit']])
+        xlsx_rows.append(['EXPENSES', '', ''])
+        xlsx_rows += [[r['name'], r['account_type'], r['balance']] for r in data['expenses']]
+        xlsx_rows.append(['Total Expenses', '', data['total_expenses']])
+        xlsx_rows.append(['Net Surplus / (Deficit)', '', data['net_surplus']])
+        return xlsx_response(request, headers, xlsx_rows, f'income-statement-{date_from}-{date_to}', 'Income Statement')
     return JsonResponse(data)
 
 
@@ -155,26 +117,19 @@ def balance_sheet(request):
     data = services.compute_balance_sheet(company_id, as_of_date)
 
     if fmt == 'pdf':
-        return _pdf_response('reports/balance_sheet.html', data, f'balance-sheet-{as_of_date}.pdf')
+        return pdf_response(request, 'reports/balance_sheet.html', data, f'balance-sheet-{as_of_date}')
     if fmt == 'xlsx':
-        from openpyxl import Workbook
-        from openpyxl.styles import Font
-        wb = Workbook()
-        ws = wb.active
-        ws.title = 'Balance Sheet'
-        ws.append(['Account', 'Type', 'Balance (N)'])
-        for cell in ws[1]:
-            cell.font = Font(bold=True)
+        headers = ['Account', 'Type', 'Balance (N)']
+        xlsx_rows = []
         for section_label, items, total_key in [
             ('ASSETS', data['assets'], 'total_assets'),
             ('LIABILITIES', data['liabilities'], 'total_liabilities'),
             ('EQUITY', data['equity'], 'total_equity'),
         ]:
-            ws.append([section_label, '', ''])
-            for r in items:
-                ws.append([r['name'], r['account_type'], r['balance']])
-            ws.append([f'Total {section_label.title()}', '', data[total_key]])
-        return _xlsx_response(wb, f'balance-sheet-{as_of_date}.xlsx')
+            xlsx_rows.append([section_label, '', ''])
+            xlsx_rows += [[r['name'], r['account_type'], r['balance']] for r in items]
+            xlsx_rows.append([f'Total {section_label.title()}', '', data[total_key]])
+        return xlsx_response(request, headers, xlsx_rows, f'balance-sheet-{as_of_date}', 'Balance Sheet')
     return JsonResponse(data)
 
 
@@ -198,24 +153,22 @@ def gl_detail(request):
         return JsonResponse({'detail': 'Account not found.'}, status=404)
 
     if fmt == 'pdf':
-        return _pdf_response(
-            'reports/gl_detail.html', data,
-            f'gl-detail-{data["account_code"]}-{date_from}-{date_to}.pdf'
+        return pdf_response(
+            request, 'reports/gl_detail.html', data,
+            f'gl-detail-{data["account_code"]}-{date_from}-{date_to}'
         )
     if fmt == 'xlsx':
-        from openpyxl import Workbook
-        from openpyxl.styles import Font
-        wb = Workbook()
-        ws = wb.active
-        ws.title = f'GL {data["account_code"]}'
-        ws.append(['Date', 'Reference', 'Description', 'Type', 'Side', 'Amount (N)', 'Running Balance (N)'])
-        for cell in ws[1]:
-            cell.font = Font(bold=True)
-        for line in data['lines']:
-            ws.append([line['date'], line['reference'], line['entry_description'],
-                       line['entry_type'] or 'MANUAL', line['side'], line['amount'], line['running_balance']])
-        ws.append(['', '', '', '', 'CLOSING BALANCE', '', data['closing_balance']])
-        return _xlsx_response(wb, f'gl-detail-{data["account_code"]}-{date_from}-{date_to}.xlsx')
+        headers = ['Date', 'Reference', 'Description', 'Type', 'Side', 'Amount (N)', 'Running Balance (N)']
+        xlsx_rows = [
+            [line['date'], line['reference'], line['entry_description'],
+             line['entry_type'] or 'MANUAL', line['side'], line['amount'], line['running_balance']]
+            for line in data['lines']
+        ]
+        xlsx_rows.append(['', '', '', '', 'CLOSING BALANCE', '', data['closing_balance']])
+        return xlsx_response(
+            request, headers, xlsx_rows,
+            f'gl-detail-{data["account_code"]}-{date_from}-{date_to}', f'GL {data["account_code"]}'
+        )
     return JsonResponse(data)
 
 
