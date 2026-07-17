@@ -211,3 +211,12 @@ setup.sh
 
 # macOS
 .DS_Store
+
+# Node
+*/node_modules/
+npm-debug.log
+yarn-error.log
+
+# desktop/page_desktop/src/server/lib/ is real source, not a Python lib/ build
+# artifact — the generic Python `lib/` rule above would otherwise swallow it.
+!desktop/page_desktop/src/server/lib/
