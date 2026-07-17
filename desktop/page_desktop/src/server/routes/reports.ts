@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { Kysely } from 'kysely';
 import { Database } from '../db/types';
 import { requireAuth } from '../middleware/auth';
-import { getActiveCompanyId } from '../lib/rbac';
+import { getActiveCompanyId, getActiveCompanyName } from '../lib/rbac';
 import { computeBalanceSheet, computeDashboard, computeGlDetail, computeIncomeStatement, computeTrialBalance } from '../services/reports.service';
 import { sendXlsx } from '../exports/xlsx';
 import { sendPdf } from '../exports/pdf';
@@ -19,6 +19,7 @@ export function reportsRouter(db: Kysely<Database>): Router {
 
   router.get('/trial-balance/', async (req, res) => {
     const companyId = getActiveCompanyId(req);
+    const companyName = getActiveCompanyName(req);
     if (!companyId) {
       res.status(400).json({ detail: 'No active company.' });
       return;
@@ -63,14 +64,14 @@ export function reportsRouter(db: Kysely<Database>): Router {
           },
         ],
         styles: { title: { fontSize: 14, bold: true, margin: [0, 0, 0, 10] } },
-      });
+      }, companyName);
       return;
     }
     if (fmt === 'xlsx') {
       const headers = ['Code', 'Account', 'Type', 'Debit (N)', 'Credit (N)'];
       const dataRows: any[][] = netted.map((r) => [r.code, r.name, r.account_type, r.display_debit || null, r.display_credit || null]);
       dataRows.push(['', 'TOTALS', '', totalD, totalC]);
-      await sendXlsx(res, `trial-balance-${dateFrom}-${dateTo}`, 'Trial Balance', headers, dataRows);
+      await sendXlsx(res, `trial-balance-${dateFrom}-${dateTo}`, 'Trial Balance', headers, dataRows, companyName);
       return;
     }
     res.json({ rows, date_from: dateFrom, date_to: dateTo, total_debits: Math.round(rows.reduce((s, r) => s + r.total_debits, 0) * 100) / 100, total_credits: Math.round(rows.reduce((s, r) => s + r.total_credits, 0) * 100) / 100 });
@@ -78,6 +79,7 @@ export function reportsRouter(db: Kysely<Database>): Router {
 
   router.get('/income-statement/', async (req, res) => {
     const companyId = getActiveCompanyId(req);
+    const companyName = getActiveCompanyName(req);
     if (!companyId) {
       res.status(400).json({ detail: 'No active company.' });
       return;
@@ -110,7 +112,7 @@ export function reportsRouter(db: Kysely<Database>): Router {
           { text: `Net Surplus / (Deficit): ₦${data.net_surplus.toLocaleString()}`, bold: true, margin: [0, 10, 0, 0] },
         ],
         styles: { title: { fontSize: 14, bold: true, margin: [0, 0, 0, 10] }, section: { bold: true, margin: [0, 8, 0, 4] } },
-      });
+      }, companyName);
       return;
     }
     if (fmt === 'xlsx') {
@@ -127,7 +129,7 @@ export function reportsRouter(db: Kysely<Database>): Router {
         ['Total Expenses', '', data.total_expenses],
         ['Net Surplus / (Deficit)', '', data.net_surplus],
       ];
-      await sendXlsx(res, `income-statement-${dateFrom}-${dateTo}`, 'Income Statement', headers, rows);
+      await sendXlsx(res, `income-statement-${dateFrom}-${dateTo}`, 'Income Statement', headers, rows, companyName);
       return;
     }
     res.json(data);
@@ -135,6 +137,7 @@ export function reportsRouter(db: Kysely<Database>): Router {
 
   router.get('/balance-sheet/', async (req, res) => {
     const companyId = getActiveCompanyId(req);
+    const companyName = getActiveCompanyName(req);
     if (!companyId) {
       res.status(400).json({ detail: 'No active company.' });
       return;
@@ -164,7 +167,7 @@ export function reportsRouter(db: Kysely<Database>): Router {
           ...section('Equity', data.equity, data.total_equity),
         ],
         styles: { title: { fontSize: 14, bold: true, margin: [0, 0, 0, 10] }, section: { bold: true, margin: [0, 8, 0, 4] } },
-      });
+      }, companyName);
       return;
     }
     if (fmt === 'xlsx') {
@@ -179,7 +182,7 @@ export function reportsRouter(db: Kysely<Database>): Router {
         for (const r of items as any[]) rows.push([r.name, r.account_type, r.balance]);
         rows.push([`Total ${(label as string).charAt(0) + (label as string).slice(1).toLowerCase()}`, '', total]);
       }
-      await sendXlsx(res, `balance-sheet-${asOfDate}`, 'Balance Sheet', headers, rows);
+      await sendXlsx(res, `balance-sheet-${asOfDate}`, 'Balance Sheet', headers, rows, companyName);
       return;
     }
     res.json(data);
@@ -187,6 +190,7 @@ export function reportsRouter(db: Kysely<Database>): Router {
 
   router.get('/gl-detail/', async (req, res) => {
     const companyId = getActiveCompanyId(req);
+    const companyName = getActiveCompanyName(req);
     if (!companyId) {
       res.status(400).json({ detail: 'No active company.' });
       return;
@@ -225,14 +229,14 @@ export function reportsRouter(db: Kysely<Database>): Router {
           },
         ],
         styles: { title: { fontSize: 13, bold: true, margin: [0, 0, 0, 10] } },
-      });
+      }, companyName);
       return;
     }
     if (fmt === 'xlsx') {
       const headers = ['Date', 'Reference', 'Description', 'Type', 'Side', 'Amount (N)', 'Running Balance (N)'];
       const rows: any[][] = data.lines.map((l) => [l.date, l.reference, l.entry_description, l.entry_type || 'MANUAL', l.side, l.amount, l.running_balance]);
       rows.push(['', '', '', '', 'CLOSING BALANCE', '', data.closing_balance]);
-      await sendXlsx(res, `gl-detail-${data.account_code}-${dateFrom}-${dateTo}`, `GL ${data.account_code}`, headers, rows);
+      await sendXlsx(res, `gl-detail-${data.account_code}-${dateFrom}-${dateTo}`, `GL ${data.account_code}`, headers, rows, companyName);
       return;
     }
     res.json(data);
