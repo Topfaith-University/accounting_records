@@ -4,7 +4,7 @@ import { Kysely } from 'kysely';
 import { Database } from '../db/types';
 import { requireAuth } from '../middleware/auth';
 import { requireActiveCompany, requireLegacyGroup } from '../middleware/legacyRbac';
-import { getActiveCompanyId } from '../lib/rbac';
+import { getActiveCompanyId, getActiveCompanyName } from '../lib/rbac';
 import { nextInvoiceNumber } from '../services/payables.service';
 import { postSalesInvoice, recordArReceipt, ServiceError, voidSalesInvoice, getCustomerStatement } from '../services/receivables.service';
 import { sendXlsx } from '../exports/xlsx';
@@ -74,19 +74,21 @@ export function receivablesRouter(db: Kysely<Database>): Router {
 
   customers.get('/export/', async (req, res) => {
     const companyId = getActiveCompanyId(req);
+    const companyName = getActiveCompanyName(req);
     const rows = await db.selectFrom('customers').selectAll().where('company_id', '=', companyId ?? '').where('is_active', '=', 1).orderBy('name').execute();
     const headers = ['Name', 'Type', 'Email', 'Phone'];
     const dataRows = rows.map((c) => [c.name, c.customer_type, c.email, c.phone]);
     const fmt = (req.query.format as string) || 'xlsx';
     if (fmt === 'pdf') {
-      sendTablePdf(res, 'customers', 'Customers', headers, dataRows);
+      sendTablePdf(res, 'customers', 'Customers', headers, dataRows, companyName);
       return;
     }
-    await sendXlsx(res, 'customers', 'Customers', headers, dataRows);
+    await sendXlsx(res, 'customers', 'Customers', headers, dataRows, companyName);
   });
 
   customers.get('/:id/statement/', async (req, res) => {
     const companyId = getActiveCompanyId(req)!;
+    const companyName = getActiveCompanyName(req);
     const data = await getCustomerStatement(db, req.params.id, companyId);
     if (!data) {
       res.status(404).json({ detail: 'Not found.' });
@@ -110,14 +112,14 @@ export function receivablesRouter(db: Kysely<Database>): Router {
           },
         ],
         styles: { title: { fontSize: 14, bold: true, margin: [0, 0, 0, 10] } },
-      });
+      }, companyName);
       return;
     }
     if (fmt === 'xlsx') {
       const headers = ['Date', 'Type', 'Reference', 'Description', 'Debit (N)', 'Credit (N)', 'Running Balance (N)'];
       const dataRows: any[][] = data.lines.map((l) => [l.date, l.type, l.reference, l.description, l.debit, l.credit, l.running_balance]);
       dataRows.push(['', '', '', '', '', 'CLOSING BALANCE', data.closing_balance]);
-      await sendXlsx(res, `customer-statement-${req.params.id}`, 'Statement', headers, dataRows);
+      await sendXlsx(res, `customer-statement-${req.params.id}`, 'Statement', headers, dataRows, companyName);
       return;
     }
     res.json(data);
@@ -202,6 +204,7 @@ export function receivablesRouter(db: Kysely<Database>): Router {
 
   invoices.get('/export/', async (req, res) => {
     const companyId = getActiveCompanyId(req);
+    const companyName = getActiveCompanyName(req);
     const rows = await db.selectFrom('sales_invoices').selectAll().where('company_id', '=', companyId ?? '').orderBy('date', 'desc').execute();
     const dataRows = await Promise.all(
       rows.map(async (inv) => {
@@ -212,10 +215,10 @@ export function receivablesRouter(db: Kysely<Database>): Router {
     const headers = ['Invoice #', 'Customer', 'Date', 'Due Date', 'Total (N)', 'Received (N)', 'Status'];
     const fmt = (req.query.format as string) || 'xlsx';
     if (fmt === 'pdf') {
-      sendTablePdf(res, 'sales-invoices', 'Sales Invoices', headers, dataRows);
+      sendTablePdf(res, 'sales-invoices', 'Sales Invoices', headers, dataRows, companyName);
       return;
     }
-    await sendXlsx(res, 'sales-invoices', 'Sales Invoices', headers, dataRows);
+    await sendXlsx(res, 'sales-invoices', 'Sales Invoices', headers, dataRows, companyName);
   });
 
   invoices.get('/:id/', async (req, res) => {
@@ -230,6 +233,7 @@ export function receivablesRouter(db: Kysely<Database>): Router {
 
   invoices.get('/:id/print/', async (req, res) => {
     const companyId = getActiveCompanyId(req);
+    const companyName = getActiveCompanyName(req);
     const invoice = await db.selectFrom('sales_invoices').selectAll().where('invoice_id', '=', req.params.id).where('company_id', '=', companyId ?? '').executeTakeFirst();
     if (!invoice) {
       res.status(404).json({ detail: 'Not found.' });
@@ -258,7 +262,7 @@ export function receivablesRouter(db: Kysely<Database>): Router {
         { text: `Outstanding: ₦${outstanding.toLocaleString()}`, bold: true },
       ],
       styles: { title: { fontSize: 14, bold: true, margin: [0, 0, 0, 10] } },
-    });
+    }, companyName);
   });
 
   invoices.post('/', requireActiveCompany, async (req, res) => {
