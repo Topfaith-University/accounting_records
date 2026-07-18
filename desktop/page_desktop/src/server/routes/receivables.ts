@@ -8,7 +8,7 @@ import { getActiveCompanyId, getActiveCompanyName } from '../lib/rbac';
 import { nextInvoiceNumber } from '../services/payables.service';
 import { postSalesInvoice, recordArReceipt, ServiceError, voidSalesInvoice, getCustomerStatement } from '../services/receivables.service';
 import { sendXlsx } from '../exports/xlsx';
-import { sendTablePdf, sendPdf } from '../exports/pdf';
+import { sendTablePdf, sendPdf, titleBlock, ledgerTable, doubleRule, summaryLine, money, today } from '../exports/pdf';
 
 async function serializeCustomer(db: Kysely<Database>, c: any) {
   const invoices = await db.selectFrom('sales_invoices').select(['total_amount', 'amount_received']).where('customer_id', '=', c.customer_id).where('status', 'in', ['POSTED', 'PAID']).execute();
@@ -98,21 +98,24 @@ export function receivablesRouter(db: Kysely<Database>): Router {
     if (fmt === 'pdf') {
       sendPdf(res, `customer-statement-${req.params.id}`, {
         content: [
-          { text: `Statement — ${data.entity_name}`, style: 'title' },
-          {
-            table: {
-              headerRows: 1,
-              widths: ['auto', 'auto', 'auto', '*', 'auto', 'auto', 'auto'],
-              body: [
-                ['Date', 'Type', 'Reference', 'Description', 'Debit', 'Credit', 'Running Balance'].map((h) => ({ text: h, bold: true })),
-                ...data.lines.map((l) => [l.date, l.type, l.reference, l.description, l.debit, l.credit, l.running_balance]),
-                [{ text: '', colSpan: 5 }, {}, {}, {}, {}, { text: 'CLOSING BALANCE', bold: true }, { text: String(data.closing_balance), bold: true }],
-              ],
-            },
-          },
+          ...titleBlock('Customer Statement', `${data.entity_name} · Generated ${today()}`),
+          ledgerTable(
+            ['Date', 'Type', 'Reference', 'Description', 'Debit', 'Credit', 'Running Balance'],
+            data.lines.map((l) => [
+              { text: l.date, fontSize: 9 },
+              { text: l.type, fontSize: 9 },
+              { text: l.reference, fontSize: 9 },
+              { text: l.description, fontSize: 9 },
+              { text: l.debit ? money(l.debit) : '', fontSize: 9, alignment: 'right' },
+              { text: l.credit ? money(l.credit) : '', fontSize: 9, alignment: 'right' },
+              { text: money(l.running_balance), fontSize: 9, alignment: 'right' },
+            ]),
+            { widths: ['auto', 'auto', 'auto', '*', 'auto', 'auto', 'auto'] },
+          ),
+          doubleRule(),
+          summaryLine('Closing Balance', money(data.closing_balance)),
         ],
-        styles: { title: { fontSize: 14, bold: true, margin: [0, 0, 0, 10] } },
-      }, companyName);
+      }, companyName, `Customer Statement — ${data.entity_name}`);
       return;
     }
     if (fmt === 'xlsx') {
@@ -243,26 +246,26 @@ export function receivablesRouter(db: Kysely<Database>): Router {
     const outstanding = Math.max(0, invoice.total_amount - invoice.amount_received);
     sendPdf(res, `sales-invoice-${invoice.invoice_number}`, {
       content: [
-        { text: `Sales Invoice ${invoice.invoice_number}`, style: 'title' },
-        { text: `Customer: ${data.customer_name ?? ''}` },
-        { text: `Date: ${invoice.date}    Due: ${invoice.due_date}` },
-        {
-          table: {
-            headerRows: 1,
-            widths: ['*', 'auto', 'auto', 'auto'],
-            body: [
-              ['Description', 'Qty', 'Unit Price', 'Amount'].map((h) => ({ text: h, bold: true })),
-              ...data.lines.map((l: any) => [l.description, l.quantity, l.unit_price, l.amount]),
-            ],
-          },
-          margin: [0, 10, 0, 10],
-        },
-        { text: `Total: ₦${invoice.total_amount.toLocaleString()}`, bold: true },
-        { text: `Received: ₦${invoice.amount_received.toLocaleString()}` },
-        { text: `Outstanding: ₦${outstanding.toLocaleString()}`, bold: true },
+        ...titleBlock(`Sales Invoice ${invoice.invoice_number}`, `${invoice.status} · Date ${invoice.date} · Due ${invoice.due_date}`),
+        { text: 'CUSTOMER', style: 'sectionHeader', margin: [0, 0, 0, 2] },
+        { text: data.customer_name ?? '', bold: true, fontSize: 10, margin: [0, 0, 0, 14] },
+        ledgerTable(
+          ['Description', 'Qty', 'Unit Price', 'Amount'],
+          data.lines.map((l: any) => [
+            { text: l.description, fontSize: 9 },
+            { text: String(l.quantity), fontSize: 9, alignment: 'right' },
+            { text: money(l.unit_price), fontSize: 9, alignment: 'right' },
+            { text: money(l.amount), fontSize: 9, alignment: 'right' },
+          ]),
+          { widths: ['*', 'auto', 'auto', 'auto'] },
+        ),
+        { text: '', margin: [0, 12, 0, 0] },
+        summaryLine('Total', money(invoice.total_amount)),
+        summaryLine('Received', money(invoice.amount_received), { bold: false }),
+        doubleRule(),
+        summaryLine('Outstanding', money(outstanding), { tone: outstanding > 0 ? 'negative' : 'positive' }),
       ],
-      styles: { title: { fontSize: 14, bold: true, margin: [0, 0, 0, 10] } },
-    }, companyName);
+    }, companyName, `Sales Invoice ${invoice.invoice_number}`);
   });
 
   invoices.post('/', requireActiveCompany, async (req, res) => {

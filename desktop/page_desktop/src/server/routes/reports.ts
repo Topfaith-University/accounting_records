@@ -5,13 +5,30 @@ import { requireAuth } from '../middleware/auth';
 import { getActiveCompanyId, getActiveCompanyName } from '../lib/rbac';
 import { computeBalanceSheet, computeDashboard, computeGlDetail, computeIncomeStatement, computeTrialBalance } from '../services/reports.service';
 import { sendXlsx } from '../exports/xlsx';
-import { sendPdf } from '../exports/pdf';
+import { sendPdf, titleBlock, ledgerTable, money, COLORS } from '../exports/pdf';
 
 function isValidDate(v: string | undefined): v is string {
   return !!v && /^\d{4}-\d{2}-\d{2}$/.test(v);
 }
 
-const bold = (h: string) => ({ text: h, bold: true });
+/** A shaded, full-width section marker row (REVENUE, ASSETS, ...) for the
+ * grouped reports — carries the same grouping meaning as the backend's
+ * .section-header rows, via a cell-level fillColor override rather than
+ * the table's own zebra function. */
+function sectionRow(label: string, colCount: number): any[] {
+  return [
+    { text: label, colSpan: colCount, bold: true, fontSize: 7.5, color: COLORS.rule, fillColor: COLORS.wash },
+    ...Array(colCount - 1).fill({}),
+  ];
+}
+
+function subtotalRow(label: string, amount: number, colCount: number): any[] {
+  return [
+    { text: label, colSpan: colCount - 1, bold: true, fontSize: 9 },
+    ...Array(colCount - 2).fill({}),
+    { text: money(amount), bold: true, fontSize: 9, alignment: 'right' },
+  ];
+}
 
 export function reportsRouter(db: Kysely<Database>): Router {
   const router = Router();
@@ -48,23 +65,28 @@ export function reportsRouter(db: Kysely<Database>): Router {
     const totalC = Math.round(netted.reduce((s, r) => s + r.display_credit, 0) * 100) / 100;
 
     if (fmt === 'pdf') {
+      const dataRows = netted.map((r) => [
+        { text: r.code, fontSize: 9 },
+        { text: r.name, fontSize: 9 },
+        { text: r.account_type, fontSize: 9 },
+        { text: r.display_debit ? money(r.display_debit) : '', fontSize: 9, alignment: 'right' },
+        { text: r.display_credit ? money(r.display_credit) : '', fontSize: 9, alignment: 'right' },
+      ]);
+      const totalsRow = [
+        { text: 'TOTALS', colSpan: 3, bold: true, fontSize: 9 }, {}, {},
+        { text: money(totalD), bold: true, fontSize: 9.5, alignment: 'right' },
+        { text: money(totalC), bold: true, fontSize: 9.5, alignment: 'right' },
+      ];
       sendPdf(res, `trial-balance-${dateFrom}-${dateTo}`, {
         content: [
-          { text: `Trial Balance (${dateFrom} to ${dateTo})`, style: 'title' },
-          {
-            table: {
-              headerRows: 1,
-              widths: ['auto', '*', 'auto', 'auto', 'auto'],
-              body: [
-                ['Code', 'Account', 'Type', 'Debit (N)', 'Credit (N)'].map(bold),
-                ...netted.map((r) => [r.code, r.name, r.account_type, r.display_debit || '', r.display_credit || '']),
-                [{ text: '', colSpan: 3 }, {}, {}, bold(String(totalD)), bold(String(totalC))],
-              ],
-            },
-          },
+          ...titleBlock('Trial Balance', `${dateFrom} to ${dateTo}`),
+          ledgerTable(
+            ['Code', 'Account', 'Type', 'Debit (N)', 'Credit (N)'],
+            [...dataRows, totalsRow],
+            { widths: ['auto', '*', 'auto', 'auto', 'auto'], boldRuleBeforeRow: dataRows.length + 1 },
+          ),
         ],
-        styles: { title: { fontSize: 14, bold: true, margin: [0, 0, 0, 10] } },
-      }, companyName);
+      }, companyName, 'Trial Balance');
       return;
     }
     if (fmt === 'xlsx') {
@@ -97,22 +119,29 @@ export function reportsRouter(db: Kysely<Database>): Router {
     const data = await computeIncomeStatement(db, companyId, dateFrom, dateTo);
     const fmt = (req.query.format as string) || 'json';
     if (fmt === 'pdf') {
+      const line = (r: any) => [{ text: r.name, fontSize: 9 }, { text: r.account_type, fontSize: 9 }, { text: money(r.balance), fontSize: 9, alignment: 'right' }];
+      const body = [
+        sectionRow('REVENUE', 3),
+        ...data.revenue.map(line),
+        subtotalRow('Total Revenue', data.total_revenue, 3),
+        sectionRow('COST OF SALES', 3),
+        ...data.cost_of_sales.map(line),
+        subtotalRow('Gross Profit', data.gross_profit, 3),
+        sectionRow('EXPENSES', 3),
+        ...data.expenses.map(line),
+        subtotalRow('Total Expenses', data.total_expenses, 3),
+        [
+          { text: 'Net Surplus / (Deficit)', colSpan: 2, bold: true, fontSize: 10, color: data.net_surplus >= 0 ? COLORS.positive : COLORS.negative },
+          {},
+          { text: money(data.net_surplus), bold: true, fontSize: 10, alignment: 'right', color: data.net_surplus >= 0 ? COLORS.positive : COLORS.negative },
+        ],
+      ];
       sendPdf(res, `income-statement-${dateFrom}-${dateTo}`, {
         content: [
-          { text: `Income Statement (${dateFrom} to ${dateTo})`, style: 'title' },
-          { text: 'REVENUE', style: 'section' },
-          ...data.revenue.map((r: any) => ({ text: `${r.name}  —  ₦${r.balance.toLocaleString()}` })),
-          { text: `Total Revenue: ₦${data.total_revenue.toLocaleString()}`, bold: true },
-          { text: 'COST OF SALES', style: 'section' },
-          ...data.cost_of_sales.map((r: any) => ({ text: `${r.name}  —  ₦${r.balance.toLocaleString()}` })),
-          { text: `Gross Profit: ₦${data.gross_profit.toLocaleString()}`, bold: true },
-          { text: 'EXPENSES', style: 'section' },
-          ...data.expenses.map((r: any) => ({ text: `${r.name}  —  ₦${r.balance.toLocaleString()}` })),
-          { text: `Total Expenses: ₦${data.total_expenses.toLocaleString()}`, bold: true },
-          { text: `Net Surplus / (Deficit): ₦${data.net_surplus.toLocaleString()}`, bold: true, margin: [0, 10, 0, 0] },
+          ...titleBlock('Income Statement', `${dateFrom} to ${dateTo}`),
+          ledgerTable(['Account', 'Type', 'Amount (N)'], body, { widths: ['*', 'auto', 'auto'], zebra: false, boldRuleBeforeRow: body.length }),
         ],
-        styles: { title: { fontSize: 14, bold: true, margin: [0, 0, 0, 10] }, section: { bold: true, margin: [0, 8, 0, 4] } },
-      }, companyName);
+      }, companyName, 'Income Statement');
       return;
     }
     if (fmt === 'xlsx') {
@@ -154,20 +183,30 @@ export function reportsRouter(db: Kysely<Database>): Router {
     const data = await computeBalanceSheet(db, companyId, asOfDate);
     const fmt = (req.query.format as string) || 'json';
     if (fmt === 'pdf') {
-      const section = (label: string, items: any[], total: number) => [
-        { text: label, style: 'section' },
-        ...items.map((r) => ({ text: `${r.name}  —  ₦${r.balance.toLocaleString()}` })),
-        { text: `Total ${label}: ₦${total.toLocaleString()}`, bold: true },
-      ];
+      const line = (r: any) => [{ text: r.name, fontSize: 9 }, { text: r.account_type, fontSize: 9 }, { text: money(r.balance), fontSize: 9, alignment: 'right' }];
+      const body: any[] = [];
+      for (const [label, items, total] of [
+        ['Assets', data.assets, data.total_assets],
+        ['Liabilities', data.liabilities, data.total_liabilities],
+        ['Equity', data.equity, data.total_equity],
+      ] as const) {
+        body.push(sectionRow((label as string).toUpperCase(), 3));
+        body.push(...(items as any[]).map(line));
+        body.push(subtotalRow(`Total ${label}`, total as number, 3));
+      }
+      const lastRow = body[body.length - 1];
+      lastRow[0] = { ...lastRow[0], color: data.is_balanced ? COLORS.positive : COLORS.negative };
+      lastRow[2] = { ...lastRow[2], color: data.is_balanced ? COLORS.positive : COLORS.negative };
       sendPdf(res, `balance-sheet-${asOfDate}`, {
         content: [
-          { text: `Balance Sheet (as of ${asOfDate})`, style: 'title' },
-          ...section('Assets', data.assets, data.total_assets),
-          ...section('Liabilities', data.liabilities, data.total_liabilities),
-          ...section('Equity', data.equity, data.total_equity),
+          ...titleBlock('Balance Sheet', `As of ${asOfDate}`),
+          ledgerTable(['Account', 'Type', 'Balance (N)'], body, { widths: ['*', 'auto', 'auto'], zebra: false, boldRuleBeforeRow: body.length }),
+          {
+            text: data.is_balanced ? 'Assets = Liabilities + Equity (balanced)' : 'Warning: balance sheet does not balance',
+            fontSize: 8, bold: true, color: data.is_balanced ? COLORS.positive : COLORS.negative, margin: [0, 8, 0, 0],
+          },
         ],
-        styles: { title: { fontSize: 14, bold: true, margin: [0, 0, 0, 10] }, section: { bold: true, margin: [0, 8, 0, 4] } },
-      }, companyName);
+      }, companyName, 'Balance Sheet');
       return;
     }
     if (fmt === 'xlsx') {
@@ -213,23 +252,29 @@ export function reportsRouter(db: Kysely<Database>): Router {
     }
     const fmt = (req.query.format as string) || 'json';
     if (fmt === 'pdf') {
+      const dataRows = data.lines.map((l) => [
+        { text: l.date, fontSize: 9 },
+        { text: l.reference, fontSize: 9 },
+        { text: l.entry_description, fontSize: 9 },
+        { text: l.entry_type || 'MANUAL', fontSize: 9 },
+        { text: l.side, fontSize: 9, color: l.side === 'DEBIT' ? '#1a73e8' : COLORS.positive },
+        { text: money(l.amount), fontSize: 9, alignment: 'right' },
+        { text: money(l.running_balance), fontSize: 9, alignment: 'right' },
+      ]);
+      const totalsRow = [
+        { text: 'CLOSING BALANCE', colSpan: 6, bold: true, fontSize: 9 }, {}, {}, {}, {}, {},
+        { text: money(data.closing_balance), bold: true, fontSize: 9.5, alignment: 'right' },
+      ];
       sendPdf(res, `gl-detail-${data.account_code}-${dateFrom}-${dateTo}`, {
         content: [
-          { text: `GL Detail — ${data.account_code} ${data.account_name} (${dateFrom} to ${dateTo})`, style: 'title' },
-          {
-            table: {
-              headerRows: 1,
-              widths: ['auto', 'auto', '*', 'auto', 'auto', 'auto', 'auto'],
-              body: [
-                ['Date', 'Reference', 'Description', 'Type', 'Side', 'Amount (N)', 'Running Balance (N)'].map(bold),
-                ...data.lines.map((l) => [l.date, l.reference, l.entry_description, l.entry_type || 'MANUAL', l.side, l.amount, l.running_balance]),
-                [{ text: '', colSpan: 5 }, {}, {}, {}, {}, bold('CLOSING BALANCE'), bold(String(data.closing_balance))],
-              ],
-            },
-          },
+          ...titleBlock(`GL Detail — ${data.account_code} ${data.account_name}`, `${dateFrom} to ${dateTo}`),
+          ledgerTable(
+            ['Date', 'Reference', 'Description', 'Type', 'Side', 'Amount (N)', 'Running Balance (N)'],
+            [...dataRows, totalsRow],
+            { widths: ['auto', 'auto', '*', 'auto', 'auto', 'auto', 'auto'], boldRuleBeforeRow: dataRows.length + 1 },
+          ),
         ],
-        styles: { title: { fontSize: 13, bold: true, margin: [0, 0, 0, 10] } },
-      }, companyName);
+      }, companyName, `GL Detail — ${data.account_code}`);
       return;
     }
     if (fmt === 'xlsx') {
