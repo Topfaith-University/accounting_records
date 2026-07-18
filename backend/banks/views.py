@@ -278,22 +278,8 @@ class BankTransactionViewSet(viewsets.ViewSet):
         ]
 
         if fmt == 'xlsx':
-            import openpyxl
-            wb = openpyxl.Workbook()
-            ws = wb.active
-            ws.title = 'Bank Transactions'
-            ws.append(headers)
-            for row in rows:
-                ws.append(row)
-            buf = io.BytesIO()
-            wb.save(buf)
-            buf.seek(0)
-            response = HttpResponse(
-                buf.read(),
-                content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-            )
-            response['Content-Disposition'] = 'attachment; filename="bank-transactions.xlsx"'
-            return response
+            from config.export_utils import xlsx_response
+            return xlsx_response(request, headers, rows, 'bank-transactions', 'Bank Transactions')
 
         buf = io.StringIO()
         writer = csv.writer(buf)
