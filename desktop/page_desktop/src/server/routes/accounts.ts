@@ -3,7 +3,7 @@ import { Router } from 'express';
 import { Kysely } from 'kysely';
 import { Database } from '../db/types';
 import { requireAuth } from '../middleware/auth';
-import { requireActiveCompany, requireLegacyGroup } from '../middleware/legacyRbac';
+import { requireActiveCompany } from '../middleware/legacyRbac';
 import { getActiveCompanyId, getActiveCompanyName } from '../lib/rbac';
 import { ACCOUNT_TYPES } from '../lib/accountTypes';
 import { computeAccountBalance, generateAccountCode } from '../services/accounts.service';
@@ -31,8 +31,6 @@ async function serializeAccount(db: Kysely<Database>, account: any) {
 export function accountsRouter(db: Kysely<Database>): Router {
   const router = Router();
   router.use(requireAuth);
-  const requireCreateOrEdit = requireLegacyGroup(db, ['Admin', 'Manager']);
-  const requireDelete = requireLegacyGroup(db, ['Admin']);
 
   router.get('/', requireActiveCompany, async (req, res) => {
     const companyId = getActiveCompanyId(req)!;
@@ -126,7 +124,7 @@ export function accountsRouter(db: Kysely<Database>): Router {
     res.json({ account_id: req.params.id, entries: rows });
   });
 
-  router.post('/', requireCreateOrEdit, requireActiveCompany, async (req, res) => {
+  router.post('/', requireActiveCompany, async (req, res) => {
     const companyId = getActiveCompanyId(req)!;
     const body = req.body ?? {};
     if (!body.name) {
@@ -192,7 +190,7 @@ export function accountsRouter(db: Kysely<Database>): Router {
     res.status(201).json(await serializeAccount(db, account));
   });
 
-  router.patch('/:id/', requireCreateOrEdit, async (req, res) => {
+  router.patch('/:id/', async (req, res) => {
     const companyId = getActiveCompanyId(req);
     const account = await db
       .selectFrom('accounts')
@@ -222,7 +220,7 @@ export function accountsRouter(db: Kysely<Database>): Router {
     res.json(await serializeAccount(db, updated));
   });
 
-  router.delete('/:id/', requireDelete, async (req, res) => {
+  router.delete('/:id/', async (req, res) => {
     const companyId = getActiveCompanyId(req);
     const account = await db
       .selectFrom('accounts')

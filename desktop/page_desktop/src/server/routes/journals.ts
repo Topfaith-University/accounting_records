@@ -3,11 +3,10 @@ import { Router } from 'express';
 import { Kysely } from 'kysely';
 import { Database } from '../db/types';
 import { requireAuth } from '../middleware/auth';
-import { requireActiveCompany, requireLegacyGroup } from '../middleware/legacyRbac';
+import { requireActiveCompany } from '../middleware/legacyRbac';
 import { getActiveCompanyId, getActiveCompanyName } from '../lib/rbac';
 import { addDays, addMonthsClamped, monthYearLabel } from '../lib/dates';
 import { generateJournalEntryReference, postJournalEntry, ServiceError, voidJournalEntry } from '../services/journals.service';
-import { userHasAnyGroup } from '../lib/rbac';
 import { sendXlsx } from '../exports/xlsx';
 import { sendTablePdf } from '../exports/pdf';
 
@@ -180,11 +179,6 @@ export function journalsRouter(db: Kysely<Database>): Router {
       res.status(400).json({ detail: 'Only DRAFT entries can be edited.' });
       return;
     }
-    const isOwner = entry.created_by === req.auth!.username;
-    if (!isOwner && !(await userHasAnyGroup(db, req.auth!.user_id, ['Manager', 'Admin']))) {
-      res.status(403).json({ detail: 'Forbidden.' });
-      return;
-    }
     const body = req.body ?? {};
     const patch: any = { updated_at: new Date().toISOString() };
     if (body.date) patch.date = body.date;
@@ -242,7 +236,7 @@ export function journalsRouter(db: Kysely<Database>): Router {
     res.status(204).send();
   });
 
-  entries.post('/:id/post/', requireLegacyGroup(db, ['Manager', 'Admin']), async (req, res) => {
+  entries.post('/:id/post/', async (req, res) => {
     const companyId = getActiveCompanyId(req)!;
     try {
       await postJournalEntry(db, req.params.id, companyId, req.auth!.username);
@@ -254,7 +248,7 @@ export function journalsRouter(db: Kysely<Database>): Router {
     res.json(serializeEntry(entry));
   });
 
-  entries.post('/:id/void/', requireLegacyGroup(db, ['Manager', 'Admin']), async (req, res) => {
+  entries.post('/:id/void/', async (req, res) => {
     const companyId = getActiveCompanyId(req)!;
     try {
       await voidJournalEntry(db, req.params.id, companyId, req.auth!.username);
@@ -275,7 +269,7 @@ export function journalsRouter(db: Kysely<Database>): Router {
     res.json(rows);
   });
 
-  fiscalYears.post('/', requireLegacyGroup(db, ['Admin']), requireActiveCompany, async (req, res) => {
+  fiscalYears.post('/', requireActiveCompany, async (req, res) => {
     const companyId = getActiveCompanyId(req)!;
     const body = req.body ?? {};
     if (!body.name || !body.start_date || !body.end_date) {
@@ -335,7 +329,7 @@ export function journalsRouter(db: Kysely<Database>): Router {
     res.json(await query.execute());
   });
 
-  periods.post('/:id/close/', requireLegacyGroup(db, ['Manager', 'Admin']), async (req, res) => {
+  periods.post('/:id/close/', async (req, res) => {
     const companyId = getActiveCompanyId(req);
     const period = await db
       .selectFrom('accounting_periods')

@@ -81,12 +81,10 @@
         class="btn-secondary" style="padding:.625rem 1.25rem">
         {{ saving ? 'Saving…' : (isEditMode ? 'Save Changes' : 'Save as Draft') }}
       </button>
-      @if (isManagerOrAdmin) {
-        <button type="button" (click)="saveAndPost()" [disabled]="!form.valid || !isBalanced || posting"
-          class="btn-primary" style="padding:.625rem 1.25rem">
-          {{ posting ? 'Posting…' : 'Save & Post' }}
-        </button>
-      }
+      <button type="button" (click)="saveAndPost()" [disabled]="!form.valid || !isBalanced || posting"
+        class="btn-primary" style="padding:.625rem 1.25rem">
+        {{ posting ? 'Posting…' : 'Save & Post' }}
+      </button>
     </div>
   </form>
 </div>

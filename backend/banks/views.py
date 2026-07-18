@@ -25,8 +25,6 @@ class BankAccountViewSet(viewsets.ViewSet):
         return Response(BankAccountSerializer(account).data)
 
     def create(self, request):
-        if not request.user.groups.filter(name__in=['Admin', 'Manager']).exists():
-            return Response({'detail': 'Forbidden.'}, status=status.HTTP_403_FORBIDDEN)
         if not get_active_company_id(request):
             return Response({'detail': 'No active company.'}, status=status.HTTP_400_BAD_REQUEST)
         serializer = BankAccountSerializer(data=request.data, context={'request': request})
@@ -35,8 +33,6 @@ class BankAccountViewSet(viewsets.ViewSet):
         return Response(BankAccountSerializer(bank_account).data, status=status.HTTP_201_CREATED)
 
     def partial_update(self, request, pk=None):
-        if not request.user.groups.filter(name__in=['Admin', 'Manager']).exists():
-            return Response({'detail': 'Forbidden.'}, status=status.HTTP_403_FORBIDDEN)
         company_id = get_active_company_id(request)
         account = BankAccount.nodes.get_or_none(bank_account_id=pk, company_id=company_id)
         if not account:
@@ -47,8 +43,6 @@ class BankAccountViewSet(viewsets.ViewSet):
         return Response(BankAccountSerializer(account).data)
 
     def destroy(self, request, pk=None):
-        if not request.user.groups.filter(name__in=['Admin', 'Manager']).exists():
-            return Response({'detail': 'Forbidden.'}, status=status.HTTP_403_FORBIDDEN)
         company_id = get_active_company_id(request)
         account = BankAccount.nodes.get_or_none(bank_account_id=pk, company_id=company_id)
         if not account:
@@ -150,8 +144,6 @@ class BankReconciliationViewSet(viewsets.ViewSet):
         return Response(data)
 
     def create(self, request):
-        if not request.user.groups.filter(name__in=['Admin', 'Manager']).exists():
-            return Response({'detail': 'Forbidden.'}, status=status.HTTP_403_FORBIDDEN)
         company_id = get_active_company_id(request)
         bank_account_id = request.data.get('bank_account_id')
         if not bank_account_id:
@@ -193,8 +185,6 @@ class BankReconciliationViewSet(viewsets.ViewSet):
 
     @action(detail=True, methods=['post'], url_path='complete')
     def complete(self, request, pk=None):
-        if not request.user.groups.filter(name__in=['Manager', 'Admin']).exists():
-            return Response({'detail': 'Forbidden.'}, status=status.HTTP_403_FORBIDDEN)
         from .models import BankReconciliation
         company_id = get_active_company_id(request)
         recon = BankReconciliation.nodes.get_or_none(reconciliation_id=pk, company_id=company_id)

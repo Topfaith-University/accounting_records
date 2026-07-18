@@ -4,7 +4,6 @@ import { ReactiveFormsModule, FormBuilder, FormGroup, FormArray, Validators } fr
 import { ActivatedRoute, Router } from '@angular/router';
 import { JournalsService } from '../../services/journals.service';
 import { AccountsService } from '../../services/accounts.service';
-import { AuthService } from '../../services/auth.service';
 import { AccountSelectComponent } from '../../shared/account-select/account-select.component';
 
 @Component({
@@ -20,10 +19,6 @@ export class EntryFormComponent implements OnInit {
   posting = false;
   error = '';
   entryId: string | null = null;
-
-  get isManagerOrAdmin(): boolean {
-    return !!this.auth.getCurrentUser();
-  }
 
   get isEditMode(): boolean { return !!this.entryId; }
   get lines(): FormArray { return this.form.get('lines') as FormArray; }
@@ -43,7 +38,6 @@ export class EntryFormComponent implements OnInit {
     private fb: FormBuilder,
     private journalsService: JournalsService,
     private accountsService: AccountsService,
-    private auth: AuthService,
     private route: ActivatedRoute,
     private router: Router,
   ) {}

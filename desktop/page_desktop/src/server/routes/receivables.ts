@@ -3,7 +3,7 @@ import { Router } from 'express';
 import { Kysely } from 'kysely';
 import { Database } from '../db/types';
 import { requireAuth } from '../middleware/auth';
-import { requireActiveCompany, requireLegacyGroup } from '../middleware/legacyRbac';
+import { requireActiveCompany } from '../middleware/legacyRbac';
 import { getActiveCompanyId, getActiveCompanyName } from '../lib/rbac';
 import { nextInvoiceNumber } from '../services/payables.service';
 import { postSalesInvoice, recordArReceipt, ServiceError, voidSalesInvoice, getCustomerStatement } from '../services/receivables.service';
@@ -378,7 +378,7 @@ export function receivablesRouter(db: Kysely<Database>): Router {
     res.status(204).send();
   });
 
-  invoices.post('/:id/post/', requireLegacyGroup(db, ['Manager', 'Admin']), async (req, res) => {
+  invoices.post('/:id/post/', async (req, res) => {
     const companyId = getActiveCompanyId(req)!;
     try {
       await postSalesInvoice(db, req.params.id, companyId, req.auth!.username);
@@ -390,7 +390,7 @@ export function receivablesRouter(db: Kysely<Database>): Router {
     res.json(await serializeInvoice(db, invoice));
   });
 
-  invoices.post('/:id/void/', requireLegacyGroup(db, ['Manager', 'Admin']), async (req, res) => {
+  invoices.post('/:id/void/', async (req, res) => {
     const companyId = getActiveCompanyId(req)!;
     try {
       await voidSalesInvoice(db, req.params.id, companyId, req.auth!.username);

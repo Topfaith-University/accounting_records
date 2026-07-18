@@ -7,32 +7,30 @@
         <h2 style="margin:0 0 .25rem">{{ entry.reference }}</h2>
         <span [style.color]="statusColor(entry.status)" style="font-weight:700;font-size:.875rem">{{ entry.status }}</span>
       </div>
-      @if (isManagerOrAdmin || canEditDraft) {
-        <div style="display:flex;gap:.75rem">
-          @if (canEditDraft) {
-            <button (click)="editEntry()"
-              style="padding:.5rem 1rem;background:#f0f0f5;border:1px solid #ccc;border-radius:4px;cursor:pointer">
-              Edit Entry
-            </button>
-            <button (click)="deleteEntry()"
-              style="padding:.5rem 1rem;background:#fff1f2;color:#b91c1c;border:1px solid #fecdd3;border-radius:4px;cursor:pointer">
-              Delete Draft
-            </button>
-          }
-          @if (entry.status === 'DRAFT') {
-            <button (click)="postEntry()"
-              style="padding:.5rem 1rem;background:#10b981;color:white;border:none;border-radius:4px;cursor:pointer">
-              Post Entry
-            </button>
-          }
-          @if (entry.status === 'POSTED') {
-            <button (click)="voidEntry()"
-              style="padding:.5rem 1rem;background:#ef4444;color:white;border:none;border-radius:4px;cursor:pointer">
-              Void Entry
-            </button>
-          }
-        </div>
-      }
+      <div style="display:flex;gap:.75rem">
+        @if (canEditDraft) {
+          <button (click)="editEntry()"
+            style="padding:.5rem 1rem;background:#f0f0f5;border:1px solid #ccc;border-radius:4px;cursor:pointer">
+            Edit Entry
+          </button>
+          <button (click)="deleteEntry()"
+            style="padding:.5rem 1rem;background:#fff1f2;color:#b91c1c;border:1px solid #fecdd3;border-radius:4px;cursor:pointer">
+            Delete Draft
+          </button>
+        }
+        @if (entry.status === 'DRAFT') {
+          <button (click)="postEntry()"
+            style="padding:.5rem 1rem;background:#10b981;color:white;border:none;border-radius:4px;cursor:pointer">
+            Post Entry
+          </button>
+        }
+        @if (entry.status === 'POSTED') {
+          <button (click)="voidEntry()"
+            style="padding:.5rem 1rem;background:#ef4444;color:white;border:none;border-radius:4px;cursor:pointer">
+            Void Entry
+          </button>
+        }
+      </div>
     </div>
 
     @if (actionError) { <p style="color:red;margin-bottom:1rem">{{ actionError }}</p> }

@@ -2,7 +2,6 @@ import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute } from '@angular/router';
 import { BudgetService } from '../../services/budget.service';
-import { AuthService } from '../../services/auth.service';
 
 @Component({
   selector: 'app-budget-detail',
@@ -19,15 +18,9 @@ export class BudgetDetailComponent implements OnInit {
   actionError = '';
   activeTab: 'lines' | 'variance' = 'lines';
 
-  get isManagerOrAdmin(): boolean {
-    const user = this.auth.getCurrentUser();
-    return user?.roles.some((r: string) => ['Admin', 'Manager'].includes(r)) ?? false;
-  }
-
   constructor(
     private route: ActivatedRoute,
     private budgetService: BudgetService,
-    private auth: AuthService,
   ) {}
 
   async ngOnInit() {

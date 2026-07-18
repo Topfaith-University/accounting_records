@@ -3,7 +3,6 @@ import { CommonModule } from '@angular/common';
 import { ReactiveFormsModule, FormBuilder, FormGroup, Validators } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { ReceivablesService } from '../../services/receivables.service';
-import { AuthService } from '../../services/auth.service';
 import { BanksService } from '../../services/banks.service';
 import { BankSelectComponent } from '../../shared/bank-select/bank-select.component';
 
@@ -23,11 +22,6 @@ export class SalesInvoiceDetailComponent implements OnInit {
   receiving = false;
   receiveForm!: FormGroup;
 
-  get isManagerOrAdmin(): boolean {
-    const user = this.auth.getCurrentUser();
-    return user?.roles.some((r: string) => ['Admin', 'Manager'].includes(r)) ?? false;
-  }
-
   get remaining(): number {
     if (!this.invoice) return 0;
     return Math.max(0, this.invoice.total_amount - this.invoice.amount_received);
@@ -36,7 +30,6 @@ export class SalesInvoiceDetailComponent implements OnInit {
   constructor(
     private route: ActivatedRoute,
     private receivables: ReceivablesService,
-    private auth: AuthService,
     private banks: BanksService,
     private fb: FormBuilder,
     private router: Router,

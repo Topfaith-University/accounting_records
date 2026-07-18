@@ -206,8 +206,6 @@ class PurchaseInvoiceViewSet(viewsets.ViewSet):
 
     @action(detail=True, methods=['post'], url_path='post')
     def post_invoice(self, request, pk=None):
-        if not request.user.groups.filter(name__in=['Manager', 'Admin']).exists():
-            return Response({'detail': 'Forbidden.'}, status=status.HTTP_403_FORBIDDEN)
         company_id = get_active_company_id(request)
         try:
             invoice = services.post_invoice(pk, company_id, request.user.username)
@@ -217,8 +215,6 @@ class PurchaseInvoiceViewSet(viewsets.ViewSet):
 
     @action(detail=True, methods=['post'], url_path='void')
     def void_invoice(self, request, pk=None):
-        if not request.user.groups.filter(name__in=['Manager', 'Admin']).exists():
-            return Response({'detail': 'Forbidden.'}, status=status.HTTP_403_FORBIDDEN)
         company_id = get_active_company_id(request)
         try:
             invoice = services.void_invoice(pk, company_id, request.user.username)

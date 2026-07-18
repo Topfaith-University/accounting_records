@@ -3,7 +3,7 @@ import { Router } from 'express';
 import { Kysely } from 'kysely';
 import { Database } from '../db/types';
 import { requireAuth } from '../middleware/auth';
-import { requireActiveCompany, requireLegacyGroup } from '../middleware/legacyRbac';
+import { requireActiveCompany } from '../middleware/legacyRbac';
 import { getActiveCompanyId, getActiveCompanyName } from '../lib/rbac';
 import { sendXlsx } from '../exports/xlsx';
 import { sendTablePdf } from '../exports/pdf';
@@ -76,7 +76,7 @@ export function budgetRouter(db: Kysely<Database>): Router {
     res.json({ ...(await serializeBudget(db, budget)), lines: await Promise.all(lineRows.map((l) => serializeBudgetLine(db, l))) });
   });
 
-  budgets.post('/', requireLegacyGroup(db, ['Admin', 'Manager']), requireActiveCompany, async (req, res) => {
+  budgets.post('/', requireActiveCompany, async (req, res) => {
     const companyId = getActiveCompanyId(req)!;
     const body = req.body ?? {};
     const lines = body.lines ?? [];
@@ -109,7 +109,7 @@ export function budgetRouter(db: Kysely<Database>): Router {
     res.status(201).json({ ...(await serializeBudget(db, budget)), lines: await Promise.all(lineRows.map((l) => serializeBudgetLine(db, l))) });
   });
 
-  budgets.delete('/:id/', requireLegacyGroup(db, ['Admin']), async (req, res) => {
+  budgets.delete('/:id/', async (req, res) => {
     const companyId = getActiveCompanyId(req);
     const budget = await db.selectFrom('budgets').selectAll().where('budget_id', '=', req.params.id).where('company_id', '=', companyId ?? '').executeTakeFirst();
     if (!budget) {
@@ -125,7 +125,7 @@ export function budgetRouter(db: Kysely<Database>): Router {
     res.status(204).send();
   });
 
-  budgets.post('/:id/approve/', requireLegacyGroup(db, ['Manager', 'Admin']), async (req, res) => {
+  budgets.post('/:id/approve/', async (req, res) => {
     const companyId = getActiveCompanyId(req);
     const budget = await db.selectFrom('budgets').selectAll().where('budget_id', '=', req.params.id).where('company_id', '=', companyId ?? '').executeTakeFirst();
     if (!budget) {

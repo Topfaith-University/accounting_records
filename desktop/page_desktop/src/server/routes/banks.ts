@@ -5,7 +5,7 @@ import { parse } from 'csv-parse/sync';
 import { Kysely } from 'kysely';
 import { Database } from '../db/types';
 import { requireAuth } from '../middleware/auth';
-import { requireActiveCompany, requireLegacyGroup } from '../middleware/legacyRbac';
+import { requireActiveCompany } from '../middleware/legacyRbac';
 import { getActiveCompanyId, getActiveCompanyName } from '../lib/rbac';
 import { computeBankCurrentBalance, createBankTransaction, getBankGlLines, ServiceError } from '../services/banks.service';
 import { sendXlsx } from '../exports/xlsx';
@@ -78,7 +78,6 @@ async function serializeTransaction(db: Kysely<Database>, t: any) {
 export function banksRouter(db: Kysely<Database>): Router {
   const accounts = Router();
   accounts.use(requireAuth);
-  const requireManagerOrAdmin = requireLegacyGroup(db, ['Admin', 'Manager']);
 
   accounts.get('/', requireActiveCompany, async (req, res) => {
     const companyId = getActiveCompanyId(req)!;
@@ -133,7 +132,7 @@ export function banksRouter(db: Kysely<Database>): Router {
     res.json(rows.map(serializeReconciliation));
   });
 
-  accounts.post('/', requireManagerOrAdmin, requireActiveCompany, async (req, res) => {
+  accounts.post('/', requireActiveCompany, async (req, res) => {
     const companyId = getActiveCompanyId(req)!;
     const body = req.body ?? {};
     if (!body.name || !body.bank_name || !body.opening_balance_date) {
@@ -170,7 +169,7 @@ export function banksRouter(db: Kysely<Database>): Router {
     res.status(201).json(await serializeBankAccount(db, bank));
   });
 
-  accounts.patch('/:id/', requireManagerOrAdmin, async (req, res) => {
+  accounts.patch('/:id/', async (req, res) => {
     const companyId = getActiveCompanyId(req);
     const bank = await db.selectFrom('bank_accounts').selectAll().where('bank_account_id', '=', req.params.id).where('company_id', '=', companyId ?? '').executeTakeFirst();
     if (!bank) {
@@ -203,7 +202,7 @@ export function banksRouter(db: Kysely<Database>): Router {
     res.json(await serializeBankAccount(db, updated));
   });
 
-  accounts.delete('/:id/', requireManagerOrAdmin, async (req, res) => {
+  accounts.delete('/:id/', async (req, res) => {
     const companyId = getActiveCompanyId(req);
     const bank = await db.selectFrom('bank_accounts').select('bank_account_id').where('bank_account_id', '=', req.params.id).where('company_id', '=', companyId ?? '').executeTakeFirst();
     if (!bank) {
@@ -243,7 +242,7 @@ export function banksRouter(db: Kysely<Database>): Router {
     });
   });
 
-  reconciliations.post('/', requireManagerOrAdmin, async (req, res) => {
+  reconciliations.post('/', async (req, res) => {
     const companyId = getActiveCompanyId(req)!;
     const body = req.body ?? {};
     if (!body.bank_account_id) {
@@ -307,7 +306,7 @@ export function banksRouter(db: Kysely<Database>): Router {
     res.json({ line_id: lineId, is_reconciled: reconciled });
   });
 
-  reconciliations.post('/:id/complete/', requireManagerOrAdmin, async (req, res) => {
+  reconciliations.post('/:id/complete/', async (req, res) => {
     const companyId = getActiveCompanyId(req)!;
     const recon = await db.selectFrom('bank_reconciliations').selectAll().where('reconciliation_id', '=', req.params.id).where('company_id', '=', companyId).executeTakeFirst();
     if (!recon) {

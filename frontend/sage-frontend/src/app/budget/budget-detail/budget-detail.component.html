@@ -10,7 +10,7 @@
         <span [style.color]="statusColor(budget.status)"
           style="margin-left:1rem;font-weight:700;font-size:.875rem">&#9679; {{ budget.status }}</span>
       </div>
-      @if (isManagerOrAdmin && budget.status === 'DRAFT') {
+      @if (budget.status === 'DRAFT') {
         <button (click)="approve()" [disabled]="approving"
           style="padding:.5rem 1rem;background:#10b981;color:white;border:none;border-radius:4px;cursor:pointer">
           {{ approving ? 'Approving…' : 'Approve Budget' }}

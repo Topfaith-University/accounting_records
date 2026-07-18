@@ -2,7 +2,6 @@ import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute } from '@angular/router';
 import { BanksService } from '../../services/banks.service';
-import { AuthService } from '../../services/auth.service';
 
 @Component({
   selector: 'app-bank-reconciliation',
@@ -24,7 +23,6 @@ export class BankReconciliationComponent implements OnInit {
   constructor(
     private route: ActivatedRoute,
     private banksService: BanksService,
-    private auth: AuthService,
   ) {}
 
   async ngOnInit() {
@@ -38,11 +36,6 @@ export class BankReconciliationComponent implements OnInit {
     } finally {
       this.loading = false;
     }
-  }
-
-  get isManagerOrAdmin(): boolean {
-    const user = this.auth.getCurrentUser();
-    return user?.roles.some((r: string) => ['Admin', 'Manager'].includes(r)) ?? false;
   }
 
   get reconciledDebits(): number {

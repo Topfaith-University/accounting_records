@@ -30,8 +30,6 @@ class AccountViewSet(viewsets.ViewSet):
         return Response(AccountSerializer(account).data)
 
     def create(self, request):
-        if not request.user.groups.filter(name__in=['Admin', 'Manager']).exists():
-            return Response({'detail': 'Forbidden.'}, status=status.HTTP_403_FORBIDDEN)
         if not get_active_company_id(request):
             return Response({'detail': 'No active company.'}, status=status.HTTP_400_BAD_REQUEST)
         serializer = AccountSerializer(data=request.data, context={'request': request})
@@ -40,8 +38,6 @@ class AccountViewSet(viewsets.ViewSet):
         return Response(AccountSerializer(account).data, status=status.HTTP_201_CREATED)
 
     def partial_update(self, request, pk=None):
-        if not request.user.groups.filter(name__in=['Admin', 'Manager']).exists():
-            return Response({'detail': 'Forbidden.'}, status=status.HTTP_403_FORBIDDEN)
         company_id = get_active_company_id(request)
         account = Account.nodes.get_or_none(account_id=pk, company_id=company_id)
         if not account:
@@ -52,8 +48,6 @@ class AccountViewSet(viewsets.ViewSet):
         return Response(AccountSerializer(account).data)
 
     def destroy(self, request, pk=None):
-        if not request.user.groups.filter(name__in=['Admin']).exists():
-            return Response({'detail': 'Forbidden.'}, status=status.HTTP_403_FORBIDDEN)
         company_id = get_active_company_id(request)
         account = Account.nodes.get_or_none(account_id=pk, company_id=company_id)
         if not account:

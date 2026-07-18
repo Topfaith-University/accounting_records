@@ -2,7 +2,6 @@ import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, Router } from '@angular/router';
 import { JournalsService } from '../../services/journals.service';
-import { AuthService } from '../../services/auth.service';
 
 @Component({
   selector: 'app-entry-detail',
@@ -16,22 +15,14 @@ export class EntryDetailComponent implements OnInit {
   error = '';
   actionError = '';
 
-  get isManagerOrAdmin(): boolean {
-    const user = this.auth.getCurrentUser();
-    return user?.roles.some((r: string) => ['Admin', 'Manager'].includes(r)) ?? false;
-  }
-
   get canEditDraft(): boolean {
-    const user = this.auth.getCurrentUser();
-    if (!this.entry || this.entry.status !== 'DRAFT' || !user) return false;
-    return this.entry.created_by === user.username || this.isManagerOrAdmin;
+    return !!this.entry && this.entry.status === 'DRAFT';
   }
 
   constructor(
     private route: ActivatedRoute,
     private router: Router,
     private journalsService: JournalsService,
-    private auth: AuthService,
   ) {}
 
   async ngOnInit() {

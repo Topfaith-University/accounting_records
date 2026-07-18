@@ -108,7 +108,7 @@
     }
   </div>
 
-  @if (isManagerOrAdmin && recon.status === 'DRAFT') {
+  @if (recon.status === 'DRAFT') {
     <div style="margin-bottom:1.5rem">
       @if (completeError) {
         <p style="color:red;margin:0 0 .5rem;font-size:.875rem">{{ completeError }}</p>

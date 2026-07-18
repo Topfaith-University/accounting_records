@@ -12,27 +12,25 @@
           style="padding:.5rem .75rem;background:white;color:#1a73e8;border:1px solid #1a73e8;border-radius:4px;cursor:pointer">
           &#128424; Print PDF
         </button>
-        @if (isManagerOrAdmin) {
-          @if (invoice.status === 'DRAFT') {
-            <button (click)="editInvoice()"
-              style="padding:.5rem 1rem;background:white;color:#1a73e8;border:1px solid #1a73e8;border-radius:4px;cursor:pointer">
-              Edit
-            </button>
-            <button (click)="deleteInvoice()"
-              style="padding:.5rem 1rem;background:#fff1f2;color:#b42318;border:1px solid #fecdca;border-radius:4px;cursor:pointer">
-              Delete
-            </button>
-            <button (click)="postInvoice()"
-              style="padding:.5rem 1rem;background:#1a73e8;color:white;border:none;border-radius:4px;cursor:pointer">
-              Post Invoice
-            </button>
-          }
-          @if (invoice.status === 'DRAFT' || invoice.status === 'POSTED') {
-            <button (click)="voidInvoice()"
-              style="padding:.5rem 1rem;background:#ef4444;color:white;border:none;border-radius:4px;cursor:pointer">
-              Void
-            </button>
-          }
+        @if (invoice.status === 'DRAFT') {
+          <button (click)="editInvoice()"
+            style="padding:.5rem 1rem;background:white;color:#1a73e8;border:1px solid #1a73e8;border-radius:4px;cursor:pointer">
+            Edit
+          </button>
+          <button (click)="deleteInvoice()"
+            style="padding:.5rem 1rem;background:#fff1f2;color:#b42318;border:1px solid #fecdca;border-radius:4px;cursor:pointer">
+            Delete
+          </button>
+          <button (click)="postInvoice()"
+            style="padding:.5rem 1rem;background:#1a73e8;color:white;border:none;border-radius:4px;cursor:pointer">
+            Post Invoice
+          </button>
+        }
+        @if (invoice.status === 'DRAFT' || invoice.status === 'POSTED') {
+          <button (click)="voidInvoice()"
+            style="padding:.5rem 1rem;background:#ef4444;color:white;border:none;border-radius:4px;cursor:pointer">
+            Void
+          </button>
         }
       </div>
     </div>

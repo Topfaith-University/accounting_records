@@ -50,8 +50,6 @@ class JournalEntryViewSet(viewsets.ViewSet):
             return Response({'detail': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
         if entry.status != 'DRAFT':
             return Response({'detail': 'Only DRAFT entries can be edited.'}, status=status.HTTP_400_BAD_REQUEST)
-        if entry.created_by != request.user.username and not request.user.groups.filter(name__in=['Manager', 'Admin']).exists():
-            return Response({'detail': 'Forbidden.'}, status=status.HTTP_403_FORBIDDEN)
         serializer = JournalEntrySerializer(entry, data=request.data, partial=True, context={'request': request})
         serializer.is_valid(raise_exception=True)
         entry = serializer.save()
@@ -73,8 +71,6 @@ class JournalEntryViewSet(viewsets.ViewSet):
 
     @action(detail=True, methods=['post'], url_path='post')
     def post_entry(self, request, pk=None):
-        if not request.user.groups.filter(name__in=['Manager', 'Admin']).exists():
-            return Response({'detail': 'Forbidden.'}, status=status.HTTP_403_FORBIDDEN)
         company_id = get_active_company_id(request)
         try:
             entry = services.post_entry(pk, company_id, request.user.username)
@@ -84,8 +80,6 @@ class JournalEntryViewSet(viewsets.ViewSet):
 
     @action(detail=True, methods=['post'], url_path='void')
     def void_entry(self, request, pk=None):
-        if not request.user.groups.filter(name__in=['Manager', 'Admin']).exists():
-            return Response({'detail': 'Forbidden.'}, status=status.HTTP_403_FORBIDDEN)
         company_id = get_active_company_id(request)
         try:
             entry = services.void_entry(pk, company_id, request.user.username)
@@ -122,8 +116,6 @@ class FiscalYearViewSet(viewsets.ViewSet):
         return Response(FiscalYearSerializer(list(years), many=True).data)
 
     def create(self, request):
-        if not request.user.groups.filter(name__in=['Admin']).exists():
-            return Response({'detail': 'Forbidden.'}, status=status.HTTP_403_FORBIDDEN)
         if not get_active_company_id(request):
             return Response({'detail': 'No active company.'}, status=status.HTTP_400_BAD_REQUEST)
         serializer = FiscalYearSerializer(data=request.data, context={'request': request})
@@ -156,8 +148,6 @@ class AccountingPeriodViewSet(viewsets.ViewSet):
 
     @action(detail=True, methods=['post'], url_path='close')
     def close_period(self, request, pk=None):
-        if not request.user.groups.filter(name__in=['Manager', 'Admin']).exists():
-            return Response({'detail': 'Forbidden.'}, status=status.HTTP_403_FORBIDDEN)
         company_id = get_active_company_id(request)
         period = AccountingPeriod.nodes.get_or_none(period_id=pk, company_id=company_id)
         if not period:
