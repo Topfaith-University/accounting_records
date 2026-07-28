@@ -5,7 +5,7 @@ This file provides guidance to Codex (Codex.ai/code) when working with code in t
 ## Project Overview
 
 "Sage" is a university accounting records application. It is a full-stack monorepo consisting of:
-- **Backend**: Django + Django REST Framework (port 8002)
+- **Backend**: Django + Django REST Framework (port 8082)
 - **Frontend**: Angular 17 standalone-component app (port 4200)
 - **Database**: Neo4j 5 graph database (bolt port 7687, browser port 7474) for domain models; SQLite for Django auth/admin only
 
@@ -22,7 +22,7 @@ docker-compose up --build
 ```bash
 cd backend
 source venv/bin/activate
-python manage.py runserver 0.0.0.0:8002
+python manage.py runserver 0.0.0.0:8082
 ```
 
 **Frontend only (local dev):**
@@ -66,7 +66,7 @@ Views are plain Django function-based views (not DRF ViewSets). Input is current
 ```
 
 ### Frontend
-Angular 17 with standalone components. HTTP calls use **axios** (not Angular's HttpClient). The `ApiService` (`src/app/services/api.service.ts`) is the single API layer. The base URL must match the backend port (8002).
+Angular 17 with standalone components. HTTP calls use **axios** (not Angular's HttpClient). The `ApiService` (`src/app/services/api.service.ts`) is the single API layer. The base URL must match the backend port (8082).
 
 ### Environment / secrets
 Backend reads from `backend/.env` via `python-decouple`. Required keys: `SECRET_KEY`, `DEBUG`, `ALLOWED_HOSTS`, `NEO4J_BOLT_URL`. The `.env` file is committed to the repo — do not put production secrets there.
