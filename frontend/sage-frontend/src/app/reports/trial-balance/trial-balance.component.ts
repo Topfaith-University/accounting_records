@@ -1,0 +1,72 @@
+import { Component } from '@angular/core';
+import { CommonModule } from '@angular/common';
+import { FormsModule } from '@angular/forms';
+import { ReportsService } from '../../services/reports.service';
+
+@Component({
+  selector: 'app-trial-balance',
+  standalone: true,
+  imports: [CommonModule, FormsModule],
+  templateUrl: './trial-balance.component.html',
+})
+export class TrialBalanceComponent {
+  dateFrom = '';
+  dateTo = '';
+  data: any = null;
+  loading = false;
+  error = '';
+
+  constructor(private reports: ReportsService) {}
+
+  async run() {
+    if (!this.dateFrom || !this.dateTo) return;
+    this.loading = true;
+    this.error = '';
+    this.data = null;
+    try {
+      this.data = await this.reports.getTrialBalance(this.dateFrom, this.dateTo);
+    } catch (e: any) {
+      this.error = e.response?.data?.detail ?? 'Failed to load report.';
+    } finally {
+      this.loading = false;
+    }
+  }
+
+  exportPdf() {
+    this.reports.exportFile('trial-balance', { date_from: this.dateFrom, date_to: this.dateTo }, 'pdf', `trial-balance-${this.dateFrom}-${this.dateTo}.pdf`);
+  }
+
+  exportXlsx() {
+    this.reports.exportFile('trial-balance', { date_from: this.dateFrom, date_to: this.dateTo }, 'xlsx', `trial-balance-${this.dateFrom}-${this.dateTo}.xlsx`);
+  }
+
+  rowDebit(row: any): number {
+    return Math.max(0, (row.total_debits ?? 0) - (row.total_credits ?? 0));
+  }
+
+  rowCredit(row: any): number {
+    return Math.max(0, (row.total_credits ?? 0) - (row.total_debits ?? 0));
+  }
+
+  get grandTotalDebits(): number {
+    return (this.data?.rows ?? []).reduce((s: number, r: any) => s + this.rowDebit(r), 0);
+  }
+
+  get grandTotalCredits(): number {
+    return (this.data?.rows ?? []).reduce((s: number, r: any) => s + this.rowCredit(r), 0);
+  }
+
+  get groupedRows(): { type: string; rows: any[] }[] {
+    if (!this.data?.rows) return [];
+    const groups: { type: string; rows: any[] }[] = [];
+    for (const row of this.data.rows) {
+      const last = groups[groups.length - 1];
+      if (!last || last.type !== row.account_type) {
+        groups.push({ type: row.account_type, rows: [row] });
+      } else {
+        last.rows.push(row);
+      }
+    }
+    return groups;
+  }
+}

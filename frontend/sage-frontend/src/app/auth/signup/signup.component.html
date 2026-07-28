@@ -1,0 +1,181 @@
+<div class="login-root">
+
+  <!-- ── Left: brand panel ──────────────────────── -->
+  <div class="brand-panel">
+    <div class="geo-ring r1"></div>
+    <div class="geo-ring r2"></div>
+    <div class="geo-ring r3"></div>
+    <div class="geo-ring r4"></div>
+    <div class="geo-rect rect1"></div>
+    <div class="geo-rect rect2"></div>
+
+    <div class="panel-rule"></div>
+    <div class="wordmark">Pa<span>ge</span></div>
+    <div class="tagline">Finance System</div>
+
+    <div class="panel-footer">Accounting &nbsp;·&nbsp; Reporting &nbsp;·&nbsp; Compliance</div>
+  </div>
+
+  <!-- ── Right: form panel ──────────────────────── -->
+  <div class="form-panel">
+    <div class="form-container">
+
+      @if (success) {
+        <!-- Success state -->
+        <div class="success-card">
+          <div class="success-icon">✓</div>
+          <h2 class="success-heading">{{ mode === 'create' ? 'Company created' : 'Account created' }}</h2>
+          <p class="success-body">
+            @if (mode === 'create') {
+              Your company has been set up and you're its Admin. Sign in to get started.
+            } @else {
+              Your account has been created with the role set by your invite code. Sign in to get started.
+            }
+          </p>
+          <a routerLink="/login" class="submit-btn" style="display:block;text-align:center;text-decoration:none">
+            Go to Sign In
+          </a>
+        </div>
+      } @else {
+
+        <div class="form-header">
+          <h1>{{ mode === 'create' ? 'Create your company' : 'Create account' }}</h1>
+          <p>{{ mode === 'create' ? "Set up your organization's own workspace" : 'Use your invite code to register' }}</p>
+        </div>
+
+        <div style="display:flex;gap:.5rem;margin-bottom:1.25rem;border-bottom:1.5px solid var(--border,#DDE3F0)">
+          <button type="button" (click)="setMode('join')"
+            [style.font-weight]="mode === 'join' ? 700 : 400"
+            [style.border-bottom]="mode === 'join' ? '2px solid var(--navy-primary,#314991)' : '2px solid transparent'"
+            style="background:none;border-top:none;border-left:none;border-right:none;padding:.5rem .25rem;cursor:pointer;font-size:.875rem;color:var(--navy-deep,#10002B)">
+            Join with invite code
+          </button>
+          <button type="button" (click)="setMode('create')"
+            [style.font-weight]="mode === 'create' ? 700 : 400"
+            [style.border-bottom]="mode === 'create' ? '2px solid var(--navy-primary,#314991)' : '2px solid transparent'"
+            style="background:none;border-top:none;border-left:none;border-right:none;padding:.5rem .25rem;cursor:pointer;font-size:.875rem;color:var(--navy-deep,#10002B)">
+            Create a company
+          </button>
+        </div>
+
+        <form (ngSubmit)="onSubmit()" autocomplete="on">
+
+          @if (mode === 'create') {
+            <div class="field-group">
+              <label for="companyName">Company Name *</label>
+              <input
+                id="companyName"
+                [(ngModel)]="companyName"
+                name="companyName"
+                type="text"
+                placeholder="Your organization's name"
+                required
+                autocomplete="organization"
+              />
+            </div>
+          }
+
+          <div class="field-group">
+            <label for="username">Username *</label>
+            <input
+              id="username"
+              [(ngModel)]="username"
+              name="username"
+              type="text"
+              placeholder="Choose a username"
+              required
+              autocomplete="username"
+            />
+          </div>
+
+          <div class="field-group">
+            <label for="email">Email <span class="optional">optional</span></label>
+            <input
+              id="email"
+              [(ngModel)]="email"
+              name="email"
+              type="email"
+              placeholder="your@email.com"
+              autocomplete="email"
+            />
+          </div>
+
+          <div class="field-group">
+            <label for="password">Password *</label>
+            <div class="password-wrapper">
+              <input
+                id="password"
+                [(ngModel)]="password"
+                name="password"
+                [type]="showPassword ? 'text' : 'password'"
+                placeholder="At least 8 characters"
+                required
+                autocomplete="new-password"
+              />
+              <button type="button" class="password-toggle" (click)="showPassword = !showPassword"
+                [attr.aria-label]="showPassword ? 'Hide password' : 'Show password'">
+                {{ showPassword ? 'Hide' : 'Show' }}
+              </button>
+            </div>
+          </div>
+
+          <div class="field-group">
+            <label for="confirm">Confirm Password *</label>
+            <div class="password-wrapper">
+              <input
+                id="confirm"
+                [(ngModel)]="confirmPassword"
+                name="confirm"
+                [type]="showConfirm ? 'text' : 'password'"
+                placeholder="Repeat your password"
+                required
+                autocomplete="new-password"
+              />
+              <button type="button" class="password-toggle" (click)="showConfirm = !showConfirm"
+                [attr.aria-label]="showConfirm ? 'Hide' : 'Show'">
+                {{ showConfirm ? 'Hide' : 'Show' }}
+              </button>
+            </div>
+          </div>
+
+          @if (mode === 'join') {
+            <div class="field-group invite-group">
+              <label for="invite">Invite Code *</label>
+              <div class="password-wrapper">
+                <input
+                  id="invite"
+                  [(ngModel)]="inviteCode"
+                  name="invite"
+                  [type]="showInvite ? 'text' : 'password'"
+                  placeholder="Enter the invite code"
+                  required
+                  autocomplete="off"
+                />
+                <button type="button" class="password-toggle" (click)="showInvite = !showInvite"
+                  [attr.aria-label]="showInvite ? 'Hide' : 'Show'">
+                  {{ showInvite ? 'Hide' : 'Show' }}
+                </button>
+              </div>
+            </div>
+          }
+
+          @if (error) {
+            <div class="error-msg">{{ error }}</div>
+          }
+
+          <button
+            type="submit"
+            class="submit-btn"
+            [class.is-loading]="loading"
+            [disabled]="loading"
+          >{{ loading ? 'Creating…' : (mode === 'create' ? 'Create Company' : 'Create Account') }}</button>
+
+          <p class="signin-link">Already have an account? <a routerLink="/login">Sign in</a></p>
+
+        </form>
+      }
+
+    </div>
+  </div>
+
+</div>

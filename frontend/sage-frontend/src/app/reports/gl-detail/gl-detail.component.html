@@ -1,0 +1,83 @@
+<div style="max-width:1100px">
+  <h2 style="margin:0 0 1.5rem">GL Detail</h2>
+
+  <div style="display:flex;gap:1rem;align-items:flex-end;flex-wrap:wrap;margin-bottom:1rem;background:white;padding:1rem;border-radius:8px;box-shadow:0 1px 4px rgba(0,0,0,.1)">
+    <div style="min-width:260px;overflow:visible">
+      <label style="display:block;font-size:.8rem;color:#555;margin-bottom:.25rem">Account</label>
+      <app-account-select
+        [(ngModel)]="accountId"
+        [allAccounts]="allAccounts"
+        (accountsChanged)="allAccounts = $event"
+        placeholder="Search account…"
+      ></app-account-select>
+    </div>
+    <div>
+      <label style="display:block;font-size:.8rem;color:#555;margin-bottom:.25rem">From</label>
+      <input type="date" [(ngModel)]="dateFrom" style="padding:.5rem;border:1px solid #ccc;border-radius:4px" />
+    </div>
+    <div>
+      <label style="display:block;font-size:.8rem;color:#555;margin-bottom:.25rem">To</label>
+      <input type="date" [(ngModel)]="dateTo" style="padding:.5rem;border:1px solid #ccc;border-radius:4px" />
+    </div>
+    <button (click)="run()" [disabled]="loading || !accountId || !dateFrom || !dateTo"
+      style="padding:.5rem 1.25rem;background:#1a1a2e;color:white;border:none;border-radius:4px;cursor:pointer">
+      {{ loading ? 'Loading…' : 'Run Report' }}
+    </button>
+    @if (data) {
+      <button (click)="exportPdf()"
+        style="padding:.5rem 1rem;background:#ef4444;color:white;border:none;border-radius:4px;cursor:pointer">Export PDF</button>
+      <button (click)="exportXlsx()"
+        style="padding:.5rem 1rem;background:#10b981;color:white;border:none;border-radius:4px;cursor:pointer">Export Excel</button>
+    }
+  </div>
+
+  @if (error) { <p style="color:red;margin-bottom:1rem">{{ error }}</p> }
+
+  @if (data) {
+    <div style="background:white;border-radius:8px;padding:.875rem 1rem;margin-bottom:1rem;box-shadow:0 1px 4px rgba(0,0,0,.1);font-size:.875rem">
+      <strong>{{ data.account_code }}</strong> — {{ data.account_name }}
+      &nbsp;|&nbsp; {{ data.date_from }} to {{ data.date_to }}
+    </div>
+
+    <table style="width:100%;border-collapse:collapse;background:white;border-radius:8px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.1)">
+      <thead style="background:#1a1a2e;color:white">
+        <tr>
+          <th style="text-align:left;padding:.75rem 1rem">Date</th>
+          <th style="text-align:left;padding:.75rem 1rem">Reference</th>
+          <th style="text-align:left;padding:.75rem 1rem">Description</th>
+          <th style="text-align:left;padding:.75rem 1rem">Type</th>
+          <th style="text-align:left;padding:.75rem 1rem;width:80px">Side</th>
+          <th style="text-align:right;padding:.75rem 1rem">Amount (₦)</th>
+          <th style="text-align:right;padding:.75rem 1rem">Running Balance (₦)</th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (line of data.lines; track line.line_id) {
+          <tr style="border-top:1px solid #eee">
+            <td style="padding:.625rem 1rem">{{ line.date }}</td>
+            <td style="padding:.625rem 1rem;font-family:monospace;font-size:.875rem">{{ line.reference }}</td>
+            <td style="padding:.625rem 1rem">{{ line.entry_description }}</td>
+            <td style="padding:.625rem 1rem">
+              <span [ngStyle]="entryTypeBadgeStyle(line.entry_type)">{{ line.entry_type ?? 'MANUAL' }}</span>
+            </td>
+            <td style="padding:.625rem 1rem;font-weight:600"
+                [style.color]="line.side === 'DEBIT' ? '#1a73e8' : '#10b981'">
+              {{ line.side }}
+            </td>
+            <td style="padding:.625rem 1rem;text-align:right">{{ line.amount | number:'1.2-2' }}</td>
+            <td style="padding:.625rem 1rem;text-align:right;font-weight:600">{{ line.running_balance | number:'1.2-2' }}</td>
+          </tr>
+        }
+        @empty {
+          <tr><td colspan="7" style="padding:1rem;text-align:center;color:#888">No posted journal lines in this period.</td></tr>
+        }
+      </tbody>
+      <tfoot style="background:#f0f0f5;border-top:2px solid #1a1a2e">
+        <tr>
+          <td colspan="5" style="padding:.75rem 1rem;font-weight:700">Closing Balance</td>
+          <td style="padding:.75rem 1rem;text-align:right;font-weight:700">{{ data.closing_balance | number:'1.2-2' }}</td>
+        </tr>
+      </tfoot>
+    </table>
+  }
+</div>

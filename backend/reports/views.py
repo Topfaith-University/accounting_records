@@ -1,4 +1,250 @@
 from django.http import JsonResponse
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import IsAuthenticated
+from config.auth import get_active_company_id
+from config.export_utils import pdf_response, xlsx_response
+from . import services
 
-def index(request):
-    return JsonResponse({"message": "Welcome to the reports API!"})
+
+def _parse_date(value: str, param_name: str):
+    from datetime import date
+    try:
+        return date.fromisoformat(value)
+    except ValueError:
+        return None
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def trial_balance(request):
+    company_id = get_active_company_id(request)
+    if not company_id:
+        return JsonResponse({'detail': 'No active company.'}, status=400)
+    date_from = request.query_params.get('date_from', '')
+    date_to = request.query_params.get('date_to', '')
+    fmt = request.query_params.get('format', 'json')
+    if not date_from or not date_to:
+        return JsonResponse({'detail': 'date_from and date_to are required.'}, status=400)
+    if not _parse_date(date_from, 'date_from') or not _parse_date(date_to, 'date_to'):
+        return JsonResponse({'detail': 'Invalid date format. Use YYYY-MM-DD.'}, status=400)
+
+    rows = services.compute_trial_balance(company_id, date_from, date_to)
+    ctx = {
+        'rows': rows,
+        'date_from': date_from,
+        'date_to': date_to,
+        'total_debits': round(sum(r['total_debits'] for r in rows), 2),
+        'total_credits': round(sum(r['total_credits'] for r in rows), 2),
+    }
+
+    if fmt == 'pdf':
+        pdf_rows = []
+        for r in rows:
+            d = max(0.0, r['total_debits'] - r['total_credits'])
+            c = max(0.0, r['total_credits'] - r['total_debits'])
+            pdf_rows.append({**r, 'display_debit': round(d, 2), 'display_credit': round(c, 2)})
+        pdf_ctx = {
+            'rows': pdf_rows,
+            'date_from': date_from,
+            'date_to': date_to,
+            'total_debits': round(sum(r['display_debit'] for r in pdf_rows), 2),
+            'total_credits': round(sum(r['display_credit'] for r in pdf_rows), 2),
+        }
+        return pdf_response(request, 'reports/trial_balance.html', pdf_ctx, f'trial-balance-{date_from}-{date_to}')
+    if fmt == 'xlsx':
+        headers = ['Code', 'Account', 'Type', 'Debit (N)', 'Credit (N)']
+        xlsx_rows = []
+        for r in rows:
+            d = max(0.0, r['total_debits'] - r['total_credits'])
+            c = max(0.0, r['total_credits'] - r['total_debits'])
+            xlsx_rows.append([r['code'], r['name'], r['account_type'],
+                               round(d, 2) if d > 0 else None,
+                               round(c, 2) if c > 0 else None])
+        total_d = round(sum(max(0.0, r['total_debits'] - r['total_credits']) for r in rows), 2)
+        total_c = round(sum(max(0.0, r['total_credits'] - r['total_debits']) for r in rows), 2)
+        xlsx_rows.append(['', 'TOTALS', '', total_d, total_c])
+        return xlsx_response(request, headers, xlsx_rows, f'trial-balance-{date_from}-{date_to}', 'Trial Balance')
+    return JsonResponse(ctx)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def income_statement(request):
+    company_id = get_active_company_id(request)
+    if not company_id:
+        return JsonResponse({'detail': 'No active company.'}, status=400)
+    date_from = request.query_params.get('date_from', '')
+    date_to = request.query_params.get('date_to', '')
+    fmt = request.query_params.get('format', 'json')
+    if not date_from or not date_to:
+        return JsonResponse({'detail': 'date_from and date_to are required.'}, status=400)
+    if not _parse_date(date_from, 'date_from') or not _parse_date(date_to, 'date_to'):
+        return JsonResponse({'detail': 'Invalid date format. Use YYYY-MM-DD.'}, status=400)
+
+    data = services.compute_income_statement(company_id, date_from, date_to)
+
+    if fmt == 'pdf':
+        return pdf_response(request, 'reports/income_statement.html', data, f'income-statement-{date_from}-{date_to}')
+    if fmt == 'xlsx':
+        headers = ['Account', 'Type', 'Amount (N)']
+        xlsx_rows = [['REVENUE', '', '']]
+        xlsx_rows += [[r['name'], r['account_type'], r['balance']] for r in data['revenue']]
+        xlsx_rows.append(['Total Revenue', '', data['total_revenue']])
+        xlsx_rows.append(['COST OF SALES', '', ''])
+        xlsx_rows += [[r['name'], r['account_type'], r['balance']] for r in data['cost_of_sales']]
+        xlsx_rows.append(['Gross Profit', '', data['gross_profit']])
+        xlsx_rows.append(['EXPENSES', '', ''])
+        xlsx_rows += [[r['name'], r['account_type'], r['balance']] for r in data['expenses']]
+        xlsx_rows.append(['Total Expenses', '', data['total_expenses']])
+        xlsx_rows.append(['Net Surplus / (Deficit)', '', data['net_surplus']])
+        return xlsx_response(request, headers, xlsx_rows, f'income-statement-{date_from}-{date_to}', 'Income Statement')
+    return JsonResponse(data)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def balance_sheet(request):
+    company_id = get_active_company_id(request)
+    if not company_id:
+        return JsonResponse({'detail': 'No active company.'}, status=400)
+    as_of_date = request.query_params.get('as_of_date', '')
+    fmt = request.query_params.get('format', 'json')
+    if not as_of_date:
+        return JsonResponse({'detail': 'as_of_date is required.'}, status=400)
+    if not _parse_date(as_of_date, 'as_of_date'):
+        return JsonResponse({'detail': 'Invalid date format. Use YYYY-MM-DD.'}, status=400)
+
+    data = services.compute_balance_sheet(company_id, as_of_date)
+
+    if fmt == 'pdf':
+        return pdf_response(request, 'reports/balance_sheet.html', data, f'balance-sheet-{as_of_date}')
+    if fmt == 'xlsx':
+        headers = ['Account', 'Type', 'Balance (N)']
+        xlsx_rows = []
+        for section_label, items, total_key in [
+            ('ASSETS', data['assets'], 'total_assets'),
+            ('LIABILITIES', data['liabilities'], 'total_liabilities'),
+            ('EQUITY', data['equity'], 'total_equity'),
+        ]:
+            xlsx_rows.append([section_label, '', ''])
+            xlsx_rows += [[r['name'], r['account_type'], r['balance']] for r in items]
+            xlsx_rows.append([f'Total {section_label.title()}', '', data[total_key]])
+        return xlsx_response(request, headers, xlsx_rows, f'balance-sheet-{as_of_date}', 'Balance Sheet')
+    return JsonResponse(data)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def gl_detail(request):
+    company_id = get_active_company_id(request)
+    if not company_id:
+        return JsonResponse({'detail': 'No active company.'}, status=400)
+    account_id = request.query_params.get('account_id', '')
+    date_from = request.query_params.get('date_from', '')
+    date_to = request.query_params.get('date_to', '')
+    fmt = request.query_params.get('format', 'json')
+    if not account_id or not date_from or not date_to:
+        return JsonResponse({'detail': 'account_id, date_from, and date_to are required.'}, status=400)
+    if not _parse_date(date_from, 'date_from') or not _parse_date(date_to, 'date_to'):
+        return JsonResponse({'detail': 'Invalid date format. Use YYYY-MM-DD.'}, status=400)
+
+    data = services.compute_gl_detail(company_id, account_id, date_from, date_to)
+    if data is None:
+        return JsonResponse({'detail': 'Account not found.'}, status=404)
+
+    if fmt == 'pdf':
+        return pdf_response(
+            request, 'reports/gl_detail.html', data,
+            f'gl-detail-{data["account_code"]}-{date_from}-{date_to}'
+        )
+    if fmt == 'xlsx':
+        headers = ['Date', 'Reference', 'Description', 'Type', 'Side', 'Amount (N)', 'Running Balance (N)']
+        xlsx_rows = [
+            [line['date'], line['reference'], line['entry_description'],
+             line['entry_type'] or 'MANUAL', line['side'], line['amount'], line['running_balance']]
+            for line in data['lines']
+        ]
+        xlsx_rows.append(['', '', '', '', 'CLOSING BALANCE', '', data['closing_balance']])
+        return xlsx_response(
+            request, headers, xlsx_rows,
+            f'gl-detail-{data["account_code"]}-{date_from}-{date_to}', f'GL {data["account_code"]}'
+        )
+    return JsonResponse(data)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def dashboard(request):
+    from neomodel import db
+
+    company_id = get_active_company_id(request)
+    if not company_id:
+        return JsonResponse({'detail': 'No active company.'}, status=400)
+
+    # Balances per account type (group by type and normal_balance)
+    results, _ = db.cypher_query("""
+        MATCH (a:Account {company_id: $company_id}) WHERE a.is_active = true
+        OPTIONAL MATCH (e:JournalEntry {company_id: $company_id})-[:HAS_LINE]->(l:JournalLine)-[:AFFECTS_ACCOUNT]->(a)
+        WHERE e.status = 'POSTED'
+        RETURN a.account_type, a.normal_balance,
+               coalesce(sum(CASE WHEN l.side = 'DEBIT' THEN l.amount ELSE 0 END), 0) AS debits,
+               coalesce(sum(CASE WHEN l.side = 'CREDIT' THEN l.amount ELSE 0 END), 0) AS credits
+    """, {'company_id': company_id})
+
+    ASSET_TYPES = {'Current Assets', 'Non-Current Assets'}
+    LIABILITY_TYPES = {'Current Liabilities', 'Non-Current Liabilities'}
+
+    total_assets = 0.0
+    total_liabilities = 0.0
+
+    for acc_type, normal_balance, debits, credits in results:
+        if normal_balance == 'DEBIT':
+            balance = (debits or 0.0) - (credits or 0.0)
+        else:
+            balance = (credits or 0.0) - (debits or 0.0)
+        if acc_type in ASSET_TYPES:
+            total_assets += balance
+        elif acc_type in LIABILITY_TYPES:
+            total_liabilities += balance
+
+    # AP outstanding: POSTED or PARTIAL PurchaseInvoices
+    ap_results, _ = db.cypher_query(
+        "MATCH (inv:PurchaseInvoice {company_id: $company_id}) WHERE inv.status IN ['POSTED', 'PARTIAL'] "
+        "RETURN coalesce(sum(inv.total_amount - inv.amount_paid), 0.0)",
+        {'company_id': company_id}
+    )
+    ap_outstanding = float(ap_results[0][0]) if ap_results else 0.0
+
+    # AR outstanding: POSTED or PARTIAL SalesInvoices
+    ar_results, _ = db.cypher_query(
+        "MATCH (inv:SalesInvoice {company_id: $company_id}) WHERE inv.status IN ['POSTED', 'PARTIAL'] "
+        "RETURN coalesce(sum(inv.total_amount - inv.amount_received), 0.0)",
+        {'company_id': company_id}
+    )
+    ar_outstanding = float(ar_results[0][0]) if ar_results else 0.0
+
+    # Recent 10 POSTED journal entries
+    je_results, _ = db.cypher_query("""
+        MATCH (e:JournalEntry {company_id: $company_id}) WHERE e.status = 'POSTED'
+        RETURN e.entry_id, e.reference, e.date, e.description, e.total_debit
+        ORDER BY e.date DESC, e.created_at DESC LIMIT 10
+    """, {'company_id': company_id})
+    recent_entries = [
+        {
+            'entry_id': r[0],
+            'reference': r[1],
+            'date': str(r[2]),
+            'description': r[3],
+            'total_debit': r[4] or 0.0,
+        }
+        for r in je_results
+    ]
+
+    return JsonResponse({
+        'total_assets': round(total_assets, 2),
+        'total_liabilities': round(total_liabilities, 2),
+        'net_equity': round(total_assets - total_liabilities, 2),
+        'ap_outstanding': round(ap_outstanding, 2),
+        'ar_outstanding': round(ar_outstanding, 2),
+        'recent_entries': recent_entries,
+    })

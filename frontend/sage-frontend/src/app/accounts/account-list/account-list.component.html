@@ -1,0 +1,160 @@
+<div class="card">
+  <div class="card-header">
+    <h2>Chart of Accounts</h2>
+  </div>
+  <div class="card-body">
+    <div class="form-row">
+      <div class="form-full">
+        <h3 style="margin:0 0 1rem;font-family:var(--font-serif);color:var(--burgundy-deep);display:flex;justify-content:space-between;align-items:center;">
+          Chart of Accounts
+          <div style="display:flex;gap:0.5rem;">
+            <button (click)="exportFile('pdf')"
+              class="btn-secondary"
+              style="padding:0.5rem 1rem;font-size:0.85rem;">
+              Export PDF
+            </button>
+            <button (click)="exportFile('xlsx')"
+              class="btn-secondary"
+              style="padding:0.5rem 1rem;font-size:0.85rem;">
+              Export XLSX
+            </button>
+            @if (canManage) {
+              <button (click)="toggleForm()"
+                class="btn-primary lift-on-hover"
+                style="padding:0.5rem 1rem;font-size:0.85rem;">
+                {{ showForm ? 'Cancel' : '+ New' }}
+              </button>
+            }
+          </div>
+        </h3>
+      </div>
+    </div>
+
+    @if (showForm) {
+      <div class="form-container" style="background:var(--cream-dark);padding:1.5rem;border-radius:var(--radius-lg);margin-bottom:1.5rem;border:1px solid var(--gray-light);">
+        <h3 style="margin:0 0 1rem;font-family:var(--font-serif);color:var(--burgundy-deep);font-size:1.25rem;">
+          {{ isEditMode ? 'Edit Account' : 'New Account' }}
+        </h3>
+        @if (formError) {
+          <p style="color:var(--error);margin:0 0 .75rem;font-size:0.875rem;background:rgba(198, 40, 40, 0.1);padding:0.5rem;border-radius:var(--radius-sm);border-left:3px solid var(--error);">
+            {{ formError }}
+          </p>
+        }
+        <div class="form-row">
+          <div>
+            <label style="display:block;font-size:0.85rem;color:var(--charcoal-light);margin-bottom:0.25rem;font-weight:500;">Name *</label>
+            <input [(ngModel)]="form.name" placeholder="Account name"
+              style="width:100%;padding:0.75rem;border:1px solid var(--gray-light);border-radius:var(--radius-sm);box-sizing:border-box;font-family:var(--font-sans);" />
+          </div>
+          <div>
+            <label style="display:block;font-size:0.85rem;color:var(--charcoal-light);margin-bottom:0.25rem;font-weight:500;">Type *</label>
+            <select [(ngModel)]="form.account_type"
+              style="width:100%;padding:0.75rem;border:1px solid var(--gray-light);border-radius:var(--radius-sm);box-sizing:border-box;font-family:var(--font-sans);">
+              @for (t of accountTypes; track t) {
+                <option [value]="t">{{ t }}</option>
+              }
+            </select>
+          </div>
+          <div class="form-full">
+            <label style="display:block;font-size:0.85rem;color:var(--charcoal-light);margin-bottom:0.25rem;font-weight:500;">Description</label>
+            <input [(ngModel)]="form.description" placeholder="Optional description"
+              style="width:100%;padding:0.75rem;border:1px solid var(--gray-light);border-radius:var(--radius-sm);box-sizing:border-box;font-family:var(--font-sans);" />
+          </div>
+          <div>
+            <label style="display:block;font-size:0.85rem;color:var(--charcoal-light);margin-bottom:0.25rem;font-weight:500;">Normal Balance</label>
+            <div style="padding:0.75rem;background:var(--cream);border-radius:var(--radius-sm);font-size:0.875rem;color:var(--charcoal-light);border:1px solid var(--gray-light);">
+              {{ normalBalancePreview }} <span style="color:var(--charcoal);font-size:0.75rem;">(auto)</span>
+            </div>
+          </div>
+        </div>
+        <div style="display:flex;gap:0.75rem;margin-top:1rem;">
+          <button (click)="submitForm()" [disabled]="!form.name || !form.account_type || saving"
+            class="btn-primary lift-on-hover"
+            style="padding:0.75rem 1.5rem;font-size:0.9rem;flex:1;">
+            {{ saving ? (isEditMode ? 'Saving…' : 'Creating…') : (isEditMode ? 'Save Changes' : 'Create Account') }}
+          </button>
+          <button (click)="cancelForm()"
+            type="button"
+            class="btn-secondary"
+            style="padding:0.75rem 1.5rem;font-size:0.9rem;">
+            Cancel
+          </button>
+        </div>
+      </div>
+    }
+
+    @if (loading) {
+      <div style="text-align:center;padding:2rem;color:var(--charcoal-light);font-style:italic;">
+        Loading accounts…
+      </div>
+    }
+    @if (error) {
+      <div style="background:rgba(198, 40, 40, 0.1);color:var(--error);padding:1rem;border-radius:var(--radius-sm);border-left:3px solid var(--error);margin-bottom:1.5rem;">
+        {{ error }}
+      </div>
+    }
+    @if (!loading && !error) {
+      <table class="data-table lift-on-hover">
+        <thead>
+          <tr>
+            <th>Code</th>
+            <th>Name</th>
+            <th>Type</th>
+            <th>Normal Balance</th>
+            <th style="text-align:right">Balance (₦)</th>
+            @if (canManage) {
+              <th style="width:180px;">Actions</th>
+            }
+          </tr>
+        </thead>
+        <tbody>
+          @for (account of accounts | paginate:page:pageSize; track account.account_id) {
+            <tr class="lift-on-hover">
+              <td style="font-family:monospace;font-weight:500;">{{ account.code }}</td>
+              <td>
+                <a [routerLink]="['/accounts', account.account_id]"
+                   style="color:var(--navy-primary);text-decoration:none;font-weight:500;">
+                  {{ account.name }}
+                </a>
+              </td>
+              <td>{{ account.account_type }}</td>
+              <td>{{ account.normal_balance }}</td>
+              <td style="text-align:right;font-family:var(--font-mono);font-size:.875rem"
+                  [style.color]="account.balance >= 0 ? 'var(--navy-primary)' : 'var(--danger)'">
+                {{ account.balance | number:'1.2-2' }}
+              </td>
+              @if (canManage) {
+                <td>
+                  <div style="display:flex;gap:0.5rem;">
+                    <button type="button"
+                      (click)="startEdit(account)"
+                      class="btn-secondary"
+                      style="padding:0.45rem 0.75rem;font-size:0.8rem;">
+                      Edit
+                    </button>
+                    @if (canDelete) {
+                      <button type="button"
+                        (click)="deleteAccount(account)"
+                        class="btn-danger"
+                        style="padding:0.45rem 0.75rem;font-size:0.8rem;">
+                        Delete
+                      </button>
+                    }
+                  </div>
+                </td>
+              }
+            </tr>
+          }
+          @empty {
+            <tr>
+              <td [attr.colspan]="canManage ? 6 : 5" style="padding:2rem;text-align:center;color:var(--charcoal-light);font-style:italic;">
+                No accounts yet. Click "+ New" to add your first account.
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+      <app-pagination [total]="accounts.length" [page]="page" [pageSize]="pageSize" (pageChange)="page = $event"></app-pagination>
+    }
+  </div>
+</div>

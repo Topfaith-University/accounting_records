@@ -1,6 +1,8 @@
 from pathlib import Path
+from datetime import timedelta
 from decouple import config
 from neomodel import config as neo_config
+import os
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -16,10 +18,17 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'rest_framework',
+    'rest_framework_simplejwt',
     'corsheaders',
     'banks',
     'accounts',
     'reports',
+    'journals',
+    'payables',
+    'receivables',
+    'budget',
+    'users',
+    'django_neomodel',
 ]
 
 MIDDLEWARE = [
@@ -31,6 +40,7 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    # 'django_neomodel.middleware.NeomodelMiddleware',
 ]
 
 ROOT_URLCONF = 'config.urls'
@@ -38,7 +48,7 @@ ROOT_URLCONF = 'config.urls'
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [],
+        'DIRS': [BASE_DIR / 'config' / 'templates'],
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
@@ -79,6 +89,31 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # Neo4j config
 neo_config.DATABASE_URL = config('NEO4J_BOLT_URL')
+NEOMODEL_NEO4J_BOLT_URL = os.getenv(
+    'NEO4J_BOLT_URL', 'bolt://neo4j:password@localhost:7687')
+NEOMODEL_SIGNALS = True  # optional, allows Django-like signals
+NEOMODEL_ENCRYPTED_CONNECTION = False
 
 # CORS
 CORS_ALLOW_ALL_ORIGINS = True
+
+REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': [
+        'rest_framework_simplejwt.authentication.JWTAuthentication',
+    ],
+    'DEFAULT_PERMISSION_CLASSES': [
+        'rest_framework.permissions.IsAuthenticated',
+    ],
+    'DEFAULT_RENDERER_CLASSES': [
+        'rest_framework.renderers.JSONRenderer',
+    ],
+    'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
+    'PAGE_SIZE': 50,
+    'URL_FORMAT_OVERRIDE': None,
+}
+
+SIMPLE_JWT = {
+    'ACCESS_TOKEN_LIFETIME': timedelta(hours=8),
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
+    'ROTATE_REFRESH_TOKENS': True,
+}

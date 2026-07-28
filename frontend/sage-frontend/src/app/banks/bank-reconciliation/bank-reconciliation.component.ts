@@ -1,0 +1,99 @@
+import { Component, OnInit } from '@angular/core';
+import { CommonModule } from '@angular/common';
+import { ActivatedRoute } from '@angular/router';
+import { BanksService } from '../../services/banks.service';
+
+@Component({
+  selector: 'app-bank-reconciliation',
+  standalone: true,
+  imports: [CommonModule],
+  templateUrl: './bank-reconciliation.component.html',
+})
+export class BankReconciliationComponent implements OnInit {
+  recon: any = null;
+  lines: any[] = [];
+  loading = true;
+  error = '';
+  completing = false;
+  completeError = '';
+  toggleError = '';
+
+  private id = '';
+
+  constructor(
+    private route: ActivatedRoute,
+    private banksService: BanksService,
+  ) {}
+
+  async ngOnInit() {
+    this.id = this.route.snapshot.paramMap.get('id') ?? '';
+    try {
+      const data = await this.banksService.getReconciliation(this.id);
+      this.recon = data;
+      this.lines = data.lines ?? [];
+    } catch {
+      this.error = 'Failed to load reconciliation.';
+    } finally {
+      this.loading = false;
+    }
+  }
+
+  get reconciledDebits(): number {
+    return this.lines
+      .filter(l => l.is_reconciled && l.side === 'DEBIT')
+      .reduce((sum, l) => sum + +l.amount, 0);
+  }
+
+  get reconciledCredits(): number {
+    return this.lines
+      .filter(l => l.is_reconciled && l.side === 'CREDIT')
+      .reduce((sum, l) => sum + +l.amount, 0);
+  }
+
+  get difference(): number {
+    const openingBalance = +(this.recon?.opening_balance ?? 0);
+    const bookBalance = openingBalance + this.reconciledDebits - this.reconciledCredits;
+    return Math.abs(bookBalance - +(this.recon?.statement_balance ?? 0));
+  }
+
+  get isBalanced(): boolean {
+    return this.difference < 0.01;
+  }
+
+  async toggleLine(line: any) {
+    if (this.recon?.status === 'COMPLETED') return;
+    this.toggleError = '';
+    try {
+      const result = await this.banksService.toggleLine(this.recon.reconciliation_id, line.line_id);
+      line.is_reconciled = result.is_reconciled;
+    } catch {
+      this.toggleError = 'Failed to toggle line.';
+    }
+  }
+
+  async complete() {
+    if (!this.isBalanced || this.recon?.status !== 'DRAFT') return;
+    this.completing = true;
+    this.completeError = '';
+    try {
+      const updated = await this.banksService.completeReconciliation(this.id);
+      this.recon = { ...this.recon, ...updated };
+    } catch (e: any) {
+      this.completeError = e.response?.data?.detail ?? (e.response?.data ? JSON.stringify(e.response.data) : 'Failed to complete reconciliation.');
+    } finally {
+      this.completing = false;
+    }
+  }
+
+  sideColor(side: string): string {
+    if (side === 'DEBIT') return '#1a73e8';
+    if (side === 'CREDIT') return '#10b981';
+    return '#333';
+  }
+
+  statusColor(status: string): string {
+    if (status === 'COMPLETED') return '#10b981';
+    if (status === 'DRAFT') return '#f59e0b';
+    return '#888';
+  }
+}

@@ -1,0 +1,75 @@
+@if (loading) { <p>Loading…</p> }
+@if (error) { <p style="color:red">{{ error }}</p> }
+@if (entry) {
+  <div style="max-width:900px">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:1.5rem">
+      <div>
+        <h2 style="margin:0 0 .25rem">{{ entry.reference }}</h2>
+        <span [style.color]="statusColor(entry.status)" style="font-weight:700;font-size:.875rem">{{ entry.status }}</span>
+      </div>
+      <div style="display:flex;gap:.75rem">
+        @if (canEditDraft) {
+          <button (click)="editEntry()"
+            style="padding:.5rem 1rem;background:#f0f0f5;border:1px solid #ccc;border-radius:4px;cursor:pointer">
+            Edit Entry
+          </button>
+          <button (click)="deleteEntry()"
+            style="padding:.5rem 1rem;background:#fff1f2;color:#b91c1c;border:1px solid #fecdd3;border-radius:4px;cursor:pointer">
+            Delete Draft
+          </button>
+        }
+        @if (entry.status === 'DRAFT') {
+          <button (click)="postEntry()"
+            style="padding:.5rem 1rem;background:#10b981;color:white;border:none;border-radius:4px;cursor:pointer">
+            Post Entry
+          </button>
+        }
+        @if (entry.status === 'POSTED') {
+          <button (click)="voidEntry()"
+            style="padding:.5rem 1rem;background:#ef4444;color:white;border:none;border-radius:4px;cursor:pointer">
+            Void Entry
+          </button>
+        }
+      </div>
+    </div>
+
+    @if (actionError) { <p style="color:red;margin-bottom:1rem">{{ actionError }}</p> }
+
+    <div style="background:white;border-radius:8px;padding:1.25rem;box-shadow:0 1px 4px rgba(0,0,0,.1);margin-bottom:1rem">
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:1rem;font-size:.875rem">
+        <div><span style="color:#888">Date</span><p style="margin:.25rem 0 0">{{ entry.date }}</p></div>
+        <div><span style="color:#888">Type</span><p style="margin:.25rem 0 0">{{ entry.entry_type }}</p></div>
+        <div><span style="color:#888">Created by</span><p style="margin:.25rem 0 0">{{ entry.created_by }}</p></div>
+        <div style="grid-column:1/-1"><span style="color:#888">Description</span><p style="margin:.25rem 0 0">{{ entry.description }}</p></div>
+      </div>
+    </div>
+
+    <table style="width:100%;border-collapse:collapse;background:white;border-radius:8px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.1)">
+      <thead style="background:#f0f0f5">
+        <tr>
+          <th style="text-align:left;padding:.75rem 1rem">Account</th>
+          <th style="text-align:left;padding:.75rem 1rem;width:100px">Side</th>
+          <th style="text-align:right;padding:.75rem 1rem;width:130px">Amount (₦)</th>
+          <th style="text-align:left;padding:.75rem 1rem">Memo</th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (line of entry.lines; track line.line_id) {
+          <tr style="border-top:1px solid #eee">
+            <td style="padding:.75rem 1rem">{{ line.account_code }} — {{ line.account_name }}</td>
+            <td style="padding:.75rem 1rem" [style.color]="line.side === 'DEBIT' ? '#1a73e8' : '#10b981'">{{ line.side }}</td>
+            <td style="padding:.75rem 1rem;text-align:right">{{ line.amount | number:'1.2-2' }}</td>
+            <td style="padding:.75rem 1rem;color:#888">{{ line.description }}</td>
+          </tr>
+        }
+      </tbody>
+      <tfoot style="background:#f9f9fb;border-top:2px solid #eee">
+        <tr>
+          <td colspan="2" style="padding:.75rem 1rem;font-weight:700">Total</td>
+          <td style="padding:.75rem 1rem;text-align:right;font-weight:700">₦{{ entry.total_debit | number:'1.2-2' }}</td>
+          <td></td>
+        </tr>
+      </tfoot>
+    </table>
+  </div>
+}

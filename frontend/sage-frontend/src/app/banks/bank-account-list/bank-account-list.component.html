@@ -1,0 +1,167 @@
+<div class="card" style="overflow:visible">
+  <div class="card-header">
+    <h2>Bank Accounts</h2>
+  </div>
+  <div class="card-body">
+    <div class="form-row">
+      <div class="form-full">
+        <h3 style="margin:0 0 1rem;font-family:var(--font-serif);color:var(--burgundy-deep);display:flex;justify-content:space-between;align-items:center;">
+          Bank Accounts
+          <div style="display:flex;gap:0.5rem;">
+            <button (click)="exportFile('pdf')"
+              class="btn-secondary"
+              style="padding:0.5rem 1rem;font-size:0.85rem;">
+              Export PDF
+            </button>
+            <button (click)="exportFile('xlsx')"
+              class="btn-secondary"
+              style="padding:0.5rem 1rem;font-size:0.85rem;">
+              Export XLSX
+            </button>
+            @if (canManage) {
+              <button (click)="toggleForm()"
+                class="btn-primary lift-on-hover"
+                style="padding:0.5rem 1rem;font-size:0.85rem;">
+                {{ showForm ? 'Cancel' : '+ New' }}
+              </button>
+            }
+          </div>
+        </h3>
+      </div>
+    </div>
+
+    @if (showForm) {
+      <div class="form-container" style="background:var(--cream-dark);padding:1.5rem;border-radius:var(--radius-lg);margin-bottom:1.5rem;border:1px solid var(--gray-light);">
+        <h3 style="margin:0 0 1rem;font-family:var(--font-serif);color:var(--burgundy-deep);font-size:1.25rem;">
+          {{ isEditMode ? 'Edit Bank Account' : 'New Bank Account' }}
+        </h3>
+        @if (formError) {
+          <p style="color:var(--error);margin:0 0 .75rem;font-size:0.875rem;background:rgba(198, 40, 40, 0.1);padding:0.5rem;border-radius:var(--radius-sm);border-left:3px solid var(--error);">
+            {{ formError }}
+          </p>
+        }
+        <div class="form-row">
+          <div>
+            <label style="display:block;font-size:0.85rem;color:var(--charcoal-light);margin-bottom:0.25rem;font-weight:500;">Account Name *</label>
+            <input [(ngModel)]="form.name" placeholder="e.g. GTBank Current Account"
+              style="width:100%;padding:0.75rem;border:1px solid var(--gray-light);border-radius:var(--radius-sm);box-sizing:border-box;font-family:var(--font-sans);" />
+          </div>
+          <div>
+            <label style="display:block;font-size:0.85rem;color:var(--charcoal-light);margin-bottom:0.25rem;font-weight:500;">Account Number</label>
+            <input [(ngModel)]="form.account_number" placeholder="0123456789"
+              style="width:100%;padding:0.75rem;border:1px solid var(--gray-light);border-radius:var(--radius-sm);box-sizing:border-box;font-family:var(--font-sans);font-family:monospace;" />
+          </div>
+          <div>
+            <label style="display:block;font-size:0.85rem;color:var(--charcoal-light);margin-bottom:0.25rem;font-weight:500;">Bank Name *</label>
+            <input [(ngModel)]="form.bank_name" placeholder="e.g. GTBank"
+              style="width:100%;padding:0.75rem;border:1px solid var(--gray-light);border-radius:var(--radius-sm);box-sizing:border-box;font-family:var(--font-sans);" />
+          </div>
+          <div>
+            <label style="display:block;font-size:0.85rem;color:var(--charcoal-light);margin-bottom:0.25rem;font-weight:500;">Opening Balance (₦)</label>
+            <input [(ngModel)]="form.opening_balance" type="number" min="0" step="0.01"
+              style="width:100%;padding:0.75rem;border:1px solid var(--gray-light);border-radius:var(--radius-sm);box-sizing:border-box;font-family:var(--font-sans);" />
+          </div>
+          <div>
+            <label style="display:block;font-size:0.85rem;color:var(--charcoal-light);margin-bottom:0.25rem;font-weight:500;">Opening Balance Date *</label>
+            <input [(ngModel)]="form.opening_balance_date" type="date"
+              style="width:100%;padding:0.75rem;border:1px solid var(--gray-light);border-radius:var(--radius-sm);box-sizing:border-box;font-family:var(--font-sans);" />
+          </div>
+          <div class="form-full">
+            <label style="display:block;font-size:0.85rem;color:var(--charcoal-light);margin-bottom:0.25rem;font-weight:500;">GL Account (Cash/Bank)</label>
+            <app-account-select
+              [ngModel]="form.gl_account_id_input"
+              (ngModelChange)="onGlAccountChange($event)"
+              [allAccounts]="allAccounts"
+              (accountsChanged)="allAccounts = $event"
+              placeholder="Search GL account (optional)…"
+            ></app-account-select>
+          </div>
+        </div>
+        <div style="display:flex;gap:0.75rem;margin-top:1rem;">
+          <button (click)="submitForm()" [disabled]="!form.name || !form.bank_name || !form.opening_balance_date || saving"
+            class="btn-primary lift-on-hover"
+            style="padding:0.75rem 1.5rem;font-size:0.9rem;flex:1;">
+            {{ saving ? (isEditMode ? 'Saving…' : 'Creating…') : (isEditMode ? 'Save Changes' : 'Create Bank Account') }}
+          </button>
+          <button type="button"
+            (click)="cancelForm()"
+            class="btn-secondary"
+            style="padding:0.75rem 1.5rem;font-size:0.9rem;">
+            Cancel
+          </button>
+        </div>
+      </div>
+    }
+
+    @if (loading) {
+      <div style="text-align:center;padding:2rem;color:var(--charcoal-light);font-style:italic;">
+        Loading bank accounts…
+      </div>
+    }
+    @if (error) {
+      <div style="background:rgba(198, 40, 40, 0.1);color:var(--error);padding:1rem;border-radius:var(--radius-sm);border-left:3px solid var(--error);margin-bottom:1.5rem;">
+        {{ error }}
+      </div>
+    }
+    @if (!loading && !error) {
+      <table class="data-table lift-on-hover">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Bank</th>
+            <th>Account No.</th>
+            <th style="text-align:right">Current Balance</th>
+            <th style="width:230px;">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (acct of accounts | paginate:page:pageSize; track acct.bank_account_id) {
+            <tr class="lift-on-hover">
+              <td>
+                <a [routerLink]="['/banks', acct.bank_account_id]" style="color:var(--teal-deep);font-weight:600;text-decoration:none;">
+                  {{ acct.name }}
+                </a>
+              </td>
+              <td>{{ acct.bank_name }}</td>
+              <td style="font-family:monospace;font-weight:500;">{{ acct.account_number }}</td>
+              <td style="text-align:right;font-weight:600;" [style.color]="acct.current_balance == null ? 'var(--charcoal-light)' : (acct.current_balance >= 0 ? 'inherit' : 'var(--error)')">
+                {{ acct.current_balance == null ? '—' : ('₦' + (acct.current_balance | number:'1.2-2')) }}
+              </td>
+              <td>
+                <div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
+                  <a [routerLink]="['/banks', acct.bank_account_id]"
+                    class="btn-secondary"
+                    style="padding:0.45rem 0.75rem;font-size:0.8rem;text-decoration:none;">
+                    View
+                  </a>
+                  @if (canManage) {
+                    <button type="button"
+                      (click)="startEdit(acct)"
+                      class="btn-secondary"
+                      style="padding:0.45rem 0.75rem;font-size:0.8rem;">
+                      Edit
+                    </button>
+                    <button type="button"
+                      (click)="deleteAccount(acct)"
+                      class="btn-danger"
+                      style="padding:0.45rem 0.75rem;font-size:0.8rem;">
+                      Delete
+                    </button>
+                  }
+                </div>
+              </td>
+            </tr>
+          }
+          @empty {
+            <tr>
+              <td colspan="5" style="padding:2rem;text-align:center;color:var(--charcoal-light);font-style:italic;">
+                No bank accounts yet. Click "+ New" to add your first bank account.
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+      <app-pagination [total]="accounts.length" [page]="page" [pageSize]="pageSize" (pageChange)="page = $event"></app-pagination>
+    }
+  </div>
+</div>

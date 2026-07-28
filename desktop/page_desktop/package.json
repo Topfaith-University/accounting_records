@@ -1,0 +1,87 @@
+{
+  "name": "page-desktop",
+  "version": "1.0.0",
+  "description": "Page Desktop — offline accounting app for Topfaith University (Electron + Node/TypeScript + SQLite)",
+  "private": true,
+  "main": "dist/main/index.js",
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "build": "npm run typecheck && node build.js",
+    "build:frontend": "node build-frontend.js",
+    "dev": "npm run build && electron .",
+    "start": "electron .",
+    "pack": "npm run build && npm run build:frontend && electron-builder --dir",
+    "dist:win": "npm run build && npm run build:frontend && electron-builder --win portable",
+    "dist:mac": "npm run build && npm run build:frontend && electron-builder --mac zip"
+  },
+  "dependencies": {
+    "better-sqlite3": "^11.3.0",
+    "csv-parse": "^5.5.6",
+    "exceljs": "^4.4.0",
+    "express": "^4.21.0",
+    "jsonwebtoken": "^9.0.2",
+    "kysely": "^0.27.4",
+    "multer": "^1.4.5-lts.1",
+    "pdfmake": "^0.2.12"
+  },
+  "devDependencies": {
+    "@electron/rebuild": "^4.2.0",
+    "@types/better-sqlite3": "^7.6.11",
+    "@types/express": "^4.17.21",
+    "@types/jsonwebtoken": "^9.0.7",
+    "@types/multer": "^1.4.12",
+    "@types/node": "^22.7.4",
+    "@types/pdfmake": "^0.2.9",
+    "electron": "^32.1.2",
+    "electron-builder": "^25.0.5",
+    "esbuild": "^0.28.1",
+    "tsx": "^4.23.1",
+    "typescript": "^5.6.2"
+  },
+  "build": {
+    "appId": "org.topfaith.pagedesktop",
+    "productName": "Page Desktop",
+    "directories": {
+      "output": "release",
+      "buildResources": "build"
+    },
+    "files": [
+      "dist/**/*",
+      "frontend-dist/**/*",
+      "package.json",
+      "node_modules/better-sqlite3/**/*",
+      "node_modules/bindings/**/*",
+      "node_modules/file-uri-to-path/**/*"
+    ],
+    "asarUnpack": [
+      "**/*.node"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "artifactName": "PageDesktop-${version}-portable.${ext}"
+    },
+    "portable": {
+      "artifactName": "PageDesktop-${version}-portable.${ext}"
+    },
+    "mac": {
+      "target": [
+        {
+          "target": "zip",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        }
+      ],
+      "category": "public.app-category.finance",
+      "artifactName": "PageDesktop-${version}-${arch}.${ext}"
+    }
+  }
+}

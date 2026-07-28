@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  body { font-family: Arial, sans-serif; font-size: 11px; margin: 20px; color: #1a1a2e; }
+  h1 { font-size: 16px; margin: 0 0 4px; }
+  .subtitle { color: #555; margin: 0 0 16px; font-size: 10px; }
+  table { width: 100%; border-collapse: collapse; }
+  th { background: #1a1a2e; color: white; padding: 6px 8px; text-align: left; font-size: 10px; }
+  th:nth-child(5), th:nth-child(6),
+  td:nth-child(5), td:nth-child(6) { text-align: right; }
+  td { padding: 5px 8px; border-bottom: 1px solid #eee; }
+  tr:nth-child(even) td { background: #f9f9fb; }
+  .debit { color: #1a73e8; }
+  .credit { color: #10b981; }
+  tfoot td { font-weight: bold; background: #f0f0f5; border-top: 2px solid #1a1a2e; }
+</style>
+</head>
+<body>
+{% include "shared/_pdf_letterhead.html" %}
+<h1>General Ledger Detail</h1>
+<p class="subtitle">{{ account_code }} — {{ account_name }} | Period: {{ date_from }} to {{ date_to }}</p>
+<table>
+  <thead>
+    <tr>
+      <th>Date</th><th>Reference</th><th>Description</th><th>Side</th>
+      <th>Amount (&#8358;)</th><th>Running Balance (&#8358;)</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for line in lines %}
+    <tr>
+      <td>{{ line.date }}</td>
+      <td>{{ line.reference }}</td>
+      <td>{{ line.entry_description }}</td>
+      <td class="{% if line.side == 'DEBIT' %}debit{% else %}credit{% endif %}">{{ line.side }}</td>
+      <td>{{ line.amount|floatformat:2 }}</td>
+      <td>{{ line.running_balance|floatformat:2 }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+  <tfoot>
+    <tr>
+      <td colspan="5">Closing Balance</td>
+      <td>{{ closing_balance|floatformat:2 }}</td>
+    </tr>
+  </tfoot>
+</table>
+</body>
+</html>

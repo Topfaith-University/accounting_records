@@ -1,0 +1,90 @@
+<div style="max-width:960px">
+  <h2 style="margin:0 0 1.5rem;font-family:var(--font-serif);color:var(--navy-deep)">{{ isEditMode ? 'Edit Journal Entry' : 'New Journal Entry' }}</h2>
+  @if (error) { <p style="color:var(--danger);margin-bottom:1rem;font-size:.875rem">{{ error }}</p> }
+
+  <form [formGroup]="form">
+    <!-- Header fields -->
+    <div class="card" style="padding:1.25rem;margin-bottom:1rem">
+      <div>
+        <label style="display:block;font-size:.8rem;font-weight:700;color:var(--text-muted);margin-bottom:.3rem">Date *</label>
+        <input formControlName="date" type="date"
+          style="width:220px;padding:.5rem .75rem;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-family:var(--font-body);font-size:.875rem;box-sizing:border-box" />
+      </div>
+    </div>
+
+    <!-- Lines table -->
+    <div class="card" style="margin-bottom:1rem;overflow:visible">
+      <table style="width:100%;border-collapse:collapse">
+        <thead style="background:var(--navy-subtle)">
+          <tr>
+            <th style="text-align:left;padding:.75rem 1rem;font-size:.8rem;font-weight:700;color:var(--navy-deep)">Debit</th>
+            <th style="text-align:right;padding:.75rem 1rem;font-size:.8rem;font-weight:700;color:var(--navy-deep);width:160px">Amount (₦)</th>
+            <th style="text-align:left;padding:.75rem 1rem;font-size:.8rem;font-weight:700;color:var(--navy-deep)">Credit</th>
+            <th style="text-align:left;padding:.75rem 1rem;font-size:.8rem;font-weight:700;color:var(--navy-deep)">Description</th>
+            <th style="width:40px"></th>
+          </tr>
+        </thead>
+        <tbody formArrayName="lines">
+          @for (line of lines.controls; track $index) {
+            <tr [formGroupName]="$index" style="border-top:1px solid var(--border)">
+              <td style="padding:.5rem 1rem;overflow:visible">
+                <app-account-select
+                  formControlName="from_account_id"
+                  [allAccounts]="allAccounts"
+                  (accountsChanged)="allAccounts = $event"
+                  placeholder="Search account…"
+                ></app-account-select>
+              </td>
+              <td style="padding:.5rem 1rem">
+                <input formControlName="amount" type="number" min="0.01" step="0.01" placeholder="0.00"
+                  style="width:100%;padding:.4rem .5rem;border:1.5px solid var(--border);border-radius:var(--radius-xs);font-family:var(--font-mono);font-size:.875rem;text-align:right;box-sizing:border-box" />
+              </td>
+              <td style="padding:.5rem 1rem;overflow:visible">
+                <app-account-select
+                  formControlName="to_account_id"
+                  [allAccounts]="allAccounts"
+                  (accountsChanged)="allAccounts = $event"
+                  placeholder="Search account…"
+                ></app-account-select>
+              </td>
+              <td style="padding:.5rem 1rem">
+                <input formControlName="description" placeholder="optional"
+                  style="width:100%;padding:.4rem .5rem;border:1.5px solid var(--border);border-radius:var(--radius-xs);font-family:var(--font-body);font-size:.875rem;box-sizing:border-box" />
+              </td>
+              <td style="padding:.5rem;text-align:center">
+                <button type="button" (click)="removeLine($index)" [disabled]="lines.length <= 1"
+                  [style.opacity]="lines.length <= 1 ? '0.3' : '1'"
+                  style="background:none;border:none;color:var(--danger);cursor:pointer;font-size:1rem;line-height:1">✕</button>
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:.75rem 1rem;background:var(--navy-subtle);border-top:1px solid var(--border)">
+        <button type="button" (click)="addLine()"
+          style="background:none;border:1.5px dashed var(--border-strong);padding:.375rem .875rem;border-radius:var(--radius-sm);cursor:pointer;color:var(--text-secondary);font-size:.875rem;font-family:var(--font-body)">
+          + Add line
+        </button>
+        <div style="display:flex;gap:2rem;font-size:.9rem;font-family:var(--font-mono)">
+          <span>Total: <strong>₦{{ totalAmount | number:'1.2-2' }}</strong></span>
+          <span [style.color]="isBalanced ? '#10b981' : 'var(--text-muted)'" style="font-weight:700">
+            {{ isBalanced ? '✓ Ready' : '✗ Incomplete' }}
+          </span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Actions -->
+    <div style="display:flex;gap:.75rem">
+      <button type="button" (click)="save()" [disabled]="!form.valid || !isBalanced || saving"
+        class="btn-secondary" style="padding:.625rem 1.25rem">
+        {{ saving ? 'Saving…' : (isEditMode ? 'Save Changes' : 'Save as Draft') }}
+      </button>
+      <button type="button" (click)="saveAndPost()" [disabled]="!form.valid || !isBalanced || posting"
+        class="btn-primary" style="padding:.625rem 1.25rem">
+        {{ posting ? 'Posting…' : 'Save & Post' }}
+      </button>
+    </div>
+  </form>
+</div>

@@ -1,0 +1,67 @@
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem">
+  <h2 style="margin:0">Journal Entries</h2>
+  <div style="display:flex;gap:.5rem">
+    <button (click)="exportFile('pdf')"
+      style="background:white;color:#555;padding:.5rem 1rem;border:1px solid #ccc;border-radius:4px;cursor:pointer;font-size:.875rem">
+      Export PDF
+    </button>
+    <button (click)="exportFile('xlsx')"
+      style="background:white;color:#555;padding:.5rem 1rem;border:1px solid #ccc;border-radius:4px;cursor:pointer;font-size:.875rem">
+      Export XLSX
+    </button>
+    <a routerLink="/journals/new"
+       style="background:#1a73e8;color:white;padding:.5rem 1rem;border-radius:4px;text-decoration:none;font-size:.875rem">
+      + New Entry
+    </a>
+  </div>
+</div>
+
+<div style="display:flex;gap:.5rem;margin-bottom:1rem">
+  @for (tab of tabs; track tab) {
+    <button (click)="setTab(tab)"
+      [style.background]="activeTab === tab ? '#1a1a2e' : 'white'"
+      [style.color]="activeTab === tab ? 'white' : '#555'"
+      style="padding:.375rem .875rem;border:1px solid #ccc;border-radius:4px;cursor:pointer;font-size:.875rem">
+      {{ tab }}
+    </button>
+  }
+</div>
+
+@if (loading) { <p>Loading&#8230;</p> }
+@if (error) { <p style="color:red">{{ error }}</p> }
+@if (!loading && !error) {
+  <div style="background:white;border-radius:8px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.1)">
+    <table style="width:100%;border-collapse:collapse">
+      <thead style="background:#f0f0f5">
+        <tr>
+          <th style="text-align:left;padding:.75rem 1rem">Reference</th>
+          <th style="text-align:left;padding:.75rem 1rem">Date</th>
+          <th style="text-align:left;padding:.75rem 1rem">Description</th>
+          <th style="text-align:right;padding:.75rem 1rem">Debit</th>
+          <th style="text-align:right;padding:.75rem 1rem">Credit</th>
+          <th style="text-align:left;padding:.75rem 1rem">Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (entry of entries | paginate:page:pageSize; track entry.entry_id) {
+          <tr style="border-top:1px solid #eee;cursor:pointer" [routerLink]="['/journals', entry.entry_id]">
+            <td style="padding:.75rem 1rem;font-family:monospace">{{ entry.reference }}</td>
+            <td style="padding:.75rem 1rem">{{ entry.date }}</td>
+            <td style="padding:.75rem 1rem">{{ entry.description }}</td>
+            <td style="padding:.75rem 1rem;text-align:right">{{ entry.total_debit | number:'1.2-2' }}</td>
+            <td style="padding:.75rem 1rem;text-align:right">{{ entry.total_credit | number:'1.2-2' }}</td>
+            <td style="padding:.75rem 1rem">
+              <span [style.color]="statusColor(entry.status)" style="font-weight:600;font-size:.8rem">
+                {{ entry.status }}
+              </span>
+            </td>
+          </tr>
+        }
+        @empty {
+          <tr><td colspan="6" style="padding:1rem;text-align:center;color:#888">No entries found.</td></tr>
+        }
+      </tbody>
+    </table>
+    <app-pagination [total]="entries.length" [page]="page" [pageSize]="pageSize" (pageChange)="page = $event"></app-pagination>
+  </div>
+}

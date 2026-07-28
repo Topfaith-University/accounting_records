@@ -1,0 +1,103 @@
+<div style="display:flex;height:100vh">
+  <nav class="nav-sidebar">
+    <!-- Brand -->
+    <div class="nav-brand">
+      <div class="nav-brand-wordmark">Pa<span>ge</span></div>
+      <div class="nav-brand-sub">{{ companyName }}</div>
+    </div>
+
+    <!-- Scrollable nav body -->
+    <div class="nav-body">
+      <a routerLink="/dashboard" routerLinkActive="active-link" [routerLinkActiveOptions]="{exact:true}"
+         class="nav-link">Dashboard</a>
+
+      <!-- Ledger -->
+      <button class="nav-section-btn" (click)="toggle('gl')">
+        Ledger
+        <span class="nav-chevron" [style.transform]="open['gl'] ? 'rotate(90deg)' : 'rotate(0deg)'">&#9654;</span>
+      </button>
+      @if (open['gl']) {
+        <a routerLink="/accounts" routerLinkActive="active-link" class="nav-child-link">Chart of Accounts</a>
+        <a routerLink="/journals" routerLinkActive="active-link" class="nav-child-link">Journal Entries</a>
+      }
+
+      <!-- Banking -->
+      <button class="nav-section-btn" (click)="toggle('banking')" style="margin-top:.25rem">
+        Banking
+        <span class="nav-chevron" [style.transform]="open['banking'] ? 'rotate(90deg)' : 'rotate(0deg)'">&#9654;</span>
+      </button>
+      @if (open['banking']) {
+        <a routerLink="/banks" routerLinkActive="active-link" class="nav-child-link">Bank Accounts</a>
+        <a routerLink="/banks/transactions" routerLinkActive="active-link" class="nav-child-link">Transactions</a>
+        <a routerLink="/banks/import" routerLinkActive="active-link" class="nav-child-link">Import Statement</a>
+      }
+
+      <!-- Reports -->
+      <button class="nav-section-btn" (click)="toggle('reports')">
+        Reports
+        <span class="nav-chevron" [style.transform]="open['reports'] ? 'rotate(90deg)' : 'rotate(0deg)'">&#9654;</span>
+      </button>
+      @if (open['reports']) {
+        <a routerLink="/reports/trial-balance" routerLinkActive="active-link" class="nav-child-link">Trial Balance</a>
+        <a routerLink="/reports/income-statement" routerLinkActive="active-link" class="nav-child-link">Income Statement</a>
+        <a routerLink="/reports/balance-sheet" routerLinkActive="active-link" class="nav-child-link">Balance Sheet</a>
+        <a routerLink="/reports/gl-detail" routerLinkActive="active-link" class="nav-child-link">GL Detail</a>
+      }
+
+      <!-- Payables -->
+      <button class="nav-section-btn" (click)="toggle('payables')">
+        Payables
+        <span class="nav-chevron" [style.transform]="open['payables'] ? 'rotate(90deg)' : 'rotate(0deg)'">&#9654;</span>
+      </button>
+      @if (open['payables']) {
+        <a routerLink="/payables/invoices" routerLinkActive="active-link" class="nav-child-link">AP Invoices</a>
+        <a routerLink="/payables/items" routerLinkActive="active-link" class="nav-child-link">Items</a>
+        <a routerLink="/payables/vendors" routerLinkActive="active-link" class="nav-child-link">Vendors</a>
+      }
+
+      <!-- Receivables -->
+      <button class="nav-section-btn" (click)="toggle('receivables')">
+        Receivables
+        <span class="nav-chevron" [style.transform]="open['receivables'] ? 'rotate(90deg)' : 'rotate(0deg)'">&#9654;</span>
+      </button>
+      @if (open['receivables']) {
+        <a routerLink="/receivables/invoices" routerLinkActive="active-link" class="nav-child-link">AR Invoices</a>
+        <a routerLink="/receivables/customers" routerLinkActive="active-link" class="nav-child-link">Customers</a>
+      }
+
+      <!-- Budget -->
+      <button class="nav-section-btn" (click)="toggle('budget')">
+        Budget
+        <span class="nav-chevron" [style.transform]="open['budget'] ? 'rotate(90deg)' : 'rotate(0deg)'">&#9654;</span>
+      </button>
+      @if (open['budget']) {
+        <a routerLink="/budget" routerLinkActive="active-link" class="nav-child-link">Budgets</a>
+      }
+      <!-- Administration (Manager / Admin only) -->
+      @if (isAdmin) {
+        <button class="nav-section-btn" (click)="toggle('admin')" style="margin-top:.25rem">
+          Administration
+          <span class="nav-chevron" [style.transform]="open['admin'] ? 'rotate(90deg)' : 'rotate(0deg)'">&#9654;</span>
+        </button>
+        @if (open['admin']) {
+          <a routerLink="/admin/invite-codes" routerLinkActive="active-link" class="nav-child-link">Invite Codes</a>
+          <a routerLink="/admin/members" routerLinkActive="active-link" class="nav-child-link">Team Members</a>
+        }
+      }
+    </div>
+
+    <!-- Footer -->
+    <div class="nav-footer">
+      <button (click)="switchCompany()" class="btn-secondary" style="width:100%;margin-bottom:.5rem">
+        {{ companyControlLabel }}
+      </button>
+      <button (click)="logout()" class="btn-secondary" style="width:100%">
+        Sign Out
+      </button>
+    </div>
+  </nav>
+
+  <main class="main-content">
+    <router-outlet></router-outlet>
+  </main>
+</div>

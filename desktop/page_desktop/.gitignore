@@ -1,0 +1,9 @@
+node_modules/
+dist/
+release/
+frontend-dist/
+data/
+PageDesktopData/
+*.sqlite3
+*.sqlite3-*
+.jwt-secret
