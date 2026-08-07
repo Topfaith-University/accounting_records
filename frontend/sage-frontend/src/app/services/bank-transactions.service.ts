@@ -6,12 +6,14 @@ import { API_ROOT } from './api-base';
 export class BankTransactionsService {
   private baseUrl = `${API_ROOT}banks/transactions/`;
 
-  getAll(bankAccountId?: string, dateFrom?: string, dateTo?: string) {
-    const params: Record<string, string> = {};
-    if (bankAccountId) params['bank_account_id'] = bankAccountId;
-    if (dateFrom) params['date_from'] = dateFrom;
-    if (dateTo) params['date_to'] = dateTo;
-    return axios.get(this.baseUrl, { params }).then(r => r.data);
+  getAll(params: { bankAccountId?: string; dateFrom?: string; dateTo?: string; page?: number; pageSize?: number } = {}) {
+    const p: Record<string, string | number> = {};
+    if (params.bankAccountId) p['bank_account_id'] = params.bankAccountId;
+    if (params.dateFrom) p['date_from'] = params.dateFrom;
+    if (params.dateTo) p['date_to'] = params.dateTo;
+    if (params.page) p['page'] = params.page;
+    if (params.pageSize) p['page_size'] = params.pageSize;
+    return axios.get(this.baseUrl, { params: p }).then(r => r.data);
   }
 
   exportFile(params: Record<string, string>, format: 'csv' | 'xlsx', filename: string): Promise<void> {

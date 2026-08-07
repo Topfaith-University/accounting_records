@@ -2,7 +2,7 @@
   <div>
     <h1 class="page-title">Bank Transactions</h1>
     @if (hasFilter) {
-      <p class="page-subtitle">Filtered — {{ transactions.length }} result{{ transactions.length !== 1 ? 's' : '' }}</p>
+      <p class="page-subtitle">Filtered — {{ total }} result{{ total !== 1 ? 's' : '' }}</p>
     }
   </div>
   <div style="display:flex;gap:.5rem">
@@ -178,7 +178,7 @@
         </tr>
       </thead>
       <tbody>
-        @for (txn of transactions | paginate:page:pageSize; track txn.transaction_id) {
+        @for (txn of transactions; track txn.transaction_id) {
           <tr>
             <td class="mono">{{ txn.reference }}</td>
             <td>{{ txn.date }}</td>
@@ -205,6 +205,6 @@
         }
       </tbody>
     </table>
-    <app-pagination [total]="transactions.length" [page]="page" [pageSize]="pageSize" (pageChange)="page = $event"></app-pagination>
+    <app-pagination [total]="total" [page]="page" [pageSize]="pageSize" (pageChange)="onPageChange($event)"></app-pagination>
   </div>
 }

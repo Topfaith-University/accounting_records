@@ -33,6 +33,34 @@ def compute_bank_current_balance(bank_account_id: str, company_id: str) -> float
     return round((opening_balance or 0.0) + (source_movement or 0.0) + (dest_movement or 0.0), 2)
 
 
+def get_account_names_for_transactions(transaction_ids: list, company_id: str) -> dict:
+    """Maps transaction_id -> '; '-joined name(s) of the GL account(s) each
+    transaction posted against, excluding the source bank's own GL account —
+    i.e. the expense/revenue account a PAYMENT/RECEIPT split hit, or the
+    destination bank's GL account for a TRANSFER (bank GL accounts are named
+    after their bank, so this reads as the counterparty bank).
+    """
+    if not transaction_ids:
+        return {}
+    query = """
+        MATCH (t:BankTransaction {company_id: $company_id})-[:GENERATES_ENTRY]->(e:JournalEntry)
+              -[:HAS_LINE]->(l:JournalLine)-[:AFFECTS_ACCOUNT]->(a:Account)
+        WHERE t.transaction_id IN $ids
+        OPTIONAL MATCH (t)-[:FROM_BANK]->(:BankAccount)-[:MAPS_TO_ACCOUNT]->(source_gl:Account)
+        WITH t, a, source_gl
+        WHERE source_gl IS NULL OR a.account_id <> source_gl.account_id
+        RETURN t.transaction_id, a.name
+        ORDER BY t.transaction_id
+    """
+    results, _ = db.cypher_query(query, {'ids': transaction_ids, 'company_id': company_id})
+    names_by_txn = {}
+    for txn_id, name in results:
+        names_by_txn.setdefault(txn_id, [])
+        if name not in names_by_txn[txn_id]:
+            names_by_txn[txn_id].append(name)
+    return {txn_id: '; '.join(names) for txn_id, names in names_by_txn.items()}
+
+
 def get_bank_gl_lines(bank_account_id: str, company_id: str, recon_id: str = None) -> list:
     params = {'bank_account_id': bank_account_id, 'company_id': company_id}
 

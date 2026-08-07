@@ -3,6 +3,7 @@ from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from config.auth import get_active_company_id
+from config.pagination import parse_pagination_params, paginate_nodeset, paginated_response
 from .models import JournalEntry, FiscalYear, AccountingPeriod
 from .serializers import (
     JournalEntrySerializer, FiscalYearSerializer, AccountingPeriodSerializer
@@ -14,15 +15,30 @@ class JournalEntryViewSet(viewsets.ViewSet):
     permission_classes = [IsAuthenticated]
 
     def list(self, request):
+        from datetime import datetime
         company_id = get_active_company_id(request)
         if not company_id:
             return Response({'detail': 'No active company.'}, status=status.HTTP_400_BAD_REQUEST)
-        entries = JournalEntry.nodes.filter(company_id=company_id)
+        qs = JournalEntry.nodes.filter(company_id=company_id)
         entry_status = request.query_params.get('status')
         if entry_status:
-            entries = [e for e in entries if e.status == entry_status.upper()]
-        entries = sorted(entries, key=lambda e: str(e.date), reverse=True)
-        return Response(JournalEntrySerializer(entries, many=True).data)
+            qs = qs.filter(status=entry_status.upper())
+        date_from = request.query_params.get('date_from')
+        if date_from:
+            try:
+                qs = qs.filter(date__gte=datetime.strptime(date_from, '%Y-%m-%d').date())
+            except ValueError:
+                pass
+        date_to = request.query_params.get('date_to')
+        if date_to:
+            try:
+                qs = qs.filter(date__lte=datetime.strptime(date_to, '%Y-%m-%d').date())
+            except ValueError:
+                pass
+        qs = qs.order_by('-date')
+        page, page_size = parse_pagination_params(request)
+        total, entries = paginate_nodeset(qs, page, page_size)
+        return Response(paginated_response(total, page, page_size, JournalEntrySerializer(entries, many=True).data))
 
     def retrieve(self, request, pk=None):
         company_id = get_active_company_id(request)
@@ -91,18 +107,26 @@ class JournalEntryViewSet(viewsets.ViewSet):
     def export(self, request):
         from config.export_utils import xlsx_response, pdf_response
         company_id = get_active_company_id(request)
-        entries = list(JournalEntry.nodes.filter(company_id=company_id))
-        entries = sorted(entries, key=lambda e: str(e.date), reverse=True)
         fmt = request.query_params.get('format', 'xlsx')
-        headers = ['Reference', 'Date', 'Description', 'Debit (N)', 'Credit (N)', 'Status']
+        date_from = request.query_params.get('date_from') or None
+        date_to = request.query_params.get('date_to') or None
+        line_rows = services.get_export_lines(company_id, date_from, date_to)
+        headers = ['Reference', 'Date', 'Account', 'Description', 'Debit (N)', 'Credit (N)', 'Status']
         rows = [
-            [e.reference, str(e.date), e.description, e.total_debit, e.total_credit, e.status]
-            for e in entries
+            [r['reference'], r['date'], r['account'], r['description'], r['debit'], r['credit'], r['status']]
+            for r in line_rows
         ]
         if fmt == 'pdf':
-            ctx = {'rows': [dict(zip(
-                ['reference', 'date', 'description', 'total_debit', 'total_credit', 'status'], r
-            )) for r in rows]}
+            # weasyprint lays out every row in memory; a full-history line-level
+            # dump (tens of thousands of rows) has been observed to OOM-kill the
+            # backend. PDF is for skimming/printing — cap it and point to CSV/XLSX
+            # for the complete dataset.
+            PDF_ROW_LIMIT = 1000
+            ctx = {
+                'rows': line_rows[:PDF_ROW_LIMIT],
+                'truncated': len(line_rows) > PDF_ROW_LIMIT,
+                'total_count': len(line_rows),
+            }
             return pdf_response(request, 'journals/entry_list.html', ctx, 'journal-entries')
         return xlsx_response(request, headers, rows, 'journal-entries', 'Journal Entries')
 

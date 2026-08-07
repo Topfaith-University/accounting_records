@@ -3,6 +3,7 @@ from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from config.auth import get_active_company_id
+from config.pagination import parse_pagination_params, paginate_nodeset, paginated_response
 from .models import BankAccount, BankTransaction
 from .serializers import BankAccountSerializer, BankReconciliationSerializer, BankTransactionSerializer
 
@@ -217,34 +218,102 @@ class BankReconciliationViewSet(viewsets.ViewSet):
 class BankTransactionViewSet(viewsets.ViewSet):
     permission_classes = [IsAuthenticated]
 
-    def _query_transactions(self, company_id, bank_account_id=None, date_from=None, date_to=None):
-        from neomodel import db
-        if bank_account_id:
-            results, _ = db.cypher_query(
-                "MATCH (t:BankTransaction {company_id: $company_id})-[:FROM_BANK|TO_BANK]->(ba:BankAccount {bank_account_id: $id}) "
-                "RETURN DISTINCT t.transaction_id, t.created_at ORDER BY t.created_at DESC",
-                {'id': bank_account_id, 'company_id': company_id}
-            )
-            txns = [BankTransaction.nodes.get_or_none(transaction_id=row[0]) for row in results]
-        else:
-            txns = list(BankTransaction.nodes.filter(company_id=company_id))
-            txns = sorted(txns, key=lambda t: str(t.created_at), reverse=True)
-        txns = [t for t in txns if t]
+    def _build_transactions_qs(self, company_id, date_from=None, date_to=None):
+        """No bank_account_id filter — a plain neomodel NodeSet, pageable via
+        len(qs)/qs[skip:limit] without materializing the full company dataset.
+        """
+        from datetime import datetime
+        qs = BankTransaction.nodes.filter(company_id=company_id)
         if date_from:
-            txns = [t for t in txns if str(t.date) >= date_from]
+            try:
+                qs = qs.filter(date__gte=datetime.strptime(date_from, '%Y-%m-%d').date())
+            except ValueError:
+                pass
         if date_to:
-            txns = [t for t in txns if str(t.date) <= date_to]
-        return txns
+            try:
+                qs = qs.filter(date__lte=datetime.strptime(date_to, '%Y-%m-%d').date())
+            except ValueError:
+                pass
+        return qs.order_by('-created_at')
+
+    def _cypher_date_conditions(self, date_from=None, date_to=None):
+        """Relationship-traversal (bank_account_id) branch can't be a simple
+        NodeSet filter, so it stays raw Cypher. Returns (conditions, params)
+        for the optional date WHERE clauses shared by list() and export().
+        """
+        # DateProperty is stored as an ISO 'YYYY-MM-DD' string, not a native
+        # Neo4j Date — comparing it to date($x) is a type mismatch that
+        # silently matches nothing, so compare the strings directly.
+        conditions = []
+        params = {}
+        if date_from:
+            conditions.append("t.date >= $date_from")
+            params['date_from'] = date_from
+        if date_to:
+            conditions.append("t.date <= $date_to")
+            params['date_to'] = date_to
+        return conditions, params
+
+    def _paginated_bank_account_transactions(self, company_id, bank_account_id, date_from, date_to, page, page_size):
+        from neomodel import db
+        conditions, date_params = self._cypher_date_conditions(date_from, date_to)
+        where_clause = (' WHERE ' + ' AND '.join(conditions)) if conditions else ''
+        base_match = (
+            "MATCH (t:BankTransaction {company_id: $company_id})-[:FROM_BANK|TO_BANK]->"
+            "(ba:BankAccount {bank_account_id: $id})"
+        )
+        params = {'id': bank_account_id, 'company_id': company_id, **date_params}
+
+        count_results, _ = db.cypher_query(
+            f"{base_match}{where_clause} RETURN count(DISTINCT t)", params
+        )
+        total = int(count_results[0][0])
+
+        skip = (page - 1) * page_size
+        id_results, _ = db.cypher_query(
+            f"{base_match}{where_clause} RETURN DISTINCT t.transaction_id, t.created_at "
+            "ORDER BY t.created_at DESC SKIP $skip LIMIT $limit",
+            {**params, 'skip': skip, 'limit': page_size},
+        )
+        ordered_ids = [row[0] for row in id_results]
+        if not ordered_ids:
+            return total, []
+        # Batch-fetch the page in one query instead of one get_or_none() per row.
+        nodes = list(BankTransaction.nodes.filter(transaction_id__in=ordered_ids))
+        id_order = {tid: i for i, tid in enumerate(ordered_ids)}
+        nodes.sort(key=lambda t: id_order[t.transaction_id])
+        return total, nodes
+
+    def _export_bank_account_transactions(self, company_id, bank_account_id, date_from, date_to):
+        from neomodel import db
+        conditions, date_params = self._cypher_date_conditions(date_from, date_to)
+        where_clause = (' WHERE ' + ' AND '.join(conditions)) if conditions else ''
+        params = {'id': bank_account_id, 'company_id': company_id, **date_params}
+        results, _ = db.cypher_query(
+            "MATCH (t:BankTransaction {company_id: $company_id})-[:FROM_BANK|TO_BANK]->"
+            f"(ba:BankAccount {{bank_account_id: $id}}){where_clause} "
+            "RETURN DISTINCT t.transaction_id, t.created_at ORDER BY t.created_at DESC",
+            params,
+        )
+        txns = [BankTransaction.nodes.get_or_none(transaction_id=row[0]) for row in results]
+        return [t for t in txns if t]
 
     def list(self, request):
         company_id = get_active_company_id(request)
-        txns = self._query_transactions(
-            company_id,
-            bank_account_id=request.query_params.get('bank_account_id') or None,
-            date_from=request.query_params.get('date_from') or None,
-            date_to=request.query_params.get('date_to') or None,
-        )
-        return Response(BankTransactionSerializer(txns, many=True).data)
+        bank_account_id = request.query_params.get('bank_account_id') or None
+        date_from = request.query_params.get('date_from') or None
+        date_to = request.query_params.get('date_to') or None
+        page, page_size = parse_pagination_params(request)
+
+        if bank_account_id:
+            total, txns = self._paginated_bank_account_transactions(
+                company_id, bank_account_id, date_from, date_to, page, page_size
+            )
+        else:
+            qs = self._build_transactions_qs(company_id, date_from, date_to)
+            total, txns = paginate_nodeset(qs, page, page_size)
+
+        return Response(paginated_response(total, page, page_size, BankTransactionSerializer(txns, many=True).data))
 
     @action(detail=False, methods=['get'], url_path='export')
     def export(self, request):
@@ -257,13 +326,22 @@ class BankTransactionViewSet(viewsets.ViewSet):
         date_to = request.query_params.get('date_to') or None
         fmt = request.query_params.get('format', 'csv')
 
-        txns = self._query_transactions(company_id, bank_account_id, date_from, date_to)
+        if bank_account_id:
+            txns = self._export_bank_account_transactions(company_id, bank_account_id, date_from, date_to)
+        else:
+            txns = list(self._build_transactions_qs(company_id, date_from, date_to))
         data = BankTransactionSerializer(txns, many=True).data
 
-        headers = ['Reference', 'Date', 'Bank', 'Type', 'Description', 'Amount']
+        from . import services
+        account_names = services.get_account_names_for_transactions(
+            [t.transaction_id for t in txns], company_id
+        )
+
+        headers = ['Reference', 'Date', 'Bank', 'Type', 'Account', 'Description', 'Amount']
         rows = [
             [r['reference'], str(r['date']), r.get('source_bank_name', ''),
-             r['transaction_type'], r.get('description', ''), r['amount']]
+             r['transaction_type'], account_names.get(r['transaction_id'], ''),
+             r.get('description', ''), r['amount']]
             for r in data
         ]
 

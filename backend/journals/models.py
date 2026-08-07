@@ -37,7 +37,7 @@ class JournalEntry(StructuredNode):
     entry_id = UniqueIdProperty()
     company_id = StringProperty(required=True, index=True)
     reference = StringProperty(required=True)
-    date = DateProperty(required=True)
+    date = DateProperty(required=True, index=True)
     description = StringProperty(required=True)
     status = StringProperty(
         choices=[('DRAFT', 'Draft'), ('POSTED', 'Posted'), ('VOID', 'Void')],

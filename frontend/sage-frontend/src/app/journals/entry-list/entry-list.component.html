@@ -1,5 +1,10 @@
 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem">
-  <h2 style="margin:0">Journal Entries</h2>
+  <div>
+    <h2 style="margin:0">Journal Entries</h2>
+    @if (hasDateFilter) {
+      <p style="margin:.25rem 0 0;font-size:.8rem;color:#888">Filtered — {{ total }} result{{ total !== 1 ? 's' : '' }}</p>
+    }
+  </div>
   <div style="display:flex;gap:.5rem">
     <button (click)="exportFile('pdf')"
       style="background:white;color:#555;padding:.5rem 1rem;border:1px solid #ccc;border-radius:4px;cursor:pointer;font-size:.875rem">
@@ -27,6 +32,25 @@
   }
 </div>
 
+<div style="display:flex;align-items:center;gap:.75rem;margin-bottom:1rem;flex-wrap:wrap">
+  <div style="display:flex;align-items:center;gap:.5rem">
+    <span style="font-size:.8rem;color:#555">From</span>
+    <input type="date" [(ngModel)]="dateFrom" (ngModelChange)="applyDateFilter()"
+      style="padding:.35rem .5rem;border:1px solid #ccc;border-radius:4px;font-size:.875rem" />
+  </div>
+  <div style="display:flex;align-items:center;gap:.5rem">
+    <span style="font-size:.8rem;color:#555">To</span>
+    <input type="date" [(ngModel)]="dateTo" (ngModelChange)="applyDateFilter()"
+      style="padding:.35rem .5rem;border:1px solid #ccc;border-radius:4px;font-size:.875rem" />
+  </div>
+  @if (hasDateFilter) {
+    <button (click)="clearDateFilter()"
+      style="background:none;border:none;cursor:pointer;font-size:.8rem;color:#888">
+      ✕ Clear
+    </button>
+  }
+</div>
+
 @if (loading) { <p>Loading&#8230;</p> }
 @if (error) { <p style="color:red">{{ error }}</p> }
 @if (!loading && !error) {
@@ -43,7 +67,7 @@
         </tr>
       </thead>
       <tbody>
-        @for (entry of entries | paginate:page:pageSize; track entry.entry_id) {
+        @for (entry of entries; track entry.entry_id) {
           <tr style="border-top:1px solid #eee;cursor:pointer" [routerLink]="['/journals', entry.entry_id]">
             <td style="padding:.75rem 1rem;font-family:monospace">{{ entry.reference }}</td>
             <td style="padding:.75rem 1rem">{{ entry.date }}</td>
@@ -62,6 +86,6 @@
         }
       </tbody>
     </table>
-    <app-pagination [total]="entries.length" [page]="page" [pageSize]="pageSize" (pageChange)="page = $event"></app-pagination>
+    <app-pagination [total]="total" [page]="page" [pageSize]="pageSize" (pageChange)="onPageChange($event)"></app-pagination>
   </div>
 }

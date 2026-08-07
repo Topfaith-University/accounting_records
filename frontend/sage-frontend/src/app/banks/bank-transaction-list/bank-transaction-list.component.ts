@@ -7,13 +7,12 @@ import { BanksService } from '../../services/banks.service';
 import { AccountsService } from '../../services/accounts.service';
 import { BankSelectComponent } from '../../shared/bank-select/bank-select.component';
 import { AccountSelectComponent } from '../../shared/account-select/account-select.component';
-import { PaginatePipe } from '../../shared/paginate.pipe';
 import { PaginationComponent } from '../../shared/pagination/pagination.component';
 
 @Component({
   selector: 'app-bank-transaction-list',
   standalone: true,
-  imports: [CommonModule, RouterModule, FormsModule, BankSelectComponent, AccountSelectComponent, PaginatePipe, PaginationComponent],
+  imports: [CommonModule, RouterModule, FormsModule, BankSelectComponent, AccountSelectComponent, PaginationComponent],
   templateUrl: './bank-transaction-list.component.html',
 })
 export class BankTransactionListComponent implements OnInit {
@@ -27,6 +26,7 @@ export class BankTransactionListComponent implements OnInit {
   error = '';
   page = 1;
   pageSize = 25;
+  total = 0;
 
   // Import panel state
   showImportPanel = false;
@@ -50,14 +50,32 @@ export class BankTransactionListComponent implements OnInit {
 
   async ngOnInit() {
     try {
-      const [txns, banks, accounts] = await Promise.all([
-        this.txnService.getAll(),
+      const [banks, accounts] = await Promise.all([
         this.banksService.getAccounts(),
         this.accountsService.getAll(),
       ]);
-      this.transactions = txns.results ?? txns;
       this.allBanks = banks.results ?? banks;
       this.allAccounts = accounts.results ?? accounts;
+      await this.loadTransactions();
+    } catch {
+      this.error = 'Failed to load transactions.';
+      this.loading = false;
+    }
+  }
+
+  private async loadTransactions() {
+    this.loading = true;
+    this.error = '';
+    try {
+      const data = await this.txnService.getAll({
+        bankAccountId: this.selectedBankId || undefined,
+        dateFrom: this.dateFrom || undefined,
+        dateTo: this.dateTo || undefined,
+        page: this.page,
+        pageSize: this.pageSize,
+      });
+      this.transactions = data.results ?? data;
+      this.total = data.count ?? data.results?.length ?? data.length ?? 0;
     } catch {
       this.error = 'Failed to load transactions.';
     } finally {
@@ -67,20 +85,12 @@ export class BankTransactionListComponent implements OnInit {
 
   async applyFilter() {
     this.page = 1;
-    this.loading = true;
-    this.error = '';
-    try {
-      const data = await this.txnService.getAll(
-        this.selectedBankId || undefined,
-        this.dateFrom || undefined,
-        this.dateTo || undefined,
-      );
-      this.transactions = data.results ?? data;
-    } catch {
-      this.error = 'Failed to filter transactions.';
-    } finally {
-      this.loading = false;
-    }
+    await this.loadTransactions();
+  }
+
+  async onPageChange(newPage: number) {
+    this.page = newPage;
+    await this.loadTransactions();
   }
 
   clearFilter() {
