@@ -503,3 +503,168 @@ With both servers running, navigate to `/banks/transactions`, and confirm:
 git add frontend/sage-frontend/src/app/services/bank-transactions.service.ts frontend/sage-frontend/src/app/banks/bank-transaction-list/bank-transaction-list.component.ts frontend/sage-frontend/src/app/banks/bank-transaction-list/bank-transaction-list.component.html
 git commit -m "feat: add debounced search to Bank Transactions list"
 ```
+
+---
+
+### Task 4: Filter Bank Accounts export by the active search term
+
+Added after the final whole-branch review of Tasks 1-3 flagged that Bank Accounts' export ignored the search box (a scope gap: the original design deliberately said "no backend changes" for Bank Accounts, since it's a pure client-side filter, but that also meant the export endpoint — which never took filter params — stayed unfiltered). The human partner chose to close this gap now rather than defer it, unlike the identical, already-shipped gap in Chart of Accounts export (left as a tracked follow-up, out of scope for this plan).
+
+**Files:**
+- Modify: `backend/banks/views.py` (`BankAccountViewSet.export`)
+- Modify: `frontend/sage-frontend/src/app/services/banks.service.ts` (`exportFile`)
+- Modify: `frontend/sage-frontend/src/app/banks/bank-account-list/bank-account-list.component.ts` (`exportFile`)
+- Test: `backend/banks/tests.py`
+
+**Interfaces:**
+- Consumes: `CompanyScopedTestCase` from `backend/payables/tests.py`.
+- Produces: `GET /api/banks/accounts/export/?search=<text>&format=pdf|xlsx` — filters the exported rows; no response shape change.
+
+- [ ] **Step 1: Write the failing test**
+
+`backend/config/tests.py` already establishes the pattern for asserting on exported XLSX content in this codebase: `from openpyxl import load_workbook`, then `load_workbook(io.BytesIO(response.content))` and read cell values off `wb.active`. Follow that pattern exactly rather than inventing a new one.
+
+Append to `backend/banks/tests.py` (add `import io` and `from openpyxl import load_workbook` to the file's imports if not already present — check the top of the file first):
+
+```python
+class BankAccountExportSearchTests(CompanyScopedTestCase):
+    def setUp(self):
+        super().setUp()
+        from banks.models import BankAccount
+        BankAccount.objects.create(
+            company=self.company, name='Main Bank', bank_name='GTBank',
+            account_number='0123456789', opening_balance_date=date(2026, 1, 1),
+        )
+        BankAccount.objects.create(
+            company=self.company, name='Petty Cash', bank_name='Zenith Bank',
+            account_number='9988776655', opening_balance_date=date(2026, 1, 1),
+        )
+
+    def _exported_names(self, resp):
+        wb = load_workbook(io.BytesIO(resp.content))
+        ws = wb.active
+        # Row 4 is the header row per the XlsxResponseCompanyHeaderTests
+        # precedent in config/tests.py (rows 1-2 are company name/title,
+        # row 3 is blank, row 4 is headers, data starts row 5).
+        return [row[0].value for row in ws.iter_rows(min_row=5) if row[0].value]
+
+    def test_export_search_filters_by_name(self):
+        resp = self.client.get('/api/banks/accounts/export/?format=xlsx&search=Petty')
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(self._exported_names(resp), ['Petty Cash'])
+
+    def test_export_search_matches_bank_name(self):
+        resp = self.client.get('/api/banks/accounts/export/?format=xlsx&search=Zenith')
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(self._exported_names(resp), ['Petty Cash'])
+
+    def test_export_search_matches_account_number(self):
+        resp = self.client.get('/api/banks/accounts/export/?format=xlsx&search=0123456789')
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(self._exported_names(resp), ['Main Bank'])
+
+    def test_export_no_search_returns_all(self):
+        resp = self.client.get('/api/banks/accounts/export/?format=xlsx')
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(sorted(self._exported_names(resp)), ['Main Bank', 'Petty Cash'])
+```
+
+- [ ] **Step 2: Run test to verify it fails**
+
+Run: `docker exec django_backend python manage.py test banks.tests.BankAccountExportSearchTests -v 2`
+Expected: `test_export_search_filters_by_name`, `test_export_search_matches_bank_name`, and `test_export_search_matches_account_number` FAIL (search is currently ignored, so all three return both accounts instead of one). `test_export_no_search_returns_all` passes already (no regression there — that's expected, it's the baseline case).
+
+- [ ] **Step 3: Implement the search filter**
+
+In `backend/banks/views.py`, `BankAccountViewSet.export` currently reads:
+
+```python
+    @action(detail=False, methods=['get'], url_path='export')
+    def export(self, request):
+        from config.export_utils import xlsx_response, pdf_response
+        company_id = get_active_company_id(request)
+        accounts = BankAccount.objects.filter(is_active=True, company_id=company_id).order_by('name')
+        fmt = request.query_params.get('format', 'xlsx')
+```
+
+Change to:
+
+```python
+    @action(detail=False, methods=['get'], url_path='export')
+    def export(self, request):
+        from config.export_utils import xlsx_response, pdf_response
+        company_id = get_active_company_id(request)
+        accounts = BankAccount.objects.filter(is_active=True, company_id=company_id)
+        search = request.query_params.get('search') or None
+        if search:
+            accounts = accounts.filter(
+                Q(name__icontains=search) | Q(account_number__icontains=search) | Q(bank_name__icontains=search)
+            )
+        accounts = accounts.order_by('name')
+        fmt = request.query_params.get('format', 'xlsx')
+```
+
+(`Q` is already imported at the top of `backend/banks/views.py` — confirm, do not add a duplicate import.)
+
+In `frontend/sage-frontend/src/app/services/banks.service.ts`, `exportFile` currently reads:
+
+```typescript
+  async exportFile(format: 'pdf' | 'xlsx'): Promise<void> {
+    const response = await axios.get(this.baseUrl + 'accounts/export/', {
+      params: { format },
+      responseType: 'blob',
+    });
+```
+
+Change to:
+
+```typescript
+  async exportFile(format: 'pdf' | 'xlsx', search?: string): Promise<void> {
+    const params: Record<string, string> = { format };
+    if (search) params['search'] = search;
+    const response = await axios.get(this.baseUrl + 'accounts/export/', {
+      params,
+      responseType: 'blob',
+    });
+```
+
+In `frontend/sage-frontend/src/app/banks/bank-account-list/bank-account-list.component.ts`, `exportFile` currently reads:
+
+```typescript
+  async exportFile(format: 'pdf' | 'xlsx') {
+    try {
+      await this.banksService.exportFile(format);
+    } catch {
+      this.error = 'Export failed.';
+    }
+  }
+```
+
+Change to:
+
+```typescript
+  async exportFile(format: 'pdf' | 'xlsx') {
+    try {
+      await this.banksService.exportFile(format, this.search.trim() || undefined);
+    } catch {
+      this.error = 'Export failed.';
+    }
+  }
+```
+
+- [ ] **Step 4: Run test to verify it passes**
+
+Run: `docker exec django_backend python manage.py test banks.tests.BankAccountExportSearchTests -v 2`
+Expected: PASS — all four tests green.
+
+- [ ] **Step 5: Run the full banks test suite and a frontend type-check**
+
+Run: `docker exec django_backend python manage.py test banks` — expect PASS, no regressions.
+Run: `cd frontend/sage-frontend && npx tsc --noEmit -p tsconfig.json` — expect no new errors versus the pre-existing baseline (2 known unrelated errors in payables/receivables spec files).
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add backend/banks/views.py backend/banks/tests.py frontend/sage-frontend/src/app/services/banks.service.ts frontend/sage-frontend/src/app/banks/bank-account-list/bank-account-list.component.ts
+git commit -m "feat: filter Bank Accounts export by the active search term"
+```
