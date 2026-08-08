@@ -1,7 +1,7 @@
 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem">
   <div>
     <h2 style="margin:0">Journal Entries</h2>
-    @if (hasDateFilter) {
+    @if (hasFilters) {
       <p style="margin:.25rem 0 0;font-size:.8rem;color:#888">Filtered — {{ total }} result{{ total !== 1 ? 's' : '' }}</p>
     }
   </div>
@@ -43,14 +43,14 @@
     <input type="date" [(ngModel)]="dateTo" (ngModelChange)="applyFilters()"
       style="padding:.35rem .5rem;border:1px solid #ccc;border-radius:4px;font-size:.875rem" />
   </div>
-  @if (hasDateFilter) {
-    <button (click)="clearDateFilter()"
+  @if (hasFilters) {
+    <button (click)="clearFilters()"
       style="background:none;border:none;cursor:pointer;font-size:.8rem;color:#888">
       ✕ Clear
     </button>
   }
   <div style="display:flex;align-items:center;gap:.5rem">
-    <input [(ngModel)]="search" (ngModelChange)="applyFilters()"
+    <input [(ngModel)]="search" (ngModelChange)="onSearchChange()"
       placeholder="Search reference, description, or account…"
       style="padding:.35rem .5rem;border:1px solid #ccc;border-radius:4px;font-size:.875rem;min-width:240px" />
   </div>
