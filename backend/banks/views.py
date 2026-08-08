@@ -70,7 +70,13 @@ class BankAccountViewSet(viewsets.ViewSet):
     def export(self, request):
         from config.export_utils import xlsx_response, pdf_response
         company_id = get_active_company_id(request)
-        accounts = BankAccount.objects.filter(is_active=True, company_id=company_id).order_by('name')
+        accounts = BankAccount.objects.filter(is_active=True, company_id=company_id)
+        search = request.query_params.get('search') or None
+        if search:
+            accounts = accounts.filter(
+                Q(name__icontains=search) | Q(account_number__icontains=search) | Q(bank_name__icontains=search)
+            )
+        accounts = accounts.order_by('name')
         fmt = request.query_params.get('format', 'xlsx')
         headers = ['Name', 'Bank', 'Account No.', 'Opening Balance (N)', 'Current Balance (N)']
         data = BankAccountSerializer(list(accounts), many=True).data

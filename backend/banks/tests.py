@@ -1,7 +1,9 @@
+import io
 import uuid
 from datetime import date
 
 from django.test import TestCase
+from openpyxl import load_workbook
 from rest_framework.exceptions import ValidationError
 from rest_framework.test import APIClient
 from django.contrib.auth import get_user_model
@@ -338,3 +340,45 @@ class BankTransactionSearchTests(CompanyScopedTestCase):
         resp = self.client.get('/api/banks/transactions/?search=nonexistent-xyz')
         self.assertEqual(resp.status_code, 200, resp.content)
         self.assertEqual(resp.data['results'], [])
+
+
+class BankAccountExportSearchTests(CompanyScopedTestCase):
+    def setUp(self):
+        super().setUp()
+        from banks.models import BankAccount
+        BankAccount.objects.create(
+            company=self.company, name='Main Bank', bank_name='GTBank',
+            account_number='0123456789', opening_balance_date=date(2026, 1, 1),
+        )
+        BankAccount.objects.create(
+            company=self.company, name='Petty Cash', bank_name='Zenith Bank',
+            account_number='9988776655', opening_balance_date=date(2026, 1, 1),
+        )
+
+    def _exported_names(self, resp):
+        wb = load_workbook(io.BytesIO(resp.content))
+        ws = wb.active
+        # Row 4 is the header row per the XlsxResponseCompanyHeaderTests
+        # precedent in config/tests.py (rows 1-2 are company name/title,
+        # row 3 is blank, row 4 is headers, data starts row 5).
+        return [row[0].value for row in ws.iter_rows(min_row=5) if row[0].value]
+
+    def test_export_search_filters_by_name(self):
+        resp = self.client.get('/api/banks/accounts/export/?format=xlsx&search=Petty')
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(self._exported_names(resp), ['Petty Cash'])
+
+    def test_export_search_matches_bank_name(self):
+        resp = self.client.get('/api/banks/accounts/export/?format=xlsx&search=Zenith')
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(self._exported_names(resp), ['Petty Cash'])
+
+    def test_export_search_matches_account_number(self):
+        resp = self.client.get('/api/banks/accounts/export/?format=xlsx&search=0123456789')
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(self._exported_names(resp), ['Main Bank'])
+
+    def test_export_no_search_returns_all(self):
+        resp = self.client.get('/api/banks/accounts/export/?format=xlsx')
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(sorted(self._exported_names(resp)), ['Main Bank', 'Petty Cash'])

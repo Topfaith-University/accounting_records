@@ -167,7 +167,7 @@ export class BankAccountListComponent implements OnInit {
 
   async exportFile(format: 'pdf' | 'xlsx') {
     try {
-      await this.banksService.exportFile(format);
+      await this.banksService.exportFile(format, this.search.trim() || undefined);
     } catch {
       this.error = 'Export failed.';
     }
