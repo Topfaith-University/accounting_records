@@ -184,6 +184,7 @@ export class BankTransactionListComponent implements OnInit {
     if (this.selectedBankId) params['bank_account_id'] = this.selectedBankId;
     if (this.dateFrom) params['date_from'] = this.dateFrom;
     if (this.dateTo) params['date_to'] = this.dateTo;
+    if (this.search.trim()) params['search'] = this.search.trim();
     const ext = format === 'xlsx' ? 'xlsx' : 'csv';
     try {
       await this.txnService.exportFile(params, format, `bank-transactions.${ext}`);
