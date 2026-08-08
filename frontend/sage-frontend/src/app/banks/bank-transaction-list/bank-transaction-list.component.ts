@@ -22,6 +22,9 @@ export class BankTransactionListComponent implements OnInit {
   selectedBankId = '';
   dateFrom = '';
   dateTo = '';
+  search = '';
+  private requestSeq = 0;
+  private searchDebounceTimer: ReturnType<typeof setTimeout> | null = null;
   loading = true;
   error = '';
   page = 1;
@@ -66,20 +69,24 @@ export class BankTransactionListComponent implements OnInit {
   private async loadTransactions() {
     this.loading = true;
     this.error = '';
+    const seq = ++this.requestSeq;
     try {
       const data = await this.txnService.getAll({
         bankAccountId: this.selectedBankId || undefined,
         dateFrom: this.dateFrom || undefined,
         dateTo: this.dateTo || undefined,
+        search: this.search.trim() || undefined,
         page: this.page,
         pageSize: this.pageSize,
       });
+      if (seq !== this.requestSeq) return;
       this.transactions = data.results ?? data;
       this.total = data.count ?? data.results?.length ?? data.length ?? 0;
     } catch {
+      if (seq !== this.requestSeq) return;
       this.error = 'Failed to load transactions.';
     } finally {
-      this.loading = false;
+      if (seq === this.requestSeq) this.loading = false;
     }
   }
 
@@ -93,15 +100,32 @@ export class BankTransactionListComponent implements OnInit {
     await this.loadTransactions();
   }
 
+  onSearchChange() {
+    this.cancelSearchDebounce();
+    this.searchDebounceTimer = setTimeout(() => {
+      this.searchDebounceTimer = null;
+      this.applyFilter();
+    }, 300);
+  }
+
+  private cancelSearchDebounce() {
+    if (this.searchDebounceTimer !== null) {
+      clearTimeout(this.searchDebounceTimer);
+      this.searchDebounceTimer = null;
+    }
+  }
+
   clearFilter() {
+    this.cancelSearchDebounce();
     this.selectedBankId = '';
     this.dateFrom = '';
     this.dateTo = '';
+    this.search = '';
     this.applyFilter();
   }
 
   get hasFilter(): boolean {
-    return !!(this.selectedBankId || this.dateFrom || this.dateTo);
+    return !!(this.selectedBankId || this.dateFrom || this.dateTo || this.search);
   }
 
   // ── Import panel ──────────────────────────────────────────

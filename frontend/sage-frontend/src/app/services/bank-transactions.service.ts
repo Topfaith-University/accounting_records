@@ -6,11 +6,12 @@ import { API_ROOT } from './api-base';
 export class BankTransactionsService {
   private baseUrl = `${API_ROOT}banks/transactions/`;
 
-  getAll(params: { bankAccountId?: string; dateFrom?: string; dateTo?: string; page?: number; pageSize?: number } = {}) {
+  getAll(params: { bankAccountId?: string; dateFrom?: string; dateTo?: string; search?: string; page?: number; pageSize?: number } = {}) {
     const p: Record<string, string | number> = {};
     if (params.bankAccountId) p['bank_account_id'] = params.bankAccountId;
     if (params.dateFrom) p['date_from'] = params.dateFrom;
     if (params.dateTo) p['date_to'] = params.dateTo;
+    if (params.search) p['search'] = params.search;
     if (params.page) p['page'] = params.page;
     if (params.pageSize) p['page_size'] = params.pageSize;
     return axios.get(this.baseUrl, { params: p }).then(r => r.data);
