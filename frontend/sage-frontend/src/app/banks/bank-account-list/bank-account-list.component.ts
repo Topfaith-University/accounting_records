@@ -23,6 +23,7 @@ export class BankAccountListComponent implements OnInit {
   error = '';
   page = 1;
   pageSize = 25;
+  search = '';
 
   showForm = false;
   saving = false;
@@ -44,6 +45,16 @@ export class BankAccountListComponent implements OnInit {
 
   get isEditMode(): boolean {
     return !!this.editingBankAccountId;
+  }
+
+  get filteredAccounts(): any[] {
+    const term = this.search.trim().toLowerCase();
+    if (!term) return this.accounts;
+    return this.accounts.filter(a =>
+      (a.name ?? '').toLowerCase().includes(term)
+      || (a.account_number ?? '').toLowerCase().includes(term)
+      || (a.bank_name ?? '').toLowerCase().includes(term)
+    );
   }
 
   constructor(
@@ -85,6 +96,10 @@ export class BankAccountListComponent implements OnInit {
       opening_balance_date: new Date().toISOString().slice(0, 10),
       gl_account_id_input: '',
     };
+  }
+
+  onSearchChange() {
+    this.page = 1;
   }
 
   startEdit(account: any) {
