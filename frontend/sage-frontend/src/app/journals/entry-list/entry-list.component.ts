@@ -19,6 +19,7 @@ export class EntryListComponent implements OnInit {
   tabs: ('ALL' | 'DRAFT' | 'POSTED' | 'VOID')[] = ['ALL', 'DRAFT', 'POSTED', 'VOID'];
   dateFrom = '';
   dateTo = '';
+  search = '';
   page = 1;
   pageSize = 25;
   total = 0;
@@ -30,11 +31,12 @@ export class EntryListComponent implements OnInit {
   async loadEntries() {
     this.loading = true;
     try {
-      const params: { status?: string; date_from?: string; date_to?: string; page: number; page_size: number } =
+      const params: { status?: string; date_from?: string; date_to?: string; search?: string; page: number; page_size: number } =
         { page: this.page, page_size: this.pageSize };
       if (this.activeTab !== 'ALL') params.status = this.activeTab;
       if (this.dateFrom) params.date_from = this.dateFrom;
       if (this.dateTo) params.date_to = this.dateTo;
+      if (this.search.trim()) params.search = this.search.trim();
       const data = await this.journalsService.getEntries(params);
       this.entries = data.results ?? data;
       this.total = data.count ?? data.results?.length ?? data.length ?? 0;
@@ -48,7 +50,7 @@ export class EntryListComponent implements OnInit {
     await this.loadEntries();
   }
 
-  async applyDateFilter() {
+  async applyFilters() {
     this.page = 1;
     await this.loadEntries();
   }
@@ -56,7 +58,7 @@ export class EntryListComponent implements OnInit {
   async clearDateFilter() {
     this.dateFrom = '';
     this.dateTo = '';
-    await this.applyDateFilter();
+    await this.applyFilters();
   }
 
   get hasDateFilter(): boolean {

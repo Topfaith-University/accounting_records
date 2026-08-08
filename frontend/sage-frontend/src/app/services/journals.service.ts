@@ -6,7 +6,7 @@ import { API_ROOT } from './api-base';
 export class JournalsService {
   private baseUrl = `${API_ROOT}journals/`;
 
-  getEntries(params?: { status?: string; date_from?: string; date_to?: string; page?: number; page_size?: number }) {
+  getEntries(params?: { status?: string; date_from?: string; date_to?: string; search?: string; page?: number; page_size?: number }) {
     return axios.get(this.baseUrl + 'entries/', { params }).then(r => r.data);
   }
 

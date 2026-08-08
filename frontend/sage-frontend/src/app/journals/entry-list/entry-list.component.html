@@ -35,12 +35,12 @@
 <div style="display:flex;align-items:center;gap:.75rem;margin-bottom:1rem;flex-wrap:wrap">
   <div style="display:flex;align-items:center;gap:.5rem">
     <span style="font-size:.8rem;color:#555">From</span>
-    <input type="date" [(ngModel)]="dateFrom" (ngModelChange)="applyDateFilter()"
+    <input type="date" [(ngModel)]="dateFrom" (ngModelChange)="applyFilters()"
       style="padding:.35rem .5rem;border:1px solid #ccc;border-radius:4px;font-size:.875rem" />
   </div>
   <div style="display:flex;align-items:center;gap:.5rem">
     <span style="font-size:.8rem;color:#555">To</span>
-    <input type="date" [(ngModel)]="dateTo" (ngModelChange)="applyDateFilter()"
+    <input type="date" [(ngModel)]="dateTo" (ngModelChange)="applyFilters()"
       style="padding:.35rem .5rem;border:1px solid #ccc;border-radius:4px;font-size:.875rem" />
   </div>
   @if (hasDateFilter) {
@@ -49,6 +49,11 @@
       ✕ Clear
     </button>
   }
+  <div style="display:flex;align-items:center;gap:.5rem">
+    <input [(ngModel)]="search" (ngModelChange)="applyFilters()"
+      placeholder="Search reference, description, or account…"
+      style="padding:.35rem .5rem;border:1px solid #ccc;border-radius:4px;font-size:.875rem;min-width:240px" />
+  </div>
 </div>
 
 @if (loading) { <p>Loading&#8230;</p> }
