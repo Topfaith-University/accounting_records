@@ -9,29 +9,6 @@ from .serializers import CustomerSerializer, SalesInvoiceSerializer, ARReceiptSe
 from . import services
 
 
-def _serialize_customer(customer):
-    data = CustomerSerializer(customer).data
-    data['balance'] = round(sum(
-        max(0, inv.total_amount - inv.amount_received)
-        for inv in customer.invoices.all() if inv.status in ('POSTED', 'PAID')
-    ), 2)
-    return data
-
-
-def _serialize_invoice(invoice):
-    data = SalesInvoiceSerializer(invoice).data
-    lines = list(invoice.lines.all())
-    data['lines'] = SalesInvoiceLineSerializer(lines, many=True).data
-    customer = invoice.customer.single()
-    ar_account = invoice.ar_account.single()
-    data['customer_id'] = customer.customer_id if customer else None
-    data['ar_account_id'] = ar_account.account_id if ar_account else None
-    for idx, line in enumerate(lines):
-        revenue_account = line.revenue_account.single()
-        data['lines'][idx]['revenue_account_id'] = revenue_account.account_id if revenue_account else None
-    return data
-
-
 class CustomerViewSet(viewsets.ViewSet):
     permission_classes = [IsAuthenticated]
 
@@ -39,15 +16,15 @@ class CustomerViewSet(viewsets.ViewSet):
         company_id = get_active_company_id(request)
         if not company_id:
             return Response({'detail': 'No active company.'}, status=status.HTTP_400_BAD_REQUEST)
-        customers = [c for c in Customer.nodes.filter(company_id=company_id) if c.is_active]
-        return Response([_serialize_customer(c) for c in customers])
+        customers = Customer.objects.filter(company_id=company_id, is_active=True)
+        return Response(CustomerSerializer(customers, many=True).data)
 
     def retrieve(self, request, pk=None):
         company_id = get_active_company_id(request)
-        customer = Customer.nodes.get_or_none(customer_id=pk, company_id=company_id)
+        customer = Customer.objects.filter(customer_id=pk, company_id=company_id).first()
         if not customer:
             return Response({'detail': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
-        return Response(_serialize_customer(customer))
+        return Response(CustomerSerializer(customer).data)
 
     def create(self, request):
         if not get_active_company_id(request):
@@ -55,21 +32,21 @@ class CustomerViewSet(viewsets.ViewSet):
         serializer = CustomerSerializer(data=request.data, context={'request': request})
         serializer.is_valid(raise_exception=True)
         customer = serializer.save()
-        return Response(_serialize_customer(customer), status=status.HTTP_201_CREATED)
+        return Response(CustomerSerializer(customer).data, status=status.HTTP_201_CREATED)
 
     def partial_update(self, request, pk=None):
         company_id = get_active_company_id(request)
-        customer = Customer.nodes.get_or_none(customer_id=pk, company_id=company_id)
+        customer = Customer.objects.filter(customer_id=pk, company_id=company_id).first()
         if not customer:
             return Response({'detail': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
         serializer = CustomerSerializer(customer, data=request.data, partial=True, context={'request': request})
         serializer.is_valid(raise_exception=True)
         customer = serializer.save()
-        return Response(_serialize_customer(customer))
+        return Response(CustomerSerializer(customer).data)
 
     def destroy(self, request, pk=None):
         company_id = get_active_company_id(request)
-        customer = Customer.nodes.get_or_none(customer_id=pk, company_id=company_id)
+        customer = Customer.objects.filter(customer_id=pk, company_id=company_id).first()
         if not customer:
             return Response({'detail': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
         customer.is_active = False
@@ -100,7 +77,7 @@ class CustomerViewSet(viewsets.ViewSet):
     def export(self, request):
         from config.export_utils import xlsx_response, pdf_response
         company_id = get_active_company_id(request)
-        customers = sorted([c for c in Customer.nodes.filter(company_id=company_id) if c.is_active], key=lambda c: c.name)
+        customers = Customer.objects.filter(company_id=company_id, is_active=True).order_by('name')
         fmt = request.query_params.get('format', 'xlsx')
         headers = ['Name', 'Type', 'Email', 'Phone']
         rows = [[c.name, c.customer_type, c.email, c.phone] for c in customers]
@@ -117,35 +94,33 @@ class SalesInvoiceViewSet(viewsets.ViewSet):
         company_id = get_active_company_id(request)
         if not company_id:
             return Response({'detail': 'No active company.'}, status=status.HTTP_400_BAD_REQUEST)
-        invoices = SalesInvoice.nodes.filter(company_id=company_id)
+        invoices = SalesInvoice.objects.filter(company_id=company_id).select_related('customer', 'ar_account')
         inv_status = request.query_params.get('status')
-        customer_id = request.query_params.get('customer_id')
-        invoices = list(invoices)
         if inv_status:
-            invoices = [i for i in invoices if i.status == inv_status.upper()]
+            invoices = invoices.filter(status=inv_status.upper())
+        customer_id = request.query_params.get('customer_id')
         if customer_id:
-            invoices = [i for i in invoices if (c := i.customer.single()) and c.customer_id == customer_id]
-        invoices = sorted(invoices, key=lambda i: str(i.date), reverse=True)
+            invoices = invoices.filter(customer_id=customer_id)
+        invoices = invoices.order_by('-date')
         return Response(SalesInvoiceSerializer(invoices, many=True).data)
 
     def retrieve(self, request, pk=None):
         company_id = get_active_company_id(request)
-        invoice = SalesInvoice.nodes.get_or_none(invoice_id=pk, company_id=company_id)
+        invoice = SalesInvoice.objects.filter(invoice_id=pk, company_id=company_id).select_related('customer', 'ar_account').first()
         if not invoice:
             return Response({'detail': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
-        return Response(_serialize_invoice(invoice))
+        return Response(SalesInvoiceSerializer(invoice).data)
 
     @action(detail=True, methods=['get'], url_path='print')
     def print_invoice(self, request, pk=None):
         company_id = get_active_company_id(request)
-        invoice = SalesInvoice.nodes.get_or_none(invoice_id=pk, company_id=company_id)
+        invoice = SalesInvoice.objects.filter(invoice_id=pk, company_id=company_id).select_related('customer').first()
         if not invoice:
             return Response({'detail': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
-        customer = invoice.customer.single()
-        lines = list(invoice.lines.all())
+        lines = list(invoice.lines.select_related('revenue_account').all())
         return pdf_response(request, 'receivables/sales_invoice.html', {
             'invoice': invoice,
-            'customer': customer,
+            'customer': invoice.customer,
             'lines': lines,
             'settled_amount': invoice.amount_received,
             'outstanding_amount': max(0, invoice.total_amount - invoice.amount_received),
@@ -156,12 +131,12 @@ class SalesInvoiceViewSet(viewsets.ViewSet):
             return Response({'detail': 'No active company.'}, status=status.HTTP_400_BAD_REQUEST)
         serializer = SalesInvoiceSerializer(data=request.data, context={'request': request})
         serializer.is_valid(raise_exception=True)
-        invoice = serializer.save(created_by=request.user.username)
-        return Response(_serialize_invoice(invoice), status=status.HTTP_201_CREATED)
+        invoice = serializer.save(created_by=request.user)
+        return Response(SalesInvoiceSerializer(invoice).data, status=status.HTTP_201_CREATED)
 
     def partial_update(self, request, pk=None):
         company_id = get_active_company_id(request)
-        invoice = SalesInvoice.nodes.get_or_none(invoice_id=pk, company_id=company_id)
+        invoice = SalesInvoice.objects.filter(invoice_id=pk, company_id=company_id).first()
         if not invoice:
             return Response({'detail': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
         if invoice.status != 'DRAFT':
@@ -169,63 +144,50 @@ class SalesInvoiceViewSet(viewsets.ViewSet):
         serializer = SalesInvoiceSerializer(invoice, data=request.data, partial=True, context={'request': request})
         serializer.is_valid(raise_exception=True)
         invoice = serializer.save()
-        return Response(_serialize_invoice(invoice))
+        return Response(SalesInvoiceSerializer(invoice).data)
 
     def destroy(self, request, pk=None):
         company_id = get_active_company_id(request)
-        invoice = SalesInvoice.nodes.get_or_none(invoice_id=pk, company_id=company_id)
+        invoice = SalesInvoice.objects.filter(invoice_id=pk, company_id=company_id).first()
         if not invoice:
             return Response({'detail': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
         if invoice.status != 'DRAFT':
             return Response({'detail': 'Only draft invoices can be deleted.'}, status=status.HTTP_400_BAD_REQUEST)
-        for line in list(invoice.lines.all()):
-            invoice.lines.disconnect(line)
-            revenue_account = line.revenue_account.single()
-            if revenue_account:
-                line.revenue_account.disconnect(revenue_account)
-            line.delete()
-        customer = invoice.customer.single()
-        if customer:
-            invoice.customer.disconnect(customer)
-        ar_account = invoice.ar_account.single()
-        if ar_account:
-            invoice.ar_account.disconnect(ar_account)
-        invoice.delete()
+        invoice.delete()  # SalesInvoiceLine.invoice FK is on_delete=CASCADE
         return Response(status=status.HTTP_204_NO_CONTENT)
 
     @action(detail=True, methods=['post'], url_path='post')
     def post_invoice(self, request, pk=None):
         company_id = get_active_company_id(request)
         try:
-            invoice = services.post_invoice(pk, company_id, request.user.username)
+            invoice = services.post_invoice(pk, company_id, request.user)
         except Exception as e:
             return Response({'detail': str(e)}, status=status.HTTP_400_BAD_REQUEST)
-        return Response(_serialize_invoice(invoice))
+        return Response(SalesInvoiceSerializer(invoice).data)
 
     @action(detail=True, methods=['post'], url_path='void')
     def void_invoice(self, request, pk=None):
         company_id = get_active_company_id(request)
         try:
-            invoice = services.void_invoice(pk, company_id, request.user.username)
+            invoice = services.void_invoice(pk, company_id, request.user)
         except Exception as e:
             return Response({'detail': str(e)}, status=status.HTTP_400_BAD_REQUEST)
-        return Response(_serialize_invoice(invoice))
+        return Response(SalesInvoiceSerializer(invoice).data)
 
     @action(detail=False, methods=['get'], url_path='export')
     def export(self, request):
         from config.export_utils import xlsx_response, pdf_response
         company_id = get_active_company_id(request)
-        invoices = list(SalesInvoice.nodes.filter(company_id=company_id))
-        invoices = sorted(invoices, key=lambda i: str(i.date), reverse=True)
+        invoices = SalesInvoice.objects.filter(company_id=company_id).select_related('customer').order_by('-date')
         fmt = request.query_params.get('format', 'xlsx')
         headers = ['Invoice #', 'Customer', 'Date', 'Due Date', 'Total (N)', 'Received (N)', 'Status']
-        rows = []
-        for inv in invoices:
-            customer = inv.customer.single()
-            rows.append([
-                inv.invoice_number, customer.name if customer else '', str(inv.date), str(inv.due_date),
+        rows = [
+            [
+                inv.invoice_number, inv.customer.name if inv.customer else '', str(inv.date), str(inv.due_date),
                 inv.total_amount, inv.amount_received, inv.status,
-            ])
+            ]
+            for inv in invoices
+        ]
         if fmt == 'pdf':
             ctx = {'rows': [dict(zip(
                 ['invoice_number', 'customer', 'date', 'due_date', 'total_amount', 'amount_received', 'status'], r
@@ -249,7 +211,7 @@ class SalesInvoiceViewSet(viewsets.ViewSet):
             return Response({'detail': 'amount must be a valid number.'}, status=status.HTTP_400_BAD_REQUEST)
         try:
             receipt = services.record_receipt(
-                pk, company_id, receipt_date, amount, reference, bank_account_id, request.user.username
+                pk, company_id, receipt_date, amount, reference, bank_account_id, request.user
             )
         except Exception as e:
             return Response({'detail': str(e)}, status=status.HTTP_400_BAD_REQUEST)

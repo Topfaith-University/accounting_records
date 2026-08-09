@@ -1,65 +1,57 @@
+from datetime import datetime
+
 from rest_framework import serializers
+
 from config.auth import get_active_company_id
-from .models import JournalEntry, JournalLine, FiscalYear, AccountingPeriod
+from accounts.models import Account
+from .models import JournalEntry, JournalLine, FiscalYear, AccountingPeriod, Counter
 
 
-class JournalLineSerializer(serializers.Serializer):
-    line_id = serializers.CharField(read_only=True)
-    account_id = serializers.CharField(write_only=True)
-    account_code = serializers.SerializerMethodField()
-    account_name = serializers.SerializerMethodField()
-    side = serializers.ChoiceField(choices=['DEBIT', 'CREDIT'])
-    amount = serializers.FloatField(min_value=0.01)
-    description = serializers.CharField(default='', allow_blank=True)
+class JournalLineSerializer(serializers.ModelSerializer):
+    account_id = serializers.PrimaryKeyRelatedField(source='account', queryset=Account.objects.all())
+    account_code = serializers.CharField(source='account.code', read_only=True)
+    account_name = serializers.CharField(source='account.name', read_only=True)
 
-    def get_account_code(self, obj):
-        try:
-            acct = obj.account.single()
-            return acct.code if acct else None
-        except Exception:
-            return None
+    class Meta:
+        model = JournalLine
+        fields = ['line_id', 'account_id', 'account_code', 'account_name', 'side', 'amount', 'description']
+        read_only_fields = ['line_id']
 
-    def get_account_name(self, obj):
-        try:
-            acct = obj.account.single()
-            return acct.name if acct else None
-        except Exception:
-            return None
-
-    def to_representation(self, instance):
-        data = super().to_representation(instance)
-        try:
-            acct = instance.account.single()
-            data['account_id'] = acct.account_id if acct else None
-        except Exception:
-            data['account_id'] = None
-        return data
+    def validate_amount(self, value):
+        if value < 0.01:
+            raise serializers.ValidationError('Ensure this value is greater than or equal to 0.01.')
+        return value
 
 
-class JournalEntrySerializer(serializers.Serializer):
-    entry_id = serializers.CharField(read_only=True)
+class JournalEntrySerializer(serializers.ModelSerializer):
     reference = serializers.CharField(max_length=50, required=False, allow_blank=True)
-    date = serializers.DateField()
-    description = serializers.CharField(max_length=500)
-    status = serializers.CharField(read_only=True)
     entry_type = serializers.ChoiceField(
-        choices=['MANUAL', 'BANK_RECON', 'AP_PAYMENT', 'AR_RECEIPT'],
-        default='MANUAL'
+        choices=['MANUAL', 'BANK_RECON', 'AP_PAYMENT', 'AR_RECEIPT'], default='MANUAL',
     )
-    total_debit = serializers.FloatField(read_only=True)
-    total_credit = serializers.FloatField(read_only=True)
-    created_by = serializers.CharField(read_only=True)
-    approved_by = serializers.CharField(read_only=True)
-    approved_at = serializers.DateTimeField(read_only=True)
-    voided_by = serializers.CharField(read_only=True)
-    voided_at = serializers.DateTimeField(read_only=True)
-    created_at = serializers.DateTimeField(read_only=True)
+    created_by = serializers.CharField(source='created_by.username', read_only=True, default=None)
+    approved_by = serializers.CharField(source='approved_by.username', read_only=True, default=None)
+    voided_by = serializers.CharField(source='voided_by.username', read_only=True, default=None)
     lines = JournalLineSerializer(many=True, required=False)
+
+    class Meta:
+        model = JournalEntry
+        fields = [
+            'entry_id', 'reference', 'date', 'description', 'status', 'entry_type',
+            'total_debit', 'total_credit', 'created_by', 'approved_by', 'approved_at',
+            'voided_by', 'voided_at', 'created_at', 'lines',
+        ]
+        read_only_fields = [
+            'entry_id', 'status', 'total_debit', 'total_credit',
+            'approved_at', 'voided_at', 'created_at',
+        ]
 
     def validate_reference(self, value):
         # If reference is provided, check if it's unique within the active company
         company_id = get_active_company_id(self.context['request'])
-        if value and JournalEntry.nodes.filter(reference=value, company_id=company_id).first_or_none() is not None:
+        qs = JournalEntry.objects.filter(reference=value, company_id=company_id)
+        if self.instance:
+            qs = qs.exclude(pk=self.instance.pk)
+        if value and qs.exists():
             raise serializers.ValidationError("A journal entry with this reference already exists.")
         return value
 
@@ -78,26 +70,18 @@ class JournalEntrySerializer(serializers.Serializer):
         return data
 
     def create(self, validated_data):
-        from accounts.models import Account
         company_id = get_active_company_id(self.context['request'])
         lines_data = validated_data.pop('lines', [])
 
         # Auto-generate reference if not provided
-        if 'reference' not in validated_data or not validated_data['reference']:
+        if not validated_data.get('reference'):
             validated_data['reference'] = self._generate_journal_entry_reference(company_id)
 
-        entry = JournalEntry(company_id=company_id, **validated_data)
-        entry.save()
+        entry = JournalEntry.objects.create(company_id=company_id, **validated_data)
         total_debit = 0.0
         total_credit = 0.0
         for line_data in lines_data:
-            account_id = line_data.pop('account_id')
-            line = JournalLine(company_id=company_id, **line_data)
-            line.save()
-            entry.lines.connect(line)
-            account = Account.nodes.get_or_none(account_id=account_id, company_id=company_id)
-            if account:
-                line.account.connect(account)
+            JournalLine.objects.create(company_id=company_id, entry=entry, **line_data)
             if line_data['side'] == 'DEBIT':
                 total_debit += line_data['amount']
             else:
@@ -108,9 +92,7 @@ class JournalEntrySerializer(serializers.Serializer):
         return entry
 
     def update(self, instance, validated_data):
-        from accounts.models import Account
         company_id = get_active_company_id(self.context['request'])
-
         lines_data = validated_data.pop('lines', None)
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
@@ -118,17 +100,9 @@ class JournalEntrySerializer(serializers.Serializer):
         if lines_data is not None:
             total_debit = 0.0
             total_credit = 0.0
-            for existing_line in list(instance.lines.all()):
-                instance.lines.disconnect(existing_line)
-                existing_line.delete()
+            instance.lines.all().delete()
             for line_data in lines_data:
-                account_id = line_data.pop('account_id')
-                line = JournalLine(company_id=company_id, **line_data)
-                line.save()
-                instance.lines.connect(line)
-                account = Account.nodes.get_or_none(account_id=account_id, company_id=company_id)
-                if account:
-                    line.account.connect(account)
+                JournalLine.objects.create(company_id=company_id, entry=instance, **line_data)
                 if line_data['side'] == 'DEBIT':
                     total_debit += line_data['amount']
                 else:
@@ -140,73 +114,42 @@ class JournalEntrySerializer(serializers.Serializer):
         return instance
 
     def _generate_journal_entry_reference(self, company_id):
-        """Generate a journal entry reference based on date and sequence, unique within the company."""
-        from datetime import datetime
-        # Format: JN-YYYYMMDD-XXXX (e.g., JN-20260526-0001)
+        """JN-YYYYMMDD-XXXX, sequence unique per company per day, via the
+        shared race-safe Counter (see journals/models.py)."""
         date_prefix = datetime.now().strftime('%Y%m%d')
-
-        # Find the highest existing sequence for today (within this company) and increment
-        today_entries = JournalEntry.nodes.filter(reference__startswith=f'JN-{date_prefix}-', company_id=company_id)
-        if today_entries:
-            # Extract sequence number and find max
-            max_seq = 0
-            for entry in today_entries:
-                try:
-                    # Assuming format like "JN-20260526-0001"
-                    suffix = entry.reference.split('-')[-1]
-                    seq_num = int(suffix)
-                    max_seq = max(max_seq, seq_num)
-                except (ValueError, IndexError):
-                    # If parsing fails, skip this entry
-                    continue
-            next_seq = max_seq + 1
-        else:
-            next_seq = 1
-
-        return f"JN-{date_prefix}-{next_seq:04d}"
+        seq = Counter.next(f'JN-{date_prefix}-{company_id}')
+        return f"JN-{date_prefix}-{seq:04d}"
 
 
-class FiscalYearSerializer(serializers.Serializer):
-    year_id = serializers.CharField(read_only=True)
-    name = serializers.CharField(max_length=50)
-    start_date = serializers.DateField()
-    end_date = serializers.DateField()
-    status = serializers.CharField(read_only=True)
-    created_at = serializers.DateTimeField(read_only=True)
+class FiscalYearSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = FiscalYear
+        fields = ['year_id', 'name', 'start_date', 'end_date', 'status', 'created_at']
+        read_only_fields = ['year_id', 'status', 'created_at']
 
     def create(self, validated_data):
         from dateutil.relativedelta import relativedelta
         company_id = get_active_company_id(self.context['request'])
-        year = FiscalYear(company_id=company_id, **validated_data)
-        year.save()
+        year = FiscalYear.objects.create(company_id=company_id, **validated_data)
         start = validated_data['start_date']
         for i in range(12):
             period_start = start + relativedelta(months=i)
             period_end = period_start + relativedelta(months=1) - relativedelta(days=1)
-            period = AccountingPeriod(
+            AccountingPeriod.objects.create(
                 company_id=company_id,
+                fiscal_year=year,
                 name=period_start.strftime('%B %Y'),
                 start_date=period_start,
                 end_date=period_end,
                 period_number=i + 1,
             )
-            period.save()
-            period.fiscal_year.connect(year)
         return year
 
 
-class AccountingPeriodSerializer(serializers.Serializer):
-    period_id = serializers.CharField(read_only=True)
-    name = serializers.CharField(read_only=True)
-    start_date = serializers.DateField(read_only=True)
-    end_date = serializers.DateField(read_only=True)
-    period_number = serializers.IntegerField(read_only=True)
-    status = serializers.CharField(read_only=True)
-    fiscal_year_id = serializers.SerializerMethodField()
+class AccountingPeriodSerializer(serializers.ModelSerializer):
+    fiscal_year_id = serializers.PrimaryKeyRelatedField(source='fiscal_year', read_only=True)
 
-    def get_fiscal_year_id(self, obj):
-        try:
-            fy = obj.fiscal_year.single()
-            return fy.year_id if fy else None
-        except Exception:
-            return None
+    class Meta:
+        model = AccountingPeriod
+        fields = ['period_id', 'name', 'start_date', 'end_date', 'period_number', 'status', 'fiscal_year_id']
+        read_only_fields = ['period_id', 'name', 'start_date', 'end_date', 'period_number', 'status']

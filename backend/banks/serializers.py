@@ -1,29 +1,25 @@
 from rest_framework import serializers
 from config.auth import get_active_company_id
-from .models import BankAccount
+from accounts.models import Account
+from .models import BankAccount, BankReconciliation, BankTransaction
 
 
-class BankAccountSerializer(serializers.Serializer):
-    bank_account_id = serializers.CharField(read_only=True)
-    name = serializers.CharField(max_length=200)
-    account_number = serializers.CharField(max_length=50, required=False, allow_blank=True, default='')
-    bank_name = serializers.CharField(max_length=200)
-    currency = serializers.CharField(default='NGN')
-    opening_balance = serializers.FloatField(default=0.0)
-    opening_balance_date = serializers.DateField()
-    is_active = serializers.BooleanField(default=True)
-    gl_account_id_input = serializers.CharField(write_only=True, required=False, allow_null=True)
-    gl_account_id = serializers.SerializerMethodField()
+class BankAccountSerializer(serializers.ModelSerializer):
+    gl_account_id_input = serializers.PrimaryKeyRelatedField(
+        source='gl_account', queryset=Account.objects.all(),
+        write_only=True, required=False, allow_null=True,
+    )
+    gl_account_id = serializers.PrimaryKeyRelatedField(source='gl_account', read_only=True)
     current_balance = serializers.SerializerMethodField()
-    created_at = serializers.DateTimeField(read_only=True)
-    updated_at = serializers.DateTimeField(read_only=True)
 
-    def get_gl_account_id(self, obj):
-        try:
-            acct = obj.gl_account.single()
-            return acct.account_id if acct else None
-        except Exception:
-            return None
+    class Meta:
+        model = BankAccount
+        fields = [
+            'bank_account_id', 'name', 'account_number', 'bank_name', 'currency',
+            'opening_balance', 'opening_balance_date', 'is_active',
+            'gl_account_id_input', 'gl_account_id', 'current_balance', 'created_at', 'updated_at',
+        ]
+        read_only_fields = ['bank_account_id', 'created_at', 'updated_at']
 
     def get_current_balance(self, obj):
         try:
@@ -34,90 +30,51 @@ class BankAccountSerializer(serializers.Serializer):
 
     def create(self, validated_data):
         company_id = get_active_company_id(self.context['request'])
-        gl_account_id = validated_data.pop('gl_account_id_input', None)
-        bank_account = BankAccount(company_id=company_id, **validated_data)
-        bank_account.save()
-        if gl_account_id:
-            from accounts.models import Account
-            acct = Account.nodes.get_or_none(account_id=gl_account_id, company_id=company_id)
-            if acct:
-                bank_account.gl_account.connect(acct)
-                if bank_account.opening_balance:
-                    from accounts.services import post_opening_balance_entry
-                    post_opening_balance_entry(
-                        acct, bank_account.opening_balance, bank_account.opening_balance_date,
-                        self.context['request'].user.username,
-                        reference_key=bank_account.bank_account_id,
-                    )
+        gl_account = validated_data.pop('gl_account', None)
+        bank_account = BankAccount.objects.create(company_id=company_id, gl_account=gl_account, **validated_data)
+        if gl_account and bank_account.opening_balance:
+            from accounts.services import post_opening_balance_entry
+            post_opening_balance_entry(
+                gl_account, bank_account.opening_balance, bank_account.opening_balance_date,
+                self.context['request'].user,
+                reference_key=bank_account.bank_account_id,
+            )
         return bank_account
 
     def update(self, instance, validated_data):
-        company_id = get_active_company_id(self.context['request'])
-        gl_account_id = validated_data.pop('gl_account_id_input', None)
         # Immutable after creation, like AccountSerializer.update()'s `code`/`opening_balance`
         # handling — editing it here would desync the bank's displayed opening_balance from
         # the GL posting already made (post_opening_balance_entry only ever posts once).
         validated_data.pop('opening_balance', None)
+        new_gl_account = validated_data.pop('gl_account', 'UNCHANGED')
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
         instance.save()
-        if 'gl_account_id_input' in self.initial_data:
-            try:
-                current_account = instance.gl_account.single()
-            except Exception:
-                current_account = None
-            unchanged = bool(current_account) and current_account.account_id == gl_account_id
-            # gl_account is cardinality=One — changing the link must go through
-            # reconnect(), not disconnect()+connect() (disconnecting a
-            # cardinality=One relationship raises AttemptedCardinalityViolation;
-            # only reconnect() is allowed). An explicit unlink (gl_account_id
-            # falsy while a link exists) is left as a no-op rather than crashing,
-            # since the model has no valid "no GL account" state to fall back to.
-            if gl_account_id:
-                from accounts.models import Account
-                new_account = current_account if unchanged else Account.nodes.get_or_none(account_id=gl_account_id, company_id=company_id)
-                if new_account:
-                    if not unchanged:
-                        if current_account:
-                            instance.gl_account.reconnect(current_account, new_account)
-                        else:
-                            instance.gl_account.connect(new_account)
-                    if instance.opening_balance:
-                        from accounts.services import post_opening_balance_entry
-                        post_opening_balance_entry(
-                            new_account, instance.opening_balance, instance.opening_balance_date,
-                            self.context['request'].user.username,
-                            reference_key=instance.bank_account_id,
-                        )
+
+        if new_gl_account != 'UNCHANGED' and new_gl_account and new_gl_account.account_id != instance.gl_account_id:
+            instance.gl_account = new_gl_account
+            instance.save(update_fields=['gl_account'])
+            if instance.opening_balance:
+                from accounts.services import post_opening_balance_entry
+                post_opening_balance_entry(
+                    new_gl_account, instance.opening_balance, instance.opening_balance_date,
+                    self.context['request'].user,
+                    reference_key=instance.bank_account_id,
+                )
         return instance
 
 
-class BankReconciliationSerializer(serializers.Serializer):
-    reconciliation_id = serializers.CharField(read_only=True)
-    period_start = serializers.DateField()
-    period_end = serializers.DateField()
-    statement_balance = serializers.FloatField()
-    status = serializers.CharField(read_only=True)
-    created_by = serializers.CharField(read_only=True)
-    completed_at = serializers.DateTimeField(read_only=True)
-    created_at = serializers.DateTimeField(read_only=True)
-    bank_account_id = serializers.SerializerMethodField()
+class BankReconciliationSerializer(serializers.ModelSerializer):
+    created_by = serializers.CharField(source='created_by.username', read_only=True, default=None)
+    bank_account_id = serializers.PrimaryKeyRelatedField(source='bank_account', read_only=True)
 
-    def get_bank_account_id(self, obj):
-        try:
-            ba = obj.bank_account.single()
-            return ba.bank_account_id if ba else None
-        except Exception:
-            return None
-
-    def create(self, validated_data):
-        from .models import BankReconciliation
-        company_id = get_active_company_id(self.context['request'])
-        bank_account = validated_data.pop('bank_account')
-        recon = BankReconciliation(company_id=company_id, **validated_data)
-        recon.save()
-        recon.bank_account.connect(bank_account)
-        return recon
+    class Meta:
+        model = BankReconciliation
+        fields = [
+            'reconciliation_id', 'period_start', 'period_end', 'statement_balance',
+            'status', 'created_by', 'completed_at', 'created_at', 'bank_account_id',
+        ]
+        read_only_fields = ['reconciliation_id', 'status', 'completed_at', 'created_at']
 
 
 class BankTransactionSplitSerializer(serializers.Serializer):
@@ -126,15 +83,8 @@ class BankTransactionSplitSerializer(serializers.Serializer):
     description = serializers.CharField(default='', allow_blank=True)
 
 
-class BankTransactionSerializer(serializers.Serializer):
-    transaction_id = serializers.CharField(read_only=True)
-    reference = serializers.CharField(read_only=True)
-    transaction_type = serializers.ChoiceField(choices=[('RECEIPT', 'Receipt'), ('PAYMENT', 'Payment'), ('TRANSFER', 'Transfer')])
-    date = serializers.DateField()
-    amount = serializers.FloatField(read_only=True)
-    description = serializers.CharField(max_length=500, required=False, allow_blank=True, default='')
-    created_by = serializers.CharField(read_only=True)
-    created_at = serializers.DateTimeField(read_only=True)
+class BankTransactionSerializer(serializers.ModelSerializer):
+    created_by = serializers.CharField(source='created_by.username', read_only=True, default=None)
 
     # Write-only inputs
     source_bank_id = serializers.CharField(write_only=True)
@@ -145,57 +95,28 @@ class BankTransactionSerializer(serializers.Serializer):
     customer_id = serializers.CharField(write_only=True, required=False, allow_null=True, allow_blank=True)
 
     # Read-only derived fields
-    source_bank_name = serializers.SerializerMethodField()
-    destination_bank_name = serializers.SerializerMethodField()
-    vendor_name = serializers.SerializerMethodField()
-    customer_name = serializers.SerializerMethodField()
-    entry_id = serializers.SerializerMethodField()
+    source_bank_name = serializers.CharField(source='source_bank.name', read_only=True, default=None)
+    destination_bank_name = serializers.CharField(source='destination_bank.name', read_only=True, default=None)
+    vendor_name = serializers.CharField(source='vendor.name', read_only=True, default=None)
+    customer_name = serializers.CharField(source='customer.name', read_only=True, default=None)
+    entry_id = serializers.PrimaryKeyRelatedField(source='journal_entry', read_only=True)
     lines = serializers.SerializerMethodField()
 
-    def get_source_bank_name(self, obj):
-        try:
-            ba = obj.source_bank.single()
-            return ba.name if ba else None
-        except Exception:
-            return None
-
-    def get_destination_bank_name(self, obj):
-        try:
-            ba = obj.destination_bank.single()
-            return ba.name if ba else None
-        except Exception:
-            return None
-
-    def get_vendor_name(self, obj):
-        try:
-            v = obj.vendor.single()
-            return v.name if v else None
-        except Exception:
-            return None
-
-    def get_customer_name(self, obj):
-        try:
-            c = obj.customer.single()
-            return c.name if c else None
-        except Exception:
-            return None
-
-    def get_entry_id(self, obj):
-        try:
-            entry = obj.journal_entry.single()
-            return entry.entry_id if entry else None
-        except Exception:
-            return None
+    class Meta:
+        model = BankTransaction
+        fields = [
+            'transaction_id', 'reference', 'transaction_type', 'date', 'amount', 'description',
+            'created_by', 'created_at',
+            'source_bank_id', 'destination_bank_id', 'transfer_amount', 'splits', 'vendor_id', 'customer_id',
+            'source_bank_name', 'destination_bank_name', 'vendor_name', 'customer_name', 'entry_id', 'lines',
+        ]
+        read_only_fields = ['transaction_id', 'reference', 'amount', 'created_at']
 
     def get_lines(self, obj):
-        try:
-            from journals.serializers import JournalLineSerializer
-            entry = obj.journal_entry.single()
-            if not entry:
-                return []
-            return JournalLineSerializer(list(entry.lines.all()), many=True).data
-        except Exception:
+        from journals.serializers import JournalLineSerializer
+        if not obj.journal_entry_id:
             return []
+        return JournalLineSerializer(obj.journal_entry.lines.select_related('account').all(), many=True).data
 
     def validate(self, data):
         txn_type = data.get('transaction_type')

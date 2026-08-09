@@ -1,74 +1,52 @@
 from rest_framework import serializers
 from config.auth import get_active_company_id
+from accounts.models import Account
 from .models import Budget, BudgetLine
 
 
-class BudgetLineSerializer(serializers.Serializer):
-    line_id = serializers.CharField(read_only=True)
-    account_id = serializers.CharField(write_only=True)
-    account_code = serializers.SerializerMethodField()
-    account_name = serializers.SerializerMethodField()
-    account_type = serializers.SerializerMethodField()
-    budgeted_amount = serializers.FloatField(min_value=0.01)
+class BudgetLineSerializer(serializers.ModelSerializer):
+    account_id = serializers.PrimaryKeyRelatedField(source='account', queryset=Account.objects.all())
+    account_code = serializers.CharField(source='account.code', read_only=True)
+    account_name = serializers.CharField(source='account.name', read_only=True)
+    account_type = serializers.CharField(source='account.account_type', read_only=True)
 
-    def get_account_code(self, obj):
-        try:
-            return obj.account.single().code
-        except Exception:
-            return None
-
-    def get_account_name(self, obj):
-        try:
-            return obj.account.single().name
-        except Exception:
-            return None
-
-    def get_account_type(self, obj):
-        try:
-            return obj.account.single().account_type
-        except Exception:
-            return None
+    class Meta:
+        model = BudgetLine
+        fields = ['line_id', 'account_id', 'account_code', 'account_name', 'account_type', 'budgeted_amount']
+        read_only_fields = ['line_id']
+        extra_kwargs = {'budgeted_amount': {'min_value': 0.01}}
 
 
-class BudgetSerializer(serializers.Serializer):
-    budget_id = serializers.CharField(read_only=True)
-    name = serializers.CharField(max_length=200)
-    fiscal_year = serializers.CharField(max_length=50)
-    status = serializers.CharField(read_only=True)
-    created_by = serializers.CharField(read_only=True)
-    approved_by = serializers.CharField(read_only=True)
-    approved_at = serializers.DateTimeField(read_only=True)
-    created_at = serializers.DateTimeField(read_only=True)
+class BudgetSerializer(serializers.ModelSerializer):
+    created_by = serializers.CharField(source='created_by.username', read_only=True, default=None)
+    approved_by = serializers.CharField(source='approved_by.username', read_only=True, default=None)
     lines = BudgetLineSerializer(many=True, required=False)
     total_budgeted = serializers.SerializerMethodField()
 
+    class Meta:
+        model = Budget
+        fields = [
+            'budget_id', 'name', 'fiscal_year', 'status', 'created_by', 'approved_by',
+            'approved_at', 'created_at', 'lines', 'total_budgeted',
+        ]
+        read_only_fields = ['budget_id', 'status', 'approved_at', 'created_at']
+
     def get_total_budgeted(self, obj):
-        try:
-            return sum(l.budgeted_amount for l in obj.lines.all())
-        except Exception:
-            return 0.0
+        return sum(l.budgeted_amount for l in obj.lines.all())
 
     def validate(self, data):
         lines = data.get('lines', [])
         if not lines:
             raise serializers.ValidationError({'lines': 'A budget requires at least one line.'})
-        account_ids = [l['account_id'] for l in lines]
+        account_ids = [l['account'].account_id for l in lines]
         if len(account_ids) != len(set(account_ids)):
             raise serializers.ValidationError({'lines': 'Each account can only appear once per budget.'})
         return data
 
     def create(self, validated_data):
-        from accounts.models import Account
         company_id = get_active_company_id(self.context['request'])
         lines_data = validated_data.pop('lines', [])
-        budget = Budget(company_id=company_id, **validated_data)
-        budget.save()
+        budget = Budget.objects.create(company_id=company_id, **validated_data)
         for line_data in lines_data:
-            account_id = line_data.pop('account_id')
-            line = BudgetLine(company_id=company_id, **line_data)
-            line.save()
-            budget.lines.connect(line)
-            account = Account.nodes.get_or_none(account_id=account_id, company_id=company_id)
-            if account:
-                line.account.connect(account)
+            BudgetLine.objects.create(company_id=company_id, budget=budget, **line_data)
         return budget

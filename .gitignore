@@ -61,6 +61,9 @@ local_settings.py
 db.sqlite3
 db.sqlite3-journal
 
+# Neo4j -> SQLite migration dump (contains real financial records)
+backend/migration_data/
+
 # Flask stuff:
 instance/
 .webassets-cache

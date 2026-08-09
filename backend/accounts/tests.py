@@ -6,11 +6,21 @@ from django.contrib.auth.models import Group
 
 class OpeningBalanceTests(TestCase):
     def setUp(self):
+        from users.models import Company, Membership
+        from rest_framework_simplejwt.tokens import AccessToken
+
+        self.company = Company.objects.create(name='Test Co')
         self.user = get_user_model().objects.create_user('tester', password='pw12345')
+        Membership.objects.create(user=self.user, company=self.company, role='Admin')
         admin_group, _ = Group.objects.get_or_create(name='Admin')
         self.user.groups.add(admin_group)
         self.client = APIClient()
-        self.client.force_authenticate(self.user)
+
+        token = AccessToken.for_user(self.user)
+        token['company_id'] = str(self.company.id)
+        token['company_name'] = self.company.name
+        token['role'] = 'Admin'
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {token}')
 
     def test_account_with_opening_balance_posts_journal_entry(self):
         from accounts.models import Account
@@ -34,4 +44,4 @@ class OpeningBalanceTests(TestCase):
         }, format='json')
         self.assertEqual(resp.status_code, 201, resp.content)
         account_id = resp.data['account_id']
-        self.assertIsNone(JournalEntry.nodes.get_or_none(reference=f'OB-{account_id}'))
+        self.assertFalse(JournalEntry.objects.filter(reference=f'OB-{account_id}').exists())

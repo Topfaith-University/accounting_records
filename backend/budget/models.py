@@ -1,30 +1,35 @@
-from neomodel import (
-    StructuredNode, StringProperty, FloatProperty,
-    DateTimeProperty, UniqueIdProperty,
-    RelationshipTo, One,
-)
+from django.conf import settings
+from django.db import models
+
+from config.ids import new_id
+from users.models import Company
+from accounts.models import Account
 
 
-class Budget(StructuredNode):
-    budget_id = UniqueIdProperty()
-    company_id = StringProperty(required=True, index=True)
-    name = StringProperty(required=True)
-    fiscal_year = StringProperty(required=True)
-    status = StringProperty(
-        choices=[('DRAFT', 'Draft'), ('APPROVED', 'Approved')], default='DRAFT'
+class Budget(models.Model):
+    budget_id = models.CharField(max_length=32, primary_key=True, default=new_id, editable=False)
+    company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name='budgets')
+    name = models.CharField(max_length=200)
+    # Plain string, not a relation to journals.FiscalYear — pre-existing
+    # inconsistency in the original schema, left as-is.
+    fiscal_year = models.CharField(max_length=50)
+    status = models.CharField(
+        max_length=8, choices=[('DRAFT', 'Draft'), ('APPROVED', 'Approved')], default='DRAFT',
     )
-    created_by = StringProperty(required=True)
-    approved_by = StringProperty(default='')
-    approved_at = DateTimeProperty()
-    created_at = DateTimeProperty(default_now=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, on_delete=models.SET_NULL, related_name='+',
+    )
+    approved_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name='+',
+    )
+    approved_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
 
-    lines = RelationshipTo('BudgetLine', 'HAS_LINE')
 
-
-class BudgetLine(StructuredNode):
-    line_id = UniqueIdProperty()
-    company_id = StringProperty(required=True, index=True)
-    budgeted_amount = FloatProperty(required=True)
-    created_at = DateTimeProperty(default_now=True)
-
-    account = RelationshipTo('accounts.models.Account', 'FOR_ACCOUNT', cardinality=One)
+class BudgetLine(models.Model):
+    line_id = models.CharField(max_length=32, primary_key=True, default=new_id, editable=False)
+    company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name='budget_lines')
+    budget = models.ForeignKey(Budget, on_delete=models.CASCADE, related_name='lines')
+    account = models.ForeignKey(Account, on_delete=models.PROTECT, related_name='budget_lines')
+    budgeted_amount = models.FloatField()
+    created_at = models.DateTimeField(auto_now_add=True)

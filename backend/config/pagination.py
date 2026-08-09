@@ -1,10 +1,10 @@
-"""Shared server-side pagination helpers for neomodel-backed ViewSets.
+"""Shared server-side pagination helpers for hand-written ViewSets.
 
-Every hand-written `ViewSet.list()` in this codebase fetches its full NodeSet
-and returns a bare array — DRF's pagination_class machinery never runs since
-none of these are GenericAPIView-based. These helpers give call sites an
-explicit, opt-in way to paginate a NodeSet at the Cypher level (SKIP/LIMIT +
-a real count query) instead of materializing everything into Python.
+Every hand-written `ViewSet.list()` in this codebase returns a bare array —
+DRF's pagination_class machinery never runs since none of these are
+GenericAPIView-based. These helpers give call sites an explicit, opt-in way
+to paginate a QuerySet at the SQL level (`.count()` + slicing) instead of
+materializing everything into Python.
 """
 
 import math
@@ -28,12 +28,12 @@ def parse_pagination_params(request, default_page_size=DEFAULT_PAGE_SIZE, max_pa
     return page, page_size
 
 
-def paginate_nodeset(qs, page, page_size):
-    """Slice a neomodel NodeSet server-side. `len(qs)` and `qs[skip:skip+size]`
-    each issue their own Cypher query (COUNT and ORDER BY...SKIP...LIMIT
+def paginate_queryset(qs, page, page_size):
+    """Slice a Django QuerySet server-side. `.count()` and `qs[skip:skip+size]`
+    each issue their own SQL query (COUNT and SELECT...LIMIT...OFFSET
     respectively) rather than materializing the full result set.
     """
-    total = len(qs)
+    total = qs.count()
     skip = (page - 1) * page_size
     items = list(qs[skip:skip + page_size])
     return total, items

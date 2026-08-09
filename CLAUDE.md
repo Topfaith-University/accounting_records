@@ -7,7 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 **Page** is a university accounting records application for Topfaith University. Full-stack monorepo:
 - **Backend**: Django + Django REST Framework (port 8082)
 - **Frontend**: Angular 17 standalone-component app (port 4200)
-- **Database**: Neo4j 5 (bolt port 7687, browser port 7474) for all domain data; SQLite for Django auth/admin + invite codes only
+- **Database**: SQLite for everything — Django auth/admin, invite codes/companies, and all domain data (accounts, journals, banks, payables, receivables, budget)
 
 ## Running the Project
 
@@ -27,23 +27,18 @@ cd backend && python manage.py test <app>.tests.<TestClass>.<test_method>  # sin
 
 # No linting is configured (no flake8, no eslint)
 
-# After adding/changing Neo4j node models (run inside Docker if local venv is missing deps)
-docker exec django_backend python manage.py install_labels
-
-# Clear all Neo4j domain data (wipes nodes/relationships, preserves constraints)
-docker exec neo4j_db cypher-shell -u neo4j -p yourpassword "MATCH (n) DETACH DELETE n"
-# Then rebuild constraints:
-docker exec django_backend python manage.py install_labels
+# After adding/changing any model
+cd backend && python manage.py makemigrations && python manage.py migrate
 ```
 
-**Docker container names**: `django_backend`, `neo4j_db`, `angular_frontend`.
+**Docker container names**: `django_backend`, `angular_frontend`.
 
-**Docker entrypoint** (`backend/entrypoint.sh`) runs automatically on container start: migrations → collect static → `install_labels` → create superuser (via `DJANGO_SUPERUSER_*` env vars) → create default groups (`Admin`, `Manager`, `Accountant`) → assign superuser to Admin group.
+**Docker entrypoint** (`backend/entrypoint.sh`) runs automatically on container start: migrations → collect static → create superuser (via `DJANGO_SUPERUSER_*` env vars) → create default groups (`Admin`, `Manager`, `Accountant`) → assign superuser to Admin group.
 
 ## Architecture
 
-### Dual-database pattern
-Django's ORM (SQLite) is used **only** for built-in apps (auth, admin, sessions) **and** the `users` app (`InviteCode` model). All other domain models are `neomodel.StructuredNode` subclasses stored in Neo4j. Never use `django.db.models.Model` for domain entities unless they belong to auth/invite management.
+### Single-database pattern
+Everything — built-in apps (auth, admin, sessions), the `users` app (`Company`, `Membership`, `InviteCode`), and every domain model (accounts, journals, banks, payables, receivables, budget) — is a standard `django.db.models.Model` in the single SQLite database. Domain models were migrated off Neo4j/neomodel in 2026-08; see git history on the `backend` branch for the cutover. Every domain model has a `company = models.ForeignKey(users.Company)` for multi-tenancy scoping, and `created_by`/`approved_by`/`voided_by` fields are `ForeignKey(auth.User, null=True, on_delete=SET_NULL)`, not raw username strings.
 
 ### Backend apps
 
@@ -62,7 +57,7 @@ Django's ORM (SQLite) is used **only** for built-in apps (auth, admin, sessions)
 ### API style
 All views are `viewsets.ViewSet` with DRF `DefaultRouter`, **except** `reports/` and `config/urls.py` auth views which use plain function-based views. Every app has a `serializers.py` with full DRF serializers.
 
-**`_serialize_*` helper pattern**: Write-only FK fields on serializers (e.g. `vendor_id`, `expense_account_id`) must be manually re-attached in `_serialize_*(node)` helpers that call `Serializer(node).data` then add each FK id back from relationships. All ViewSet methods call these helpers before returning responses.
+**FK id fields on serializers** (e.g. `vendor_id`, `expense_account_id`, `ap_account_id`) are `serializers.PrimaryKeyRelatedField(source='vendor', queryset=...)` — readable and writable in one field, no manual reattachment needed. `created_by`/`approved_by`/`voided_by` are exposed as plain username strings via `serializers.CharField(source='created_by.username', read_only=True, default=None)`, preserving the JSON shape the frontend expects even though the underlying field is a `ForeignKey(User)`.
 
 ### Auth & RBAC
 JWT via `djangorestframework-simplejwt`. Custom `SageTokenObtainPairSerializer` (in `config/urls.py`) embeds `username` and `groups` in the token payload.
@@ -77,7 +72,6 @@ Frontend reads roles from the decoded JWT in `AuthService`. JWT tokens stored in
 ### Settings non-obvious details
 - `TIME_ZONE = 'Africa/Lagos'` (Nigeria timezone; UTC offsets apply)
 - `CORS_ALLOW_ALL_ORIGINS = True` — permissive, dev only
-- `NEOMODEL_SIGNALS = True` — enables Django-like signal support on Neo4j models
 
 ### URL structure
 ```
@@ -100,7 +94,7 @@ Frontend reads roles from the decoded JWT in `AuthService`. JWT tokens stored in
 /api/receivables/customers/ → CustomerViewSet
 /api/receivables/invoices/  → SalesInvoiceViewSet
 /api/budget/budgets/        → BudgetViewSet
-/api/budget/budgets/{id}/variance/ → real-time actual vs budgeted (Cypher query)
+/api/budget/budgets/{id}/variance/ → real-time actual vs budgeted (per-line ORM aggregate)
 /api/users/invite-codes/    → InviteCode list/generate (Manager/Admin)
 /api/reports/trial-balance/
 /api/reports/income-statement/
@@ -111,10 +105,10 @@ Frontend reads roles from the decoded JWT in `AuthService`. JWT tokens stored in
 
 All report endpoints accept `?format=pdf|xlsx` query param for export.
 
-### Neomodel conventions
-- `UniqueIdProperty` for all primary keys
-- Run `install_labels` after any model schema change
-- `updated_at` uses `default_now=True` but is **not** auto-updated on save — set manually
+### Domain model conventions
+- Primary keys are `models.CharField(max_length=32, primary_key=True, default=config.ids.new_id, editable=False)` — a plain 32-char hex string, not `UUIDField`. `UUIDField` raises `ValidationError` (→ unhandled 500) on a malformed lookup value like a garbage URL path param; `CharField` just finds no match (→ clean 404), matching neomodel's old `UniqueIdProperty` behavior. Use `config.ids.new_id` for any new domain model's PK.
+- `created_at`/`updated_at` are `auto_now_add=True` (set once at creation, never auto-updated on later saves) — this matches the old neomodel `default_now=True` semantics, since no code path ever manually updates `updated_at` after creation.
+- Race-safe sequence numbers (bank transaction refs, AP/AR settlement refs, PI/SI invoice numbers, journal entry references) all go through `journals.models.Counter.next(key)` — a `select_for_update()`-guarded counter row, not a scan-and-increment query.
 
 ### AccountType enum
 Located in `backend/accounts/enums.py`. Valid values: `Sales`, `Cost of Sales`, `Expenses`, `Income Tax`, `Non-Current Assets`, `Current Assets`, `Current Liabilities`, `Non-Current Liabilities`, `Owner's Equity`, `Other Incomes`.

@@ -15,16 +15,16 @@ class AccountViewSet(viewsets.ViewSet):
         company_id = get_active_company_id(request)
         if not company_id:
             return Response({'detail': 'No active company.'}, status=status.HTTP_400_BAD_REQUEST)
-        accounts = Account.nodes.filter(is_active=True, company_id=company_id)
+        accounts = Account.objects.filter(is_active=True, company_id=company_id)
         account_type = request.query_params.get('account_type')
         if account_type:
-            accounts = [a for a in accounts if a.account_type == account_type]
+            accounts = accounts.filter(account_type=account_type)
         serializer = AccountSerializer(list(accounts), many=True)
         return Response(serializer.data)
 
     def retrieve(self, request, pk=None):
         company_id = get_active_company_id(request)
-        account = Account.nodes.get_or_none(account_id=pk, company_id=company_id)
+        account = Account.objects.filter(account_id=pk, company_id=company_id).first()
         if not account:
             return Response({'detail': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
         return Response(AccountSerializer(account).data)
@@ -39,7 +39,7 @@ class AccountViewSet(viewsets.ViewSet):
 
     def partial_update(self, request, pk=None):
         company_id = get_active_company_id(request)
-        account = Account.nodes.get_or_none(account_id=pk, company_id=company_id)
+        account = Account.objects.filter(account_id=pk, company_id=company_id).first()
         if not account:
             return Response({'detail': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
         serializer = AccountSerializer(account, data=request.data, partial=True, context={'request': request})
@@ -49,7 +49,7 @@ class AccountViewSet(viewsets.ViewSet):
 
     def destroy(self, request, pk=None):
         company_id = get_active_company_id(request)
-        account = Account.nodes.get_or_none(account_id=pk, company_id=company_id)
+        account = Account.objects.filter(account_id=pk, company_id=company_id).first()
         if not account:
             return Response({'detail': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
         if account.is_system:
@@ -66,8 +66,7 @@ class AccountViewSet(viewsets.ViewSet):
     def export(self, request):
         from config.export_utils import xlsx_response, pdf_response
         company_id = get_active_company_id(request)
-        accounts = list(Account.nodes.filter(is_active=True, company_id=company_id))
-        accounts = sorted(accounts, key=lambda a: a.code)
+        accounts = Account.objects.filter(is_active=True, company_id=company_id).order_by('code')
         fmt = request.query_params.get('format', 'xlsx')
         headers = ['Code', 'Name', 'Type', 'Normal Balance', 'Balance (N)']
         from .services import compute_account_balance
@@ -83,7 +82,7 @@ class AccountViewSet(viewsets.ViewSet):
     @action(detail=True, methods=['get'], url_path='balance')
     def balance(self, request, pk=None):
         company_id = get_active_company_id(request)
-        account = Account.nodes.get_or_none(account_id=pk, company_id=company_id)
+        account = Account.objects.filter(account_id=pk, company_id=company_id).first()
         if not account:
             return Response({'detail': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
         from .services import compute_account_balance
@@ -93,26 +92,28 @@ class AccountViewSet(viewsets.ViewSet):
 
     @action(detail=True, methods=['get'], url_path='ledger')
     def ledger(self, request, pk=None):
+        from journals.models import JournalLine
         company_id = get_active_company_id(request)
-        account = Account.nodes.get_or_none(account_id=pk, company_id=company_id)
+        account = Account.objects.filter(account_id=pk, company_id=company_id).first()
         if not account:
             return Response({'detail': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
-        from neomodel import db
-        params = {'account_id': pk, 'company_id': company_id}
-        query = """
-            MATCH (e:JournalEntry {company_id: $company_id})-[:HAS_LINE]->(l:JournalLine)-[:AFFECTS_ACCOUNT]->(a:Account {account_id: $account_id})
-            WHERE e.status = 'POSTED'
-            RETURN e.entry_id, e.reference, e.date, e.description, l.side, l.amount, l.description, e.entry_type
-            ORDER BY e.date DESC
-        """
-        results, _ = db.cypher_query(query, params)
+        lines = (
+            JournalLine.objects
+            .filter(account_id=pk, entry__company_id=company_id, entry__status='POSTED')
+            .select_related('entry')
+            .order_by('-entry__date')
+        )
         entries = [
             {
-                'entry_id': r[0], 'reference': r[1], 'date': str(r[2]),
-                'entry_description': r[3], 'side': r[4],
-                'amount': r[5], 'line_description': r[6],
-                'entry_type': r[7],
+                'entry_id': line.entry.entry_id,
+                'reference': line.entry.reference,
+                'date': str(line.entry.date),
+                'entry_description': line.entry.description,
+                'side': line.side,
+                'amount': line.amount,
+                'line_description': line.description,
+                'entry_type': line.entry.entry_type,
             }
-            for r in results
+            for line in lines
         ]
         return Response({'account_id': pk, 'entries': entries})

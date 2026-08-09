@@ -1,106 +1,71 @@
 from rest_framework import serializers
 from config.auth import get_active_company_id
+from accounts.models import Account
 from .models import Customer, SalesInvoice, SalesInvoiceLine, ARReceipt
 
 
-def _next_invoice_number(prefix: str, label: str, company_id: str) -> str:
-    from neomodel import db
-    from datetime import datetime
-    year = datetime.now().year
-    pattern = f'{prefix}-{year}-'
-    results, _ = db.cypher_query(
-        f"MATCH (n:{label} {{company_id: $company_id}}) WHERE n.invoice_number STARTS WITH $pattern "
-        f"RETURN n.invoice_number ORDER BY n.invoice_number DESC LIMIT 1",
-        {'pattern': pattern, 'company_id': company_id}
-    )
-    if results and results[0][0]:
-        try:
-            num = int(results[0][0].split('-')[-1]) + 1
-        except (ValueError, IndexError):
-            num = 1
-    else:
-        num = 1
-    return f'{prefix}-{year}-{num:04d}'
+class CustomerSerializer(serializers.ModelSerializer):
+    balance = serializers.SerializerMethodField()
 
+    class Meta:
+        model = Customer
+        fields = [
+            'customer_id', 'name', 'email', 'phone', 'address', 'customer_type',
+            'is_active', 'balance', 'created_at',
+        ]
+        read_only_fields = ['customer_id', 'created_at']
 
-class CustomerSerializer(serializers.Serializer):
-    customer_id = serializers.CharField(read_only=True)
-    name = serializers.CharField(max_length=200)
-    email = serializers.CharField(default='', allow_blank=True)
-    phone = serializers.CharField(default='', allow_blank=True)
-    address = serializers.CharField(default='', allow_blank=True)
-    customer_type = serializers.ChoiceField(choices=['STUDENT', 'EXTERNAL'], default='EXTERNAL')
-    is_active = serializers.BooleanField(default=True)
-    created_at = serializers.DateTimeField(read_only=True)
+    def get_balance(self, obj):
+        total = sum(
+            max(0.0, inv.total_amount - inv.amount_received)
+            for inv in obj.invoices.filter(status__in=('POSTED', 'PAID'))
+        )
+        return round(total, 2)
 
     def create(self, validated_data):
         company_id = get_active_company_id(self.context['request'])
-        customer = Customer(company_id=company_id, **validated_data)
-        customer.save()
-        return customer
-
-    def update(self, instance, validated_data):
-        for attr, value in validated_data.items():
-            setattr(instance, attr, value)
-        instance.save()
-        return instance
+        return Customer.objects.create(company_id=company_id, **validated_data)
 
 
-class SalesInvoiceLineSerializer(serializers.Serializer):
-    line_id = serializers.CharField(read_only=True)
-    description = serializers.CharField(default='', allow_blank=True)
-    quantity = serializers.FloatField(default=1.0, min_value=0.01)
-    unit_price = serializers.FloatField(default=0.0, min_value=0)
-    amount = serializers.FloatField(min_value=0.01)
-    revenue_account_id = serializers.CharField(write_only=True)
-    revenue_account_code = serializers.SerializerMethodField()
-    revenue_account_name = serializers.SerializerMethodField()
+class SalesInvoiceLineSerializer(serializers.ModelSerializer):
+    revenue_account_id = serializers.PrimaryKeyRelatedField(source='revenue_account', queryset=Account.objects.all())
+    revenue_account_code = serializers.CharField(source='revenue_account.code', read_only=True)
+    revenue_account_name = serializers.CharField(source='revenue_account.name', read_only=True)
 
-    def get_revenue_account_code(self, obj):
-        try:
-            acct = obj.revenue_account.single()
-            return acct.code if acct else None
-        except Exception:
-            return None
-
-    def get_revenue_account_name(self, obj):
-        try:
-            acct = obj.revenue_account.single()
-            return acct.name if acct else None
-        except Exception:
-            return None
+    class Meta:
+        model = SalesInvoiceLine
+        fields = [
+            'line_id', 'description', 'quantity', 'unit_price', 'amount',
+            'revenue_account_id', 'revenue_account_code', 'revenue_account_name',
+        ]
+        read_only_fields = ['line_id']
+        extra_kwargs = {
+            'quantity': {'min_value': 0.01},
+            'unit_price': {'min_value': 0},
+            'amount': {'min_value': 0.01},
+        }
 
 
-class SalesInvoiceSerializer(serializers.Serializer):
-    invoice_id = serializers.CharField(read_only=True)
+class SalesInvoiceSerializer(serializers.ModelSerializer):
     invoice_number = serializers.CharField(max_length=50, required=False, allow_blank=True)
-    date = serializers.DateField()
-    due_date = serializers.DateField()
-    description = serializers.CharField(default='', allow_blank=True)
-    status = serializers.CharField(read_only=True)
-    total_amount = serializers.FloatField(read_only=True)
-    amount_received = serializers.FloatField(read_only=True)
-    created_by = serializers.CharField(read_only=True)
-    created_at = serializers.DateTimeField(read_only=True)
-    customer_id = serializers.CharField(write_only=True)
-    ar_account_id = serializers.CharField(write_only=True)
-    customer_name = serializers.SerializerMethodField()
+    created_by = serializers.CharField(source='created_by.username', read_only=True, default=None)
+    customer_id = serializers.PrimaryKeyRelatedField(source='customer', queryset=Customer.objects.all())
+    ar_account_id = serializers.PrimaryKeyRelatedField(source='ar_account', queryset=Account.objects.all())
+    customer_name = serializers.CharField(source='customer.name', read_only=True, default=None)
     ar_account_label = serializers.SerializerMethodField()
     lines = SalesInvoiceLineSerializer(many=True, required=False)
 
-    def get_customer_name(self, obj):
-        try:
-            c = obj.customer.single()
-            return c.name if c else None
-        except Exception:
-            return None
+    class Meta:
+        model = SalesInvoice
+        fields = [
+            'invoice_id', 'invoice_number', 'date', 'due_date', 'description', 'status',
+            'total_amount', 'amount_received', 'created_by', 'created_at',
+            'customer_id', 'ar_account_id', 'customer_name', 'ar_account_label', 'lines',
+        ]
+        read_only_fields = ['invoice_id', 'status', 'total_amount', 'amount_received', 'created_at']
 
     def get_ar_account_label(self, obj):
-        try:
-            a = obj.ar_account.single()
-            return f'{a.code} — {a.name}' if a else None
-        except Exception:
-            return None
+        return f'{obj.ar_account.code} — {obj.ar_account.name}' if obj.ar_account_id else None
 
     def validate(self, data):
         lines = data.get('lines', [])
@@ -109,103 +74,38 @@ class SalesInvoiceSerializer(serializers.Serializer):
         return data
 
     def create(self, validated_data):
-        from accounts.models import Account
+        from journals.services import next_invoice_number
         company_id = get_active_company_id(self.context['request'])
         lines_data = validated_data.pop('lines', [])
-        customer_id = validated_data.pop('customer_id')
-        ar_account_id = validated_data.pop('ar_account_id')
 
         if not validated_data.get('invoice_number'):
-            validated_data['invoice_number'] = _next_invoice_number('SI', 'SalesInvoice', company_id)
+            validated_data['invoice_number'] = next_invoice_number('SI', company_id)
 
-        invoice = SalesInvoice(company_id=company_id, **validated_data)
-        invoice.save()
-
-        customer = Customer.nodes.get_or_none(customer_id=customer_id, company_id=company_id)
-        if customer:
-            invoice.customer.connect(customer)
-
-        ar_acct = Account.nodes.get_or_none(account_id=ar_account_id, company_id=company_id)
-        if ar_acct:
-            invoice.ar_account.connect(ar_acct)
-
+        invoice = SalesInvoice.objects.create(company_id=company_id, **validated_data)
         for line_data in lines_data:
-            revenue_account_id = line_data.pop('revenue_account_id')
-            line = SalesInvoiceLine(company_id=company_id, **line_data)
-            line.save()
-            invoice.lines.connect(line)
-            revenue_acct = Account.nodes.get_or_none(account_id=revenue_account_id, company_id=company_id)
-            if revenue_acct:
-                line.revenue_account.connect(revenue_acct)
-
+            SalesInvoiceLine.objects.create(company_id=company_id, invoice=invoice, **line_data)
         return invoice
 
     def update(self, instance, validated_data):
-        from accounts.models import Account
         company_id = get_active_company_id(self.context['request'])
-
         lines_data = validated_data.pop('lines', None)
-        customer_id = validated_data.pop('customer_id', None)
-        ar_account_id = validated_data.pop('ar_account_id', None)
-
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
         instance.save()
 
-        if customer_id:
-            # customer is cardinality=One — must go through reconnect(), not
-            # disconnect()+connect() (disconnecting a cardinality=One relationship
-            # raises AttemptedCardinalityViolation; only reconnect() is allowed).
-            customer = Customer.nodes.get_or_none(customer_id=customer_id, company_id=company_id)
-            if customer:
-                current_customer = instance.customer.single()
-                if current_customer:
-                    instance.customer.reconnect(current_customer, customer)
-                else:
-                    instance.customer.connect(customer)
-
-        if ar_account_id:
-            ar_account = Account.nodes.get_or_none(account_id=ar_account_id, company_id=company_id)
-            if ar_account:
-                current_ar_account = instance.ar_account.single()
-                if current_ar_account:
-                    instance.ar_account.reconnect(current_ar_account, ar_account)
-                else:
-                    instance.ar_account.connect(ar_account)
-
         if lines_data is not None:
-            # existing_line.delete() is DETACH DELETE — it removes the line's
-            # revenue_account relationship (cardinality=One) automatically, so
-            # there's nothing to disconnect first (disconnect() would raise
-            # AttemptedCardinalityViolation on a cardinality=One relationship).
-            for existing_line in list(instance.lines.all()):
-                instance.lines.disconnect(existing_line)
-                existing_line.delete()
-
+            instance.lines.all().delete()
             for line_data in lines_data:
-                revenue_account_id = line_data.pop('revenue_account_id')
-                line = SalesInvoiceLine(company_id=company_id, **line_data)
-                line.save()
-                instance.lines.connect(line)
-                revenue_account = Account.nodes.get_or_none(account_id=revenue_account_id, company_id=company_id)
-                if revenue_account:
-                    line.revenue_account.connect(revenue_account)
+                SalesInvoiceLine.objects.create(company_id=company_id, invoice=instance, **line_data)
 
         return instance
 
 
-class ARReceiptSerializer(serializers.Serializer):
-    receipt_id = serializers.CharField(read_only=True)
-    receipt_date = serializers.DateField(read_only=True)
-    amount = serializers.FloatField(read_only=True)
-    reference = serializers.CharField(read_only=True)
-    created_by = serializers.CharField(read_only=True)
-    created_at = serializers.DateTimeField(read_only=True)
-    invoice_id = serializers.SerializerMethodField()
+class ARReceiptSerializer(serializers.ModelSerializer):
+    created_by = serializers.CharField(source='created_by.username', read_only=True, default=None)
+    invoice_id = serializers.PrimaryKeyRelatedField(source='invoice', read_only=True)
 
-    def get_invoice_id(self, obj):
-        try:
-            inv = obj.invoice.single()
-            return inv.invoice_id if inv else None
-        except Exception:
-            return None
+    class Meta:
+        model = ARReceipt
+        fields = ['receipt_id', 'receipt_date', 'amount', 'reference', 'created_by', 'created_at', 'invoice_id']
+        read_only_fields = ['receipt_id', 'receipt_date', 'amount', 'reference', 'created_at']

@@ -5,6 +5,7 @@ from rest_framework.response import Response
 from config.auth import get_active_company_id
 from .models import Budget
 from .serializers import BudgetSerializer, BudgetLineSerializer
+from . import services
 
 
 class BudgetViewSet(viewsets.ViewSet):
@@ -12,16 +13,16 @@ class BudgetViewSet(viewsets.ViewSet):
 
     def list(self, request):
         company_id = get_active_company_id(request)
-        budgets = sorted(Budget.nodes.filter(company_id=company_id), key=lambda b: str(b.created_at), reverse=True)
+        budgets = Budget.objects.filter(company_id=company_id).order_by('-created_at')
         return Response(BudgetSerializer(budgets, many=True).data)
 
     def retrieve(self, request, pk=None):
         company_id = get_active_company_id(request)
-        budget = Budget.nodes.get_or_none(budget_id=pk, company_id=company_id)
+        budget = Budget.objects.filter(budget_id=pk, company_id=company_id).first()
         if not budget:
             return Response({'detail': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
         data = BudgetSerializer(budget).data
-        data['lines'] = BudgetLineSerializer(list(budget.lines.all()), many=True).data
+        data['lines'] = BudgetLineSerializer(budget.lines.select_related('account').all(), many=True).data
         return Response(data)
 
     def create(self, request):
@@ -29,37 +30,32 @@ class BudgetViewSet(viewsets.ViewSet):
             return Response({'detail': 'No active company.'}, status=status.HTTP_400_BAD_REQUEST)
         serializer = BudgetSerializer(data=request.data, context={'request': request})
         serializer.is_valid(raise_exception=True)
-        budget = serializer.save(created_by=request.user.username)
+        budget = serializer.save(created_by=request.user)
         data = BudgetSerializer(budget).data
-        data['lines'] = BudgetLineSerializer(list(budget.lines.all()), many=True).data
+        data['lines'] = BudgetLineSerializer(budget.lines.select_related('account').all(), many=True).data
         return Response(data, status=status.HTTP_201_CREATED)
 
     def destroy(self, request, pk=None):
         company_id = get_active_company_id(request)
-        budget = Budget.nodes.get_or_none(budget_id=pk, company_id=company_id)
+        budget = Budget.objects.filter(budget_id=pk, company_id=company_id).first()
         if not budget:
             return Response({'detail': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
         if budget.status == 'APPROVED':
             return Response({'detail': 'Cannot delete an approved budget.'}, status=status.HTTP_400_BAD_REQUEST)
-        for line in budget.lines.all():
-            line.delete()
-        budget.delete()
+        budget.delete()  # BudgetLine.budget FK is on_delete=CASCADE
         return Response(status=status.HTTP_204_NO_CONTENT)
 
     @action(detail=False, methods=['get'], url_path='export')
     def export(self, request):
         from config.export_utils import xlsx_response, pdf_response
         company_id = get_active_company_id(request)
-        budgets = sorted(Budget.nodes.filter(company_id=company_id), key=lambda b: str(b.created_at), reverse=True)
+        budgets = Budget.objects.filter(company_id=company_id).order_by('-created_at')
         fmt = request.query_params.get('format', 'xlsx')
         headers = ['Name', 'Fiscal Year', 'Total Budgeted (N)', 'Status', 'Created By']
         rows = []
         for b in budgets:
-            try:
-                total_budgeted = sum(l.budgeted_amount for l in b.lines.all())
-            except Exception:
-                total_budgeted = 0.0
-            rows.append([b.name, b.fiscal_year, total_budgeted, b.status, b.created_by])
+            total_budgeted = sum(l.budgeted_amount for l in b.lines.all())
+            rows.append([b.name, b.fiscal_year, total_budgeted, b.status, b.created_by.username if b.created_by else ''])
         if fmt == 'pdf':
             ctx = {'rows': [dict(zip(
                 ['name', 'fiscal_year', 'total_budgeted', 'status', 'created_by'], r
@@ -70,55 +66,22 @@ class BudgetViewSet(viewsets.ViewSet):
     @action(detail=True, methods=['post'], url_path='approve')
     def approve(self, request, pk=None):
         company_id = get_active_company_id(request)
-        budget = Budget.nodes.get_or_none(budget_id=pk, company_id=company_id)
+        budget = Budget.objects.filter(budget_id=pk, company_id=company_id).first()
         if not budget:
             return Response({'detail': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
-        if budget.status == 'APPROVED':
-            return Response({'detail': 'Already approved.'}, status=status.HTTP_400_BAD_REQUEST)
-        from datetime import datetime
-        budget.status = 'APPROVED'
-        budget.approved_by = request.user.username
-        budget.approved_at = datetime.utcnow()
-        budget.save()
+        try:
+            budget = services.approve_budget(budget, request.user)
+        except Exception as e:
+            return Response({'detail': str(e)}, status=status.HTTP_400_BAD_REQUEST)
         return Response(BudgetSerializer(budget).data)
 
     @action(detail=True, methods=['get'], url_path='variance')
     def variance(self, request, pk=None):
         company_id = get_active_company_id(request)
-        budget = Budget.nodes.get_or_none(budget_id=pk, company_id=company_id)
+        budget = Budget.objects.filter(budget_id=pk, company_id=company_id).first()
         if not budget:
             return Response({'detail': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
-        from neomodel import db
-        results, _ = db.cypher_query("""
-            MATCH (b:Budget {budget_id: $budget_id, company_id: $company_id})-[:HAS_LINE]->(bl:BudgetLine)-[:FOR_ACCOUNT]->(a:Account)
-            WITH a, bl.budgeted_amount AS budgeted
-            OPTIONAL MATCH (e:JournalEntry {company_id: $company_id})-[:HAS_LINE]->(l:JournalLine)-[:AFFECTS_ACCOUNT]->(a)
-            WHERE e.status = 'POSTED'
-            RETURN a.account_id, a.code, a.name, a.account_type, a.normal_balance,
-                   budgeted,
-                   coalesce(sum(CASE WHEN l.side = 'DEBIT' THEN l.amount ELSE 0 END), 0) AS debits,
-                   coalesce(sum(CASE WHEN l.side = 'CREDIT' THEN l.amount ELSE 0 END), 0) AS credits
-            ORDER BY a.code
-        """, {'budget_id': pk, 'company_id': company_id})
-        lines = []
-        for r in results:
-            account_id, code, name, acc_type, normal_balance, budgeted, debits, credits = r
-            if normal_balance == 'DEBIT':
-                actual = round((debits or 0.0) - (credits or 0.0), 2)
-            else:
-                actual = round((credits or 0.0) - (debits or 0.0), 2)
-            budgeted = budgeted or 0.0
-            variance = round(budgeted - actual, 2)
-            lines.append({
-                'account_id': account_id,
-                'code': code,
-                'name': name,
-                'account_type': acc_type,
-                'budgeted': budgeted,
-                'actual': actual,
-                'variance': variance,
-                'variance_pct': round(variance / budgeted * 100, 1) if budgeted else None,
-            })
+        lines = services.compute_variance(pk, company_id)
         return Response({
             'budget_id': pk,
             'name': budget.name,

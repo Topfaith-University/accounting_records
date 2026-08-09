@@ -1,57 +1,55 @@
+import uuid
+
 from django.test import TestCase
 from rest_framework.test import APIClient
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
-from django.http import HttpResponse
-from unittest.mock import Mock, patch
+
+from users.models import Company, Membership
+from payables.tests import COMPANY_SCOPED_MODULES, CompanyScopedTestCase
 
 
-class SalesInvoicePrintTests(TestCase):
+class SalesInvoicePrintTests(CompanyScopedTestCase):
     def setUp(self):
-        self.user = get_user_model().objects.create_user('tester', password='pw12345')
-        self.client = APIClient()
-        self.client.force_authenticate(self.user)
+        super().setUp()
+        from accounts.models import Account
+        from receivables.models import Customer, SalesInvoice, SalesInvoiceLine
 
-    @patch('receivables.views.SalesInvoice.nodes', new_callable=Mock)
-    @patch('receivables.views.pdf_response', create=True)
-    def test_print_returns_sales_invoice_pdf(self, pdf_response, nodes):
-        invoice = Mock(
-            invoice_number='SI-0001', total_amount=1500.0, amount_received=200.0,
-            date='2026-07-01', due_date='2026-07-31', description='', status='POSTED',
+        self.customer = Customer.objects.create(company=self.company, name='Jane Student')
+        ar_account = Account.objects.create(
+            company=self.company, code='1100', name='AR Control',
+            account_type='Current Assets', normal_balance='DEBIT',
         )
-        customer = Mock()
-        line = Mock()
-        invoice.customer.single.return_value = customer
-        invoice.lines.all.return_value = [line]
-        nodes.get_or_none.return_value = invoice
-        pdf_response.return_value = HttpResponse(content_type='application/pdf')
+        revenue_account = Account.objects.create(
+            company=self.company, code='4000', name='Tuition Revenue',
+            account_type='Sales', normal_balance='CREDIT',
+        )
+        from datetime import date
+        self.invoice = SalesInvoice.objects.create(
+            company=self.company, invoice_number='SI-0001',
+            date=date(2026, 7, 1), due_date=date(2026, 7, 31),
+            status='POSTED', total_amount=1500.0, amount_received=200.0,
+            customer=self.customer, ar_account=ar_account,
+        )
+        SalesInvoiceLine.objects.create(
+            company=self.company, invoice=self.invoice, description='Tuition fee',
+            amount=1500.0, revenue_account=revenue_account,
+        )
 
-        response = self.client.get('/api/receivables/invoices/invoice-1/print/')
+    def test_print_returns_sales_invoice_pdf(self):
+        response = self.client.get(f'/api/receivables/invoices/{self.invoice.invoice_id}/print/')
+        self.assertEqual(response.status_code, 200, response.content)
+        self.assertEqual(response['Content-Type'], 'application/pdf')
 
-        self.assertEqual(response.status_code, 200)
-        pdf_response.assert_called_once()
-        self.assertEqual(pdf_response.call_args.args[1], 'receivables/sales_invoice.html')
-        self.assertEqual(pdf_response.call_args.args[3], 'sales-invoice-SI-0001')
-        self.assertEqual(pdf_response.call_args.args[2]['outstanding_amount'], 1300.0)
-
-    @patch('receivables.views.SalesInvoice.nodes', new_callable=Mock)
-    def test_print_returns_not_found_for_missing_invoice(self, nodes):
-        nodes.get_or_none.return_value = None
-
-        response = self.client.get('/api/receivables/invoices/missing/print/')
-
+    def test_print_returns_not_found_for_missing_invoice(self):
+        response = self.client.get('/api/receivables/invoices/00000000-0000-0000-0000-000000000000/print/')
         self.assertEqual(response.status_code, 404)
         self.assertEqual(response.data, {'detail': 'Not found.'})
 
 
-class InvoiceLineQuantityUnitPriceTests(TestCase):
+class InvoiceLineQuantityUnitPriceTests(CompanyScopedTestCase):
     def setUp(self):
-        self.user = get_user_model().objects.create_user('tester', password='pw12345')
-        admin_group, _ = Group.objects.get_or_create(name='Admin')
-        self.user.groups.add(admin_group)
-        self.client = APIClient()
-        self.client.force_authenticate(self.user)
-
+        super().setUp()
         resp = self.client.post('/api/accounts/', {
             'name': 'AR Control', 'account_type': 'Current Assets', 'normal_balance': 'DEBIT',
         }, format='json')
@@ -88,7 +86,6 @@ class InvoiceLineQuantityUnitPriceTests(TestCase):
         self.assertEqual(line['unit_price'], 750.0)
         self.assertEqual(line['amount'], 1500.0)
 
-        # Confirm it also comes back correctly on retrieve (exercises _serialize_invoice).
         resp = self.client.get(f"/api/receivables/invoices/{resp.data['invoice_id']}/")
         self.assertEqual(resp.status_code, 200, resp.content)
         line = resp.data['lines'][0]
@@ -114,28 +111,15 @@ class InvoiceLineQuantityUnitPriceTests(TestCase):
         self.assertEqual(line['amount'], 300.0)
 
 
-class CustomerRequiredFieldsTests(TestCase):
-    def setUp(self):
-        self.user = get_user_model().objects.create_user('tester', password='pw12345')
-        self.client = APIClient()
-        self.client.force_authenticate(self.user)
-
+class CustomerRequiredFieldsTests(CompanyScopedTestCase):
     def test_customer_created_with_only_name(self):
         resp = self.client.post('/api/receivables/customers/', {'name': 'Jane Doe'}, format='json')
         self.assertEqual(resp.status_code, 201, resp.content)
         self.assertEqual(resp.data['email'], '')
 
 
-class RecordReceiptBankTransactionTests(TestCase):
-    def setUp(self):
-        self.user = get_user_model().objects.create_user('tester', password='pw12345')
-        admin_group, _ = Group.objects.get_or_create(name='Admin')
-        self.user.groups.add(admin_group)
-        self.client = APIClient()
-        self.client.force_authenticate(self.user)
-
+class RecordReceiptBankTransactionTests(CompanyScopedTestCase):
     def _setup_invoice_and_bank(self):
-        import uuid
         ar = self.client.post('/api/accounts/', {'name': 'AR Control', 'account_type': 'Current Assets', 'normal_balance': 'DEBIT'}, format='json').data
         revenue = self.client.post('/api/accounts/', {'name': 'Tuition Revenue', 'account_type': 'Sales', 'normal_balance': 'CREDIT'}, format='json').data
         bank_gl = self.client.post('/api/accounts/', {'name': 'Bank GL', 'account_type': 'Current Assets', 'normal_balance': 'DEBIT'}, format='json').data
@@ -160,87 +144,59 @@ class RecordReceiptBankTransactionTests(TestCase):
             'receipt_date': '2026-01-15', 'amount': 100.0, 'bank_account_id': bank['bank_account_id'],
         }, format='json')
         self.assertEqual(resp.status_code, 201, resp.content)
-        txns = list(BankTransaction.nodes.filter(description=f"Receipt for {invoice['invoice_number']}"))
+        txns = list(BankTransaction.objects.filter(description=f"Receipt for {invoice['invoice_number']}"))
         self.assertEqual(len(txns), 1)
         self.assertEqual(txns[0].transaction_type, 'RECEIPT')
         self.assertEqual(txns[0].amount, 100.0)
-        linked_customer = txns[0].customer.single()
-        self.assertIsNotNone(linked_customer)
-        self.assertEqual(linked_customer.customer_id, customer['customer_id'])
+        self.assertIsNotNone(txns[0].customer)
+        self.assertEqual(str(txns[0].customer.customer_id), customer['customer_id'])
 
 
-class RecordReceiptReferenceTests(TestCase):
-
+class RecordReceiptReferenceTests(CompanyScopedTestCase):
     def test_partial_receipts_use_distinct_journal_references(self):
+        from accounts.models import Account
+        from receivables.models import Customer, SalesInvoice, SalesInvoiceLine
+        from banks.models import BankAccount
         from receivables.services import record_receipt
+        from datetime import date
 
-        invoice = Mock(
-            invoice_number='SI-2026-0002', status='POSTED', total_amount=100.0, amount_received=0.0,
+        ar_account = Account.objects.create(
+            company=self.company, code='1100', name='AR Control',
+            account_type='Current Assets', normal_balance='DEBIT',
         )
-        invoice.ar_account.single.return_value = Mock()
-        invoice.customer.single.return_value = None
-        bank = Mock()
-        bank.gl_account.single.return_value = Mock()
-
-        with patch('receivables.services.SalesInvoice.nodes', new_callable=Mock) as invoice_nodes, \
-             patch('banks.models.BankAccount.nodes', new_callable=Mock) as bank_nodes, \
-             patch('journals.models.JournalEntry') as journal_entry, \
-             patch('journals.models.JournalLine'), \
-             patch('receivables.services.ARReceipt'), \
-             patch('banks.models.BankTransaction'), \
-             patch('banks.services.generate_bank_transaction_reference', return_value='BT-2026-0001'), \
-             patch('banks.services.generate_invoice_settlement_reference', side_effect=[
-                 'ARRec-SI-2026-0002-0001', 'ARRec-SI-2026-0002-0002',
-             ]):
-            invoice_nodes.get_or_none.return_value = invoice
-            bank_nodes.get_or_none.return_value = bank
-
-            record_receipt('invoice-1', 'company-1', '2026-07-01', 40.0, '', 'bank-1', 'tester')
-            record_receipt('invoice-1', 'company-1', '2026-07-02', 60.0, '', 'bank-1', 'tester')
-
-        self.assertEqual(
-            [call.kwargs['reference'] for call in journal_entry.call_args_list],
-            ['ARRec-SI-2026-0002-0001', 'ARRec-SI-2026-0002-0002'],
+        revenue_account = Account.objects.create(
+            company=self.company, code='4000', name='Tuition Revenue',
+            account_type='Sales', normal_balance='CREDIT',
         )
+        bank_gl = Account.objects.create(
+            company=self.company, code='1000', name='Bank GL',
+            account_type='Current Assets', normal_balance='DEBIT',
+        )
+        customer = Customer.objects.create(company=self.company, name='Jane Student')
+        bank = BankAccount.objects.create(
+            company=self.company, name='Test Bank', bank_name='GTBank',
+            account_number=str(uuid.uuid4()), opening_balance_date=date(2026, 1, 1),
+            gl_account=bank_gl,
+        )
+        invoice = SalesInvoice.objects.create(
+            company=self.company, invoice_number='SI-2026-0002',
+            date=date(2026, 1, 1), due_date=date(2026, 2, 1),
+            status='POSTED', total_amount=100.0, customer=customer, ar_account=ar_account,
+        )
+        SalesInvoiceLine.objects.create(
+            company=self.company, invoice=invoice, description='Line',
+            amount=100.0, revenue_account=revenue_account,
+        )
+
+        r1 = record_receipt(str(invoice.invoice_id), str(self.company.id), '2026-07-01', 40.0, '', str(bank.bank_account_id), self.user)
+        r2 = record_receipt(str(invoice.invoice_id), str(self.company.id), '2026-07-02', 60.0, '', str(bank.bank_account_id), self.user)
+
+        self.assertNotEqual(r1.journal_entry.reference, r2.journal_entry.reference)
+        invoice.refresh_from_db()
         self.assertEqual(invoice.status, 'PAID')
 
 
-class CustomerStatementTests(TestCase):
-    def setUp(self):
-        from users.models import Company, Membership
-        self.user = get_user_model().objects.create_user('tester', password='pw12345')
-        admin_group, _ = Group.objects.get_or_create(name='Admin')
-        self.user.groups.add(admin_group)
-
-        # Create a company and membership for the test user
-        self.company = Company.objects.create(name='Test Company')
-        Membership.objects.create(user=self.user, company=self.company, role='Admin')
-
-        # Create APIClient and set up authentication with company context
-        self.client = APIClient()
-        self.client.force_authenticate(self.user)
-        # Manually inject company_id into auth claims
-        self.client.default_format = 'json'
-
-        # Patch get_active_company_id to return test company (patch where it's imported/used)
-        from unittest.mock import patch
-        self.patchers = []
-        # Patch in all modules that import get_active_company_id
-        for module in ['payables.views', 'payables.serializers', 'accounts.views', 'accounts.serializers',
-                       'banks.views', 'banks.serializers', 'journals.views', 'journals.serializers',
-                       'receivables.views', 'receivables.serializers', 'budget.views', 'budget.serializers']:
-            try:
-                p = patch(f'{module}.get_active_company_id')
-                mock = p.start()
-                mock.return_value = str(self.company.id)
-                self.patchers.append(p)
-            except (ImportError, AttributeError):
-                pass  # Module might not exist or might not import this
-
-    def tearDown(self):
-        for patcher in self.patchers:
-            patcher.stop()
-
+class CustomerStatementTests(CompanyScopedTestCase):
     def _post_invoice(self, customer_id, amount, suffix=''):
         ar = self.client.post('/api/accounts/', {
             'name': f'AR Control{suffix}', 'account_type': 'Current Assets', 'normal_balance': 'DEBIT',
@@ -256,7 +212,6 @@ class CustomerStatementTests(TestCase):
         return invoice
 
     def test_statement_running_balance_after_partial_receipt(self):
-        import uuid
         customer = self.client.post('/api/receivables/customers/', {'name': 'Test Customer'}, format='json').data
         invoice = self._post_invoice(customer['customer_id'], 1000.0)
         self.client.post(f"/api/receivables/invoices/{invoice['invoice_id']}/post/")

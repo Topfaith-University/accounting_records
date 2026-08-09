@@ -1,11 +1,8 @@
 Django
 djangorestframework
 django-cors-headers
-neomodel
-neo4j-driver
 python-decouple
 gunicorn
-django-neomodel
 djangorestframework-simplejwt
 python-dateutil
 weasyprint

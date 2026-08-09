@@ -1,7 +1,6 @@
 #!/bin/bash
 python manage.py migrate --noinput
 python manage.py collectstatic --noinput
-python manage.py install_labels
 
 # Automatically create superuser if it doesn't exist
 python manage.py shell <<EOF

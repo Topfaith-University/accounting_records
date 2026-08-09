@@ -1,42 +1,46 @@
-from neomodel import db
+from datetime import datetime
+from django.utils import timezone
+
+from django.db import transaction
+from django.db.models import Case, F, Q, Sum, Value, When, FloatField
+from django.db.models.functions import Coalesce
 
 
 def compute_account_balance(account_id: str, as_of_date=None) -> float:
-    params = {'account_id': account_id}
-    date_clause = ''
-    if as_of_date:
-        date_clause = 'AND e.date <= $as_of_date'
-        params['as_of_date'] = str(as_of_date)
+    from .models import Account
 
-    query = f"""
-        MATCH (a:Account {{account_id: $account_id}})
-        OPTIONAL MATCH (e:JournalEntry)-[:HAS_LINE]->(l:JournalLine)-[:AFFECTS_ACCOUNT]->(a)
-        WHERE e.status = 'POSTED' {date_clause}
-        RETURN
-            a.normal_balance AS normal_balance,
-            coalesce(sum(CASE WHEN l.side = 'DEBIT' THEN l.amount ELSE 0 END), 0) AS total_debits,
-            coalesce(sum(CASE WHEN l.side = 'CREDIT' THEN l.amount ELSE 0 END), 0) AS total_credits
-    """
-    results, _ = db.cypher_query(query, params)
-    if not results:
+    line_filter = Q(journal_lines__entry__status='POSTED')
+    if as_of_date:
+        line_filter &= Q(journal_lines__entry__date__lte=as_of_date)
+
+    row = Account.objects.filter(pk=account_id).annotate(
+        total_debits=Coalesce(Sum(Case(
+            When(line_filter & Q(journal_lines__side='DEBIT'), then=F('journal_lines__amount')),
+            default=Value(0.0), output_field=FloatField(),
+        )), 0.0),
+        total_credits=Coalesce(Sum(Case(
+            When(line_filter & Q(journal_lines__side='CREDIT'), then=F('journal_lines__amount')),
+            default=Value(0.0), output_field=FloatField(),
+        )), 0.0),
+    ).values('normal_balance', 'total_debits', 'total_credits').first()
+
+    if not row:
         return 0.0
 
-    normal_balance, total_debits, total_credits = results[0]
-    total_debits = total_debits or 0.0
-    total_credits = total_credits or 0.0
-
-    if normal_balance == 'DEBIT':
+    total_debits = row['total_debits'] or 0.0
+    total_credits = row['total_credits'] or 0.0
+    if row['normal_balance'] == 'DEBIT':
         return round(total_debits - total_credits, 2)
-    else:
-        return round(total_credits - total_debits, 2)
+    return round(total_credits - total_debits, 2)
 
 
 def get_or_create_opening_balance_equity_account(company_id):
     from .models import Account
-    acct = Account.nodes.get_or_none(code='3900', company_id=company_id)
+
+    acct = Account.objects.filter(code='3900', company_id=company_id).first()
     if acct:
         return acct
-    acct = Account(
+    return Account.objects.create(
         company_id=company_id,
         code='3900',
         name='Opening Balance Equity',
@@ -45,11 +49,10 @@ def get_or_create_opening_balance_equity_account(company_id):
         description='System account — contra side of opening balance postings.',
         is_system=True,
     )
-    acct.save()
-    return acct
 
 
-def post_opening_balance_entry(account, opening_balance, as_of_date, username, reference_key=None):
+@transaction.atomic
+def post_opening_balance_entry(account, opening_balance, as_of_date, user, reference_key=None):
     """Posts a journal entry seeding `account`'s opening balance against
     Opening Balance Equity. Idempotent — skips if already posted for this
     reference_key (defaults to the GL account's own id).
@@ -64,7 +67,6 @@ def post_opening_balance_entry(account, opening_balance, as_of_date, username, r
     fresh posting into that new account (existing, intended behavior).
     """
     from journals.models import JournalEntry, JournalLine
-    from datetime import datetime
 
     if not opening_balance:
         return None
@@ -72,12 +74,12 @@ def post_opening_balance_entry(account, opening_balance, as_of_date, username, r
     company_id = account.company_id
     key = f'{reference_key}-{account.account_id}' if reference_key else account.account_id
     reference = f'OB-{key}'
-    if JournalEntry.nodes.get_or_none(reference=reference, company_id=company_id):
+    if JournalEntry.objects.filter(reference=reference, company_id=company_id).exists():
         return None  # already posted, never repost
 
     equity_acct = get_or_create_opening_balance_equity_account(company_id)
 
-    entry = JournalEntry(
+    entry = JournalEntry.objects.create(
         company_id=company_id,
         reference=reference,
         date=as_of_date,
@@ -86,11 +88,10 @@ def post_opening_balance_entry(account, opening_balance, as_of_date, username, r
         entry_type='MANUAL',
         total_debit=abs(opening_balance),
         total_credit=abs(opening_balance),
-        created_by=username,
-        approved_by=username,
-        approved_at=datetime.utcnow(),
+        created_by=user,
+        approved_by=user,
+        approved_at=timezone.now(),
     )
-    entry.save()
 
     # Positive opening_balance means the account should show its normal_balance
     # side increased; equity is always the contra side.
@@ -99,14 +100,14 @@ def post_opening_balance_entry(account, opening_balance, as_of_date, username, r
     if opening_balance < 0:
         account_side, equity_side = equity_side, account_side
 
-    acct_line = JournalLine(company_id=company_id, side=account_side, amount=abs(opening_balance), description='Opening balance')
-    acct_line.save()
-    entry.lines.connect(acct_line)
-    acct_line.account.connect(account)
-
-    equity_line = JournalLine(company_id=company_id, side=equity_side, amount=abs(opening_balance), description=f'Opening balance — {account.name}')
-    equity_line.save()
-    entry.lines.connect(equity_line)
-    equity_line.account.connect(equity_acct)
+    JournalLine.objects.create(
+        company_id=company_id, entry=entry, account=account,
+        side=account_side, amount=abs(opening_balance), description='Opening balance',
+    )
+    JournalLine.objects.create(
+        company_id=company_id, entry=entry, account=equity_acct,
+        side=equity_side, amount=abs(opening_balance),
+        description=f'Opening balance — {account.name}',
+    )
 
     return entry

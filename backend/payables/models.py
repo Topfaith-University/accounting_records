@@ -1,85 +1,96 @@
-from neomodel import (
-    StructuredNode, StringProperty, BooleanProperty,
-    FloatProperty, DateProperty, DateTimeProperty,
-    UniqueIdProperty, RelationshipTo, RelationshipFrom, One, ZeroOrOne
-)
+from django.conf import settings
+from django.db import models
+
+from config.ids import new_id
+from users.models import Company
+from accounts.models import Account
+from journals.models import JournalEntry
 
 
-class Vendor(StructuredNode):
-    vendor_id = UniqueIdProperty()
-    company_id = StringProperty(required=True, index=True)
-    name = StringProperty(required=True)
-    email = StringProperty(default='')
-    phone = StringProperty(default='')
-    address = StringProperty(default='')
-    is_active = BooleanProperty(default=True)
-    created_at = DateTimeProperty(default_now=True)
-
-    invoices = RelationshipFrom('PurchaseInvoice', 'FROM_VENDOR')
+class Vendor(models.Model):
+    vendor_id = models.CharField(max_length=32, primary_key=True, default=new_id, editable=False)
+    company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name='vendors')
+    name = models.CharField(max_length=200)
+    email = models.CharField(max_length=200, blank=True, default='')
+    phone = models.CharField(max_length=50, blank=True, default='')
+    address = models.TextField(blank=True, default='')
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
 
 
-class PurchaseInvoice(StructuredNode):
-    invoice_id = UniqueIdProperty()
-    company_id = StringProperty(required=True, index=True)
-    invoice_number = StringProperty(required=True)
-    date = DateProperty(required=True)
-    due_date = DateProperty(required=True)
-    description = StringProperty(default='')
-    status = StringProperty(
+class PurchaseInvoice(models.Model):
+    invoice_id = models.CharField(max_length=32, primary_key=True, default=new_id, editable=False)
+    company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name='purchase_invoices')
+    invoice_number = models.CharField(max_length=50)
+    date = models.DateField()
+    due_date = models.DateField()
+    description = models.TextField(blank=True, default='')
+    status = models.CharField(
+        max_length=6,
         choices=[('DRAFT', 'Draft'), ('POSTED', 'Posted'), ('PAID', 'Paid'), ('VOID', 'Void')],
-        default='DRAFT'
+        default='DRAFT',
     )
-    total_amount = FloatProperty(default=0.0)
-    amount_paid = FloatProperty(default=0.0)
-    created_by = StringProperty(required=True)
-    created_at = DateTimeProperty(default_now=True)
-
-    vendor = RelationshipTo('Vendor', 'FROM_VENDOR', cardinality=One)
-    ap_account = RelationshipTo('accounts.models.Account', 'PAYABLE_TO', cardinality=One)
-    lines = RelationshipTo('PurchaseInvoiceLine', 'HAS_LINE')
-    journal_entry = RelationshipTo('journals.models.JournalEntry', 'HAS_JOURNAL_ENTRY', cardinality=ZeroOrOne)
-    payments = RelationshipFrom('APPayment', 'PAYS_INVOICE')
-
-
-class PurchaseInvoiceLine(StructuredNode):
-    line_id = UniqueIdProperty()
-    company_id = StringProperty(required=True, index=True)
-    description = StringProperty(default='')
-    quantity = FloatProperty(default=1.0)
-    unit_price = FloatProperty(default=0.0)
-    amount = FloatProperty(required=True)
-
-    expense_account = RelationshipTo('accounts.models.Account', 'CHARGES_EXPENSE', cardinality=One)
-
-
-class Item(StructuredNode):
-    item_id = UniqueIdProperty()
-    company_id = StringProperty(required=True, index=True)
-    name = StringProperty(required=True)
-    description = StringProperty(default='')
-    cost_price = FloatProperty(default=0.0)
-    selling_price = FloatProperty(default=0.0)
-    item_type = StringProperty(
-        choices=[('PRODUCT', 'Product'), ('SERVICE', 'Service')],
-        default='SERVICE'
+    total_amount = models.FloatField(default=0.0)
+    amount_paid = models.FloatField(default=0.0)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, on_delete=models.SET_NULL, related_name='+',
     )
-    is_active = BooleanProperty(default=True)
-    created_at = DateTimeProperty(default_now=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    vendor = models.ForeignKey(Vendor, on_delete=models.PROTECT, related_name='invoices')
+    ap_account = models.ForeignKey(Account, on_delete=models.PROTECT, related_name='payable_invoices')
+    journal_entry = models.ForeignKey(
+        JournalEntry, null=True, blank=True, on_delete=models.SET_NULL, related_name='purchase_invoices',
+    )
 
-    vendor = RelationshipTo('Vendor', 'SUPPLIED_BY', cardinality=ZeroOrOne)
-    expense_account = RelationshipTo('accounts.models.Account', 'DEFAULT_EXPENSE', cardinality=ZeroOrOne)
-    revenue_account = RelationshipTo('accounts.models.Account', 'DEFAULT_REVENUE', cardinality=ZeroOrOne)
+
+class PurchaseInvoiceLine(models.Model):
+    line_id = models.CharField(max_length=32, primary_key=True, default=new_id, editable=False)
+    company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name='purchase_invoice_lines')
+    invoice = models.ForeignKey(PurchaseInvoice, on_delete=models.CASCADE, related_name='lines')
+    description = models.TextField(blank=True, default='')
+    quantity = models.FloatField(default=1.0)
+    unit_price = models.FloatField(default=0.0)
+    amount = models.FloatField()
+    expense_account = models.ForeignKey(
+        Account, on_delete=models.PROTECT, related_name='purchase_invoice_lines',
+    )
 
 
-class APPayment(StructuredNode):
-    payment_id = UniqueIdProperty()
-    company_id = StringProperty(required=True, index=True)
-    payment_date = DateProperty(required=True)
-    amount = FloatProperty(required=True)
-    reference = StringProperty(default='')
-    created_by = StringProperty(required=True)
-    created_at = DateTimeProperty(default_now=True)
+class Item(models.Model):
+    item_id = models.CharField(max_length=32, primary_key=True, default=new_id, editable=False)
+    company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name='items')
+    name = models.CharField(max_length=200)
+    description = models.TextField(blank=True, default='')
+    cost_price = models.FloatField(default=0.0)
+    selling_price = models.FloatField(default=0.0)
+    item_type = models.CharField(
+        max_length=7, choices=[('PRODUCT', 'Product'), ('SERVICE', 'Service')], default='SERVICE',
+    )
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    vendor = models.ForeignKey(
+        Vendor, null=True, blank=True, on_delete=models.SET_NULL, related_name='items',
+    )
+    expense_account = models.ForeignKey(
+        Account, null=True, blank=True, on_delete=models.SET_NULL, related_name='default_expense_items',
+    )
+    revenue_account = models.ForeignKey(
+        Account, null=True, blank=True, on_delete=models.SET_NULL, related_name='default_revenue_items',
+    )
 
-    invoice = RelationshipTo('PurchaseInvoice', 'PAYS_INVOICE', cardinality=One)
-    bank_account = RelationshipTo('banks.models.BankAccount', 'PAID_FROM', cardinality=One)
-    journal_entry = RelationshipTo('journals.models.JournalEntry', 'HAS_JOURNAL_ENTRY', cardinality=ZeroOrOne)
+
+class APPayment(models.Model):
+    payment_id = models.CharField(max_length=32, primary_key=True, default=new_id, editable=False)
+    company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name='ap_payments')
+    payment_date = models.DateField()
+    amount = models.FloatField()
+    reference = models.CharField(max_length=100, blank=True, default='')
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, on_delete=models.SET_NULL, related_name='+',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    invoice = models.ForeignKey(PurchaseInvoice, on_delete=models.PROTECT, related_name='payments')
+    bank_account = models.ForeignKey('banks.BankAccount', on_delete=models.PROTECT, related_name='ap_payments')
+    journal_entry = models.ForeignKey(
+        JournalEntry, null=True, blank=True, on_delete=models.SET_NULL, related_name='ap_payments',
+    )
