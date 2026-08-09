@@ -24,6 +24,7 @@ export class AccountListComponent implements OnInit {
   error = '';
   page = 1;
   pageSize = 25;
+  search = '';
 
   showForm = false;
   saving = false;
@@ -46,6 +47,16 @@ export class AccountListComponent implements OnInit {
 
   get isEditMode(): boolean {
     return !!this.editingAccountId;
+  }
+
+  get filteredAccounts(): any[] {
+    const term = this.search.trim().toLowerCase();
+    if (!term) return this.accounts;
+    return this.accounts.filter(a =>
+      (a.code ?? '').toLowerCase().includes(term)
+      || (a.name ?? '').toLowerCase().includes(term)
+      || (a.account_type ?? '').toLowerCase().includes(term)
+    );
   }
 
   constructor(private accountsService: AccountsService, private auth: AuthService) {}
@@ -74,6 +85,10 @@ export class AccountListComponent implements OnInit {
     this.editingAccountId = null;
     this.formError = '';
     this.form = { name: '', account_type: this.accountTypes[0] ?? '', description: '' };
+  }
+
+  onSearchChange() {
+    this.page = 1;
   }
 
   startEdit(account: any) {

@@ -50,9 +50,11 @@ export class BanksService {
     return axios.post(this.baseUrl + `reconciliations/${id}/complete/`).then(r => r.data);
   }
 
-  async exportFile(format: 'pdf' | 'xlsx'): Promise<void> {
+  async exportFile(format: 'pdf' | 'xlsx', search?: string): Promise<void> {
+    const params: Record<string, string> = { format };
+    if (search) params['search'] = search;
     const response = await axios.get(this.baseUrl + 'accounts/export/', {
-      params: { format },
+      params,
       responseType: 'blob',
     });
     const blob = new Blob([response.data], { type: response.headers['content-type'] });

@@ -30,6 +30,14 @@
       </div>
     </div>
 
+    <div class="form-row" style="margin-top:0.75rem;">
+      <div class="form-full">
+        <input [(ngModel)]="search" (ngModelChange)="onSearchChange()"
+          placeholder="Search by name, account number, or bank…"
+          style="width:100%;max-width:320px;padding:0.6rem 0.85rem;border:1px solid var(--gray-light);border-radius:var(--radius-sm);box-sizing:border-box;font-family:var(--font-sans);" />
+      </div>
+    </div>
+
     @if (showForm) {
       <div class="form-container" style="background:var(--cream-dark);padding:1.5rem;border-radius:var(--radius-lg);margin-bottom:1.5rem;border:1px solid var(--gray-light);">
         <h3 style="margin:0 0 1rem;font-family:var(--font-serif);color:var(--burgundy-deep);font-size:1.25rem;">
@@ -115,7 +123,7 @@
           </tr>
         </thead>
         <tbody>
-          @for (acct of accounts | paginate:page:pageSize; track acct.bank_account_id) {
+          @for (acct of filteredAccounts | paginate:page:pageSize; track acct.bank_account_id) {
             <tr class="lift-on-hover">
               <td>
                 <a [routerLink]="['/banks', acct.bank_account_id]" style="color:var(--teal-deep);font-weight:600;text-decoration:none;">
@@ -155,13 +163,17 @@
           @empty {
             <tr>
               <td colspan="5" style="padding:2rem;text-align:center;color:var(--charcoal-light);font-style:italic;">
-                No bank accounts yet. Click "+ New" to add your first bank account.
+                @if (search.trim()) {
+                  No bank accounts match your search.
+                } @else {
+                  No bank accounts yet. Click "+ New" to add your first bank account.
+                }
               </td>
             </tr>
           }
         </tbody>
       </table>
-      <app-pagination [total]="accounts.length" [page]="page" [pageSize]="pageSize" (pageChange)="page = $event"></app-pagination>
+      <app-pagination [total]="filteredAccounts.length" [page]="page" [pageSize]="pageSize" (pageChange)="page = $event"></app-pagination>
     }
   </div>
 </div>

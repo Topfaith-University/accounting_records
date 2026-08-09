@@ -6,7 +6,7 @@ import { API_ROOT } from './api-base';
 export class JournalsService {
   private baseUrl = `${API_ROOT}journals/`;
 
-  getEntries(params?: { status?: string }) {
+  getEntries(params?: { status?: string; date_from?: string; date_to?: string; search?: string; page?: number; page_size?: number }) {
     return axios.get(this.baseUrl + 'entries/', { params }).then(r => r.data);
   }
 
@@ -47,9 +47,9 @@ export class JournalsService {
     return axios.get(this.baseUrl + 'periods/', { params }).then(r => r.data);
   }
 
-  async exportFile(format: 'pdf' | 'xlsx'): Promise<void> {
+  async exportFile(format: 'pdf' | 'xlsx', params?: { date_from?: string; date_to?: string }): Promise<void> {
     const response = await axios.get(this.baseUrl + 'entries/export/', {
-      params: { format },
+      params: { format, ...params },
       responseType: 'blob',
     });
     const blob = new Blob([response.data], { type: response.headers['content-type'] });

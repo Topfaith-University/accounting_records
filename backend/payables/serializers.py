@@ -1,105 +1,68 @@
 from rest_framework import serializers
 from config.auth import get_active_company_id
+from accounts.models import Account
 from .models import Vendor, PurchaseInvoice, PurchaseInvoiceLine, APPayment, Item
 
 
-def _next_invoice_number(prefix: str, label: str, company_id: str) -> str:
-    from neomodel import db
-    from datetime import datetime
-    year = datetime.now().year
-    pattern = f'{prefix}-{year}-'
-    results, _ = db.cypher_query(
-        f"MATCH (n:{label} {{company_id: $company_id}}) WHERE n.invoice_number STARTS WITH $pattern "
-        f"RETURN n.invoice_number ORDER BY n.invoice_number DESC LIMIT 1",
-        {'pattern': pattern, 'company_id': company_id}
-    )
-    if results and results[0][0]:
-        try:
-            num = int(results[0][0].split('-')[-1]) + 1
-        except (ValueError, IndexError):
-            num = 1
-    else:
-        num = 1
-    return f'{prefix}-{year}-{num:04d}'
+class VendorSerializer(serializers.ModelSerializer):
+    balance = serializers.SerializerMethodField()
 
+    class Meta:
+        model = Vendor
+        fields = ['vendor_id', 'name', 'email', 'phone', 'address', 'is_active', 'balance', 'created_at']
+        read_only_fields = ['vendor_id', 'created_at']
 
-class VendorSerializer(serializers.Serializer):
-    vendor_id = serializers.CharField(read_only=True)
-    name = serializers.CharField(max_length=200)
-    email = serializers.CharField(default='', allow_blank=True)
-    phone = serializers.CharField(default='', allow_blank=True)
-    address = serializers.CharField(default='', allow_blank=True)
-    is_active = serializers.BooleanField(default=True)
-    created_at = serializers.DateTimeField(read_only=True)
+    def get_balance(self, obj):
+        total = sum(
+            max(0.0, inv.total_amount - inv.amount_paid)
+            for inv in obj.invoices.filter(status__in=('POSTED', 'PAID'))
+        )
+        return round(total, 2)
 
     def create(self, validated_data):
         company_id = get_active_company_id(self.context['request'])
-        vendor = Vendor(company_id=company_id, **validated_data)
-        vendor.save()
-        return vendor
-
-    def update(self, instance, validated_data):
-        for attr, value in validated_data.items():
-            setattr(instance, attr, value)
-        instance.save()
-        return instance
+        return Vendor.objects.create(company_id=company_id, **validated_data)
 
 
-class PurchaseInvoiceLineSerializer(serializers.Serializer):
-    line_id = serializers.CharField(read_only=True)
-    description = serializers.CharField(default='', allow_blank=True)
-    quantity = serializers.FloatField(default=1.0, min_value=0.01)
-    unit_price = serializers.FloatField(default=0.0, min_value=0)
-    amount = serializers.FloatField(min_value=0.01)
-    expense_account_id = serializers.CharField(write_only=True)
-    expense_account_code = serializers.SerializerMethodField()
-    expense_account_name = serializers.SerializerMethodField()
+class PurchaseInvoiceLineSerializer(serializers.ModelSerializer):
+    expense_account_id = serializers.PrimaryKeyRelatedField(source='expense_account', queryset=Account.objects.all())
+    expense_account_code = serializers.CharField(source='expense_account.code', read_only=True)
+    expense_account_name = serializers.CharField(source='expense_account.name', read_only=True)
 
-    def get_expense_account_code(self, obj):
-        try:
-            acct = obj.expense_account.single()
-            return acct.code if acct else None
-        except Exception:
-            return None
-
-    def get_expense_account_name(self, obj):
-        try:
-            acct = obj.expense_account.single()
-            return acct.name if acct else None
-        except Exception:
-            return None
+    class Meta:
+        model = PurchaseInvoiceLine
+        fields = [
+            'line_id', 'description', 'quantity', 'unit_price', 'amount',
+            'expense_account_id', 'expense_account_code', 'expense_account_name',
+        ]
+        read_only_fields = ['line_id']
+        extra_kwargs = {
+            'quantity': {'min_value': 0.01},
+            'unit_price': {'min_value': 0},
+            'amount': {'min_value': 0.01},
+        }
 
 
-class PurchaseInvoiceSerializer(serializers.Serializer):
-    invoice_id = serializers.CharField(read_only=True)
+class PurchaseInvoiceSerializer(serializers.ModelSerializer):
     invoice_number = serializers.CharField(max_length=50, required=False, allow_blank=True)
-    date = serializers.DateField()
-    due_date = serializers.DateField()
-    description = serializers.CharField(default='', allow_blank=True)
-    status = serializers.CharField(read_only=True)
-    total_amount = serializers.FloatField(read_only=True)
-    amount_paid = serializers.FloatField(read_only=True)
-    created_by = serializers.CharField(read_only=True)
-    created_at = serializers.DateTimeField(read_only=True)
-    vendor_id = serializers.CharField(write_only=True)
-    ap_account_id = serializers.CharField(write_only=True)
-    vendor_name = serializers.SerializerMethodField()
+    created_by = serializers.CharField(source='created_by.username', read_only=True, default=None)
+    vendor_id = serializers.PrimaryKeyRelatedField(source='vendor', queryset=Vendor.objects.all())
+    ap_account_id = serializers.PrimaryKeyRelatedField(source='ap_account', queryset=Account.objects.all())
+    vendor_name = serializers.CharField(source='vendor.name', read_only=True, default=None)
     ap_account_label = serializers.SerializerMethodField()
     lines = PurchaseInvoiceLineSerializer(many=True, required=False)
 
-    def get_vendor_name(self, obj):
-        try:
-            v = obj.vendor.single()
-            return v.name if v else None
-        except Exception:
-            return None
+    class Meta:
+        model = PurchaseInvoice
+        fields = [
+            'invoice_id', 'invoice_number', 'date', 'due_date', 'description', 'status',
+            'total_amount', 'amount_paid', 'created_by', 'created_at',
+            'vendor_id', 'ap_account_id', 'vendor_name', 'ap_account_label', 'lines',
+        ]
+        read_only_fields = ['invoice_id', 'status', 'total_amount', 'amount_paid', 'created_at']
 
     def get_ap_account_label(self, obj):
-        try:
-            a = obj.ap_account.single()
-            return f'{a.code} — {a.name}' if a else None
-        except Exception:
-            return None
+        return f'{obj.ap_account.code} — {obj.ap_account.name}' if obj.ap_account_id else None
 
     def validate(self, data):
         lines = data.get('lines', [])
@@ -108,203 +71,72 @@ class PurchaseInvoiceSerializer(serializers.Serializer):
         return data
 
     def create(self, validated_data):
-        from accounts.models import Account
+        from journals.services import next_invoice_number
         company_id = get_active_company_id(self.context['request'])
         lines_data = validated_data.pop('lines', [])
-        vendor_id = validated_data.pop('vendor_id')
-        ap_account_id = validated_data.pop('ap_account_id')
 
         if not validated_data.get('invoice_number'):
-            validated_data['invoice_number'] = _next_invoice_number('PI', 'PurchaseInvoice', company_id)
+            validated_data['invoice_number'] = next_invoice_number('PI', company_id)
 
-        invoice = PurchaseInvoice(company_id=company_id, **validated_data)
-        invoice.save()
-
-        vendor = Vendor.nodes.get_or_none(vendor_id=vendor_id, company_id=company_id)
-        if vendor:
-            invoice.vendor.connect(vendor)
-
-        ap_acct = Account.nodes.get_or_none(account_id=ap_account_id, company_id=company_id)
-        if ap_acct:
-            invoice.ap_account.connect(ap_acct)
-
+        invoice = PurchaseInvoice.objects.create(company_id=company_id, **validated_data)
         for line_data in lines_data:
-            expense_account_id = line_data.pop('expense_account_id')
-            line = PurchaseInvoiceLine(company_id=company_id, **line_data)
-            line.save()
-            invoice.lines.connect(line)
-            expense_acct = Account.nodes.get_or_none(account_id=expense_account_id, company_id=company_id)
-            if expense_acct:
-                line.expense_account.connect(expense_acct)
-
+            PurchaseInvoiceLine.objects.create(company_id=company_id, invoice=invoice, **line_data)
         return invoice
 
     def update(self, instance, validated_data):
-        from accounts.models import Account
         company_id = get_active_company_id(self.context['request'])
-
         lines_data = validated_data.pop('lines', None)
-        vendor_id = validated_data.pop('vendor_id', None)
-        ap_account_id = validated_data.pop('ap_account_id', None)
-
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
         instance.save()
 
-        if vendor_id:
-            # vendor is cardinality=One — a saved invoice always has exactly one,
-            # so this must go through reconnect(), not disconnect()+connect()
-            # (disconnecting a cardinality=One relationship raises
-            # AttemptedCardinalityViolation; only reconnect() is allowed).
-            vendor = Vendor.nodes.get_or_none(vendor_id=vendor_id, company_id=company_id)
-            if vendor:
-                current_vendor = instance.vendor.single()
-                if current_vendor:
-                    instance.vendor.reconnect(current_vendor, vendor)
-                else:
-                    instance.vendor.connect(vendor)
-
-        if ap_account_id:
-            ap_account = Account.nodes.get_or_none(account_id=ap_account_id, company_id=company_id)
-            if ap_account:
-                current_ap_account = instance.ap_account.single()
-                if current_ap_account:
-                    instance.ap_account.reconnect(current_ap_account, ap_account)
-                else:
-                    instance.ap_account.connect(ap_account)
-
         if lines_data is not None:
-            # existing_line.delete() is DETACH DELETE — it removes the line's
-            # expense_account relationship (cardinality=One) automatically, so
-            # there's nothing to disconnect first (disconnect() would raise
-            # AttemptedCardinalityViolation on a cardinality=One relationship).
-            for existing_line in list(instance.lines.all()):
-                instance.lines.disconnect(existing_line)
-                existing_line.delete()
-
+            instance.lines.all().delete()
             for line_data in lines_data:
-                expense_account_id = line_data.pop('expense_account_id')
-                line = PurchaseInvoiceLine(company_id=company_id, **line_data)
-                line.save()
-                instance.lines.connect(line)
-                expense_account = Account.nodes.get_or_none(account_id=expense_account_id, company_id=company_id)
-                if expense_account:
-                    line.expense_account.connect(expense_account)
+                PurchaseInvoiceLine.objects.create(company_id=company_id, invoice=instance, **line_data)
 
         return instance
 
 
-class ItemSerializer(serializers.Serializer):
-    item_id = serializers.CharField(read_only=True)
-    name = serializers.CharField(max_length=200)
-    description = serializers.CharField(default='', allow_blank=True)
-    cost_price = serializers.FloatField(default=0.0, min_value=0)
-    selling_price = serializers.FloatField(default=0.0, min_value=0)
-    item_type = serializers.ChoiceField(choices=['PRODUCT', 'SERVICE'], default='SERVICE')
-    is_active = serializers.BooleanField(default=True)
-    created_at = serializers.DateTimeField(read_only=True)
-
-    vendor_id = serializers.CharField(write_only=True, allow_null=True, allow_blank=True, required=False)
-    expense_account_id = serializers.CharField(write_only=True, allow_null=True, allow_blank=True, required=False)
-    revenue_account_id = serializers.CharField(write_only=True, allow_null=True, allow_blank=True, required=False)
-
-    vendor_name = serializers.SerializerMethodField()
+class ItemSerializer(serializers.ModelSerializer):
+    vendor_id = serializers.PrimaryKeyRelatedField(
+        source='vendor', queryset=Vendor.objects.all(), required=False, allow_null=True,
+    )
+    expense_account_id = serializers.PrimaryKeyRelatedField(
+        source='expense_account', queryset=Account.objects.all(), required=False, allow_null=True,
+    )
+    revenue_account_id = serializers.PrimaryKeyRelatedField(
+        source='revenue_account', queryset=Account.objects.all(), required=False, allow_null=True,
+    )
+    vendor_name = serializers.CharField(source='vendor.name', read_only=True, default=None)
     expense_account_label = serializers.SerializerMethodField()
     revenue_account_label = serializers.SerializerMethodField()
 
-    def get_vendor_name(self, obj):
-        try:
-            v = obj.vendor.single()
-            return v.name if v else None
-        except Exception:
-            return None
+    class Meta:
+        model = Item
+        fields = [
+            'item_id', 'name', 'description', 'cost_price', 'selling_price', 'item_type', 'is_active',
+            'vendor_id', 'expense_account_id', 'revenue_account_id',
+            'vendor_name', 'expense_account_label', 'revenue_account_label', 'created_at',
+        ]
+        read_only_fields = ['item_id', 'created_at']
 
     def get_expense_account_label(self, obj):
-        try:
-            a = obj.expense_account.single()
-            return f'{a.code} — {a.name}' if a else None
-        except Exception:
-            return None
+        return f'{obj.expense_account.code} — {obj.expense_account.name}' if obj.expense_account_id else None
 
     def get_revenue_account_label(self, obj):
-        try:
-            a = obj.revenue_account.single()
-            return f'{a.code} — {a.name}' if a else None
-        except Exception:
-            return None
-
-    def _connect_relations(self, instance, vendor_id, expense_account_id, revenue_account_id):
-        from accounts.models import Account
-        company_id = get_active_company_id(self.context['request'])
-        if vendor_id is not None:
-            current = instance.vendor.single()
-            if current:
-                instance.vendor.disconnect(current)
-            if vendor_id:
-                vendor = Vendor.nodes.get_or_none(vendor_id=vendor_id, company_id=company_id)
-                if vendor:
-                    instance.vendor.connect(vendor)
-        if expense_account_id is not None:
-            current = instance.expense_account.single()
-            if current:
-                instance.expense_account.disconnect(current)
-            if expense_account_id:
-                acct = Account.nodes.get_or_none(account_id=expense_account_id, company_id=company_id)
-                if acct:
-                    instance.expense_account.connect(acct)
-        if revenue_account_id is not None:
-            current = instance.revenue_account.single()
-            if current:
-                instance.revenue_account.disconnect(current)
-            if revenue_account_id:
-                acct = Account.nodes.get_or_none(account_id=revenue_account_id, company_id=company_id)
-                if acct:
-                    instance.revenue_account.connect(acct)
+        return f'{obj.revenue_account.code} — {obj.revenue_account.name}' if obj.revenue_account_id else None
 
     def create(self, validated_data):
         company_id = get_active_company_id(self.context['request'])
-        vendor_id = validated_data.pop('vendor_id', None)
-        expense_account_id = validated_data.pop('expense_account_id', None)
-        revenue_account_id = validated_data.pop('revenue_account_id', None)
-        item = Item(company_id=company_id, **validated_data)
-        item.save()
-        self._connect_relations(item, vendor_id, expense_account_id, revenue_account_id)
-        return item
-
-    def update(self, instance, validated_data):
-        vendor_id_present = 'vendor_id' in validated_data
-        expense_account_id_present = 'expense_account_id' in validated_data
-        revenue_account_id_present = 'revenue_account_id' in validated_data
-
-        vendor_id = validated_data.pop('vendor_id', None)
-        expense_account_id = validated_data.pop('expense_account_id', None)
-        revenue_account_id = validated_data.pop('revenue_account_id', None)
-
-        for attr, value in validated_data.items():
-            setattr(instance, attr, value)
-        instance.save()
-
-        self._connect_relations(
-            instance,
-            vendor_id if vendor_id_present else None,
-            expense_account_id if expense_account_id_present else None,
-            revenue_account_id if revenue_account_id_present else None,
-        )
-        return instance
+        return Item.objects.create(company_id=company_id, **validated_data)
 
 
-class APPaymentSerializer(serializers.Serializer):
-    payment_id = serializers.CharField(read_only=True)
-    payment_date = serializers.DateField()
-    amount = serializers.FloatField(read_only=True)
-    reference = serializers.CharField(read_only=True)
-    created_by = serializers.CharField(read_only=True)
-    created_at = serializers.DateTimeField(read_only=True)
-    invoice_id = serializers.SerializerMethodField()
+class APPaymentSerializer(serializers.ModelSerializer):
+    created_by = serializers.CharField(source='created_by.username', read_only=True, default=None)
+    invoice_id = serializers.PrimaryKeyRelatedField(source='invoice', read_only=True)
 
-    def get_invoice_id(self, obj):
-        try:
-            inv = obj.invoice.single()
-            return inv.invoice_id if inv else None
-        except Exception:
-            return None
+    class Meta:
+        model = APPayment
+        fields = ['payment_id', 'payment_date', 'amount', 'reference', 'created_by', 'created_at', 'invoice_id']
+        read_only_fields = ['payment_id', 'amount', 'reference', 'created_at']

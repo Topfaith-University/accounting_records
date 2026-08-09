@@ -7,13 +7,12 @@ import { BanksService } from '../../services/banks.service';
 import { AccountsService } from '../../services/accounts.service';
 import { BankSelectComponent } from '../../shared/bank-select/bank-select.component';
 import { AccountSelectComponent } from '../../shared/account-select/account-select.component';
-import { PaginatePipe } from '../../shared/paginate.pipe';
 import { PaginationComponent } from '../../shared/pagination/pagination.component';
 
 @Component({
   selector: 'app-bank-transaction-list',
   standalone: true,
-  imports: [CommonModule, RouterModule, FormsModule, BankSelectComponent, AccountSelectComponent, PaginatePipe, PaginationComponent],
+  imports: [CommonModule, RouterModule, FormsModule, BankSelectComponent, AccountSelectComponent, PaginationComponent],
   templateUrl: './bank-transaction-list.component.html',
 })
 export class BankTransactionListComponent implements OnInit {
@@ -23,10 +22,14 @@ export class BankTransactionListComponent implements OnInit {
   selectedBankId = '';
   dateFrom = '';
   dateTo = '';
+  search = '';
+  private requestSeq = 0;
+  private searchDebounceTimer: ReturnType<typeof setTimeout> | null = null;
   loading = true;
   error = '';
   page = 1;
   pageSize = 25;
+  total = 0;
 
   // Import panel state
   showImportPanel = false;
@@ -50,48 +53,79 @@ export class BankTransactionListComponent implements OnInit {
 
   async ngOnInit() {
     try {
-      const [txns, banks, accounts] = await Promise.all([
-        this.txnService.getAll(),
+      const [banks, accounts] = await Promise.all([
         this.banksService.getAccounts(),
         this.accountsService.getAll(),
       ]);
-      this.transactions = txns.results ?? txns;
       this.allBanks = banks.results ?? banks;
       this.allAccounts = accounts.results ?? accounts;
+      await this.loadTransactions();
     } catch {
       this.error = 'Failed to load transactions.';
-    } finally {
       this.loading = false;
+    }
+  }
+
+  private async loadTransactions() {
+    this.loading = true;
+    this.error = '';
+    const seq = ++this.requestSeq;
+    try {
+      const data = await this.txnService.getAll({
+        bankAccountId: this.selectedBankId || undefined,
+        dateFrom: this.dateFrom || undefined,
+        dateTo: this.dateTo || undefined,
+        search: this.search.trim() || undefined,
+        page: this.page,
+        pageSize: this.pageSize,
+      });
+      if (seq !== this.requestSeq) return;
+      this.transactions = data.results ?? data;
+      this.total = data.count ?? data.results?.length ?? data.length ?? 0;
+    } catch {
+      if (seq !== this.requestSeq) return;
+      this.error = 'Failed to load transactions.';
+    } finally {
+      if (seq === this.requestSeq) this.loading = false;
     }
   }
 
   async applyFilter() {
     this.page = 1;
-    this.loading = true;
-    this.error = '';
-    try {
-      const data = await this.txnService.getAll(
-        this.selectedBankId || undefined,
-        this.dateFrom || undefined,
-        this.dateTo || undefined,
-      );
-      this.transactions = data.results ?? data;
-    } catch {
-      this.error = 'Failed to filter transactions.';
-    } finally {
-      this.loading = false;
+    await this.loadTransactions();
+  }
+
+  async onPageChange(newPage: number) {
+    this.page = newPage;
+    await this.loadTransactions();
+  }
+
+  onSearchChange() {
+    this.cancelSearchDebounce();
+    this.searchDebounceTimer = setTimeout(() => {
+      this.searchDebounceTimer = null;
+      this.applyFilter();
+    }, 300);
+  }
+
+  private cancelSearchDebounce() {
+    if (this.searchDebounceTimer !== null) {
+      clearTimeout(this.searchDebounceTimer);
+      this.searchDebounceTimer = null;
     }
   }
 
   clearFilter() {
+    this.cancelSearchDebounce();
     this.selectedBankId = '';
     this.dateFrom = '';
     this.dateTo = '';
+    this.search = '';
     this.applyFilter();
   }
 
   get hasFilter(): boolean {
-    return !!(this.selectedBankId || this.dateFrom || this.dateTo);
+    return !!(this.selectedBankId || this.dateFrom || this.dateTo || this.search);
   }
 
   // ── Import panel ──────────────────────────────────────────
@@ -150,6 +184,7 @@ export class BankTransactionListComponent implements OnInit {
     if (this.selectedBankId) params['bank_account_id'] = this.selectedBankId;
     if (this.dateFrom) params['date_from'] = this.dateFrom;
     if (this.dateTo) params['date_to'] = this.dateTo;
+    if (this.search.trim()) params['search'] = this.search.trim();
     const ext = format === 'xlsx' ? 'xlsx' : 'csv';
     try {
       await this.txnService.exportFile(params, format, `bank-transactions.${ext}`);

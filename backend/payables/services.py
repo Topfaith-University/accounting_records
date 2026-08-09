@@ -1,5 +1,9 @@
 from datetime import datetime, date as _date
+from django.utils import timezone
+
+from django.db import transaction
 from rest_framework.exceptions import ValidationError
+
 from .models import PurchaseInvoice, APPayment, Vendor
 
 
@@ -9,24 +13,31 @@ def _to_date(val):
     return _date.fromisoformat(str(val))
 
 
-def post_invoice(invoice_id: str, company_id: str, approver: str) -> PurchaseInvoice:
-    invoice = PurchaseInvoice.nodes.get_or_none(invoice_id=invoice_id, company_id=company_id)
+@transaction.atomic
+def post_invoice(invoice_id: str, company_id: str, approver) -> PurchaseInvoice:
+    invoice = (
+        PurchaseInvoice.objects
+        .filter(invoice_id=invoice_id, company_id=company_id)
+        .select_related('ap_account')
+        .select_for_update()
+        .first()
+    )
     if not invoice:
         raise ValidationError('Invoice not found.')
     if invoice.status != 'DRAFT':
         raise ValidationError(f'Cannot post invoice with status {invoice.status}.')
 
-    lines = list(invoice.lines.all())
+    lines = list(invoice.lines.select_related('expense_account').all())
     if not lines:
         raise ValidationError('Invoice has no lines.')
 
     total = round(sum(l.amount for l in lines), 2)
-    ap_acct = invoice.ap_account.single()
+    ap_acct = invoice.ap_account
     if not ap_acct:
         raise ValidationError('AP control account not set on invoice.')
 
     from journals.models import JournalEntry, JournalLine
-    entry = JournalEntry(
+    entry = JournalEntry.objects.create(
         company_id=company_id,
         reference=f'AP-{invoice.invoice_number}',
         date=_to_date(invoice.date),
@@ -37,52 +48,63 @@ def post_invoice(invoice_id: str, company_id: str, approver: str) -> PurchaseInv
         total_credit=total,
         created_by=approver,
         approved_by=approver,
-        approved_at=datetime.utcnow(),
+        approved_at=timezone.now(),
     )
-    entry.save()
 
     for line in lines:
-        expense_acct = line.expense_account.single()
+        expense_acct = line.expense_account
         if not expense_acct:
             raise ValidationError(f'Line {line.line_id} has no expense account.')
-        jl = JournalLine(company_id=company_id, side='DEBIT', amount=line.amount, description=line.description)
-        jl.save()
-        entry.lines.connect(jl)
-        jl.account.connect(expense_acct)
+        JournalLine.objects.create(
+            company_id=company_id, entry=entry, account=expense_acct,
+            side='DEBIT', amount=line.amount, description=line.description,
+        )
 
-    credit_line = JournalLine(company_id=company_id, side='CREDIT', amount=total, description=f'AP — {invoice.invoice_number}')
-    credit_line.save()
-    entry.lines.connect(credit_line)
-    credit_line.account.connect(ap_acct)
+    JournalLine.objects.create(
+        company_id=company_id, entry=entry, account=ap_acct,
+        side='CREDIT', amount=total, description=f'AP — {invoice.invoice_number}',
+    )
 
-    invoice.journal_entry.connect(entry)
+    invoice.journal_entry = entry
     invoice.status = 'POSTED'
     invoice.total_amount = total
     invoice.save()
     return invoice
 
 
-def void_invoice(invoice_id: str, company_id: str, voider: str) -> PurchaseInvoice:
-    invoice = PurchaseInvoice.nodes.get_or_none(invoice_id=invoice_id, company_id=company_id)
+@transaction.atomic
+def void_invoice(invoice_id: str, company_id: str, voider) -> PurchaseInvoice:
+    invoice = (
+        PurchaseInvoice.objects
+        .filter(invoice_id=invoice_id, company_id=company_id)
+        .select_for_update()
+        .first()
+    )
     if not invoice:
         raise ValidationError('Invoice not found.')
     if invoice.status not in ('DRAFT', 'POSTED'):
         raise ValidationError(f'Cannot void invoice with status {invoice.status}.')
-    if invoice.status == 'POSTED':
-        je = invoice.journal_entry.single()
-        if je:
-            je.status = 'VOID'
-            je.voided_by = voider
-            je.voided_at = datetime.utcnow()
-            je.save()
+    if invoice.status == 'POSTED' and invoice.journal_entry:
+        je = invoice.journal_entry
+        je.status = 'VOID'
+        je.voided_by = voider
+        je.voided_at = timezone.now()
+        je.save()
     invoice.status = 'VOID'
     invoice.save()
     return invoice
 
 
+@transaction.atomic
 def record_payment(invoice_id: str, company_id: str, payment_date, amount: float,
-                   reference: str, bank_account_id: str, username: str) -> APPayment:
-    invoice = PurchaseInvoice.nodes.get_or_none(invoice_id=invoice_id, company_id=company_id)
+                   reference: str, bank_account_id: str, user) -> APPayment:
+    invoice = (
+        PurchaseInvoice.objects
+        .filter(invoice_id=invoice_id, company_id=company_id)
+        .select_related('ap_account', 'vendor')
+        .select_for_update()
+        .first()
+    )
     if not invoice:
         raise ValidationError('Invoice not found.')
     if invoice.status != 'POSTED':
@@ -93,14 +115,14 @@ def record_payment(invoice_id: str, company_id: str, payment_date, amount: float
         raise ValidationError(f'Payment amount {amount:.2f} exceeds remaining balance {remaining:.2f}.')
 
     from banks.models import BankAccount
-    bank = BankAccount.nodes.get_or_none(bank_account_id=bank_account_id, company_id=company_id)
+    bank = BankAccount.objects.filter(bank_account_id=bank_account_id, company_id=company_id).select_related('gl_account').first()
     if not bank:
         raise ValidationError('Bank account not found.')
-    bank_gl = bank.gl_account.single()
+    bank_gl = bank.gl_account
     if not bank_gl:
         raise ValidationError('Bank account has no linked GL account.')
 
-    ap_acct = invoice.ap_account.single()
+    ap_acct = invoice.ap_account
     amount = round(amount, 2)
 
     from journals.models import JournalEntry, JournalLine
@@ -108,7 +130,7 @@ def record_payment(invoice_id: str, company_id: str, payment_date, amount: float
         generate_bank_transaction_reference,
         generate_invoice_settlement_reference,
     )
-    entry = JournalEntry(
+    entry = JournalEntry.objects.create(
         company_id=company_id,
         reference=generate_invoice_settlement_reference('APPay', invoice.invoice_number, company_id),
         date=_to_date(payment_date),
@@ -117,50 +139,44 @@ def record_payment(invoice_id: str, company_id: str, payment_date, amount: float
         entry_type='AP_PAYMENT',
         total_debit=amount,
         total_credit=amount,
-        created_by=username,
-        approved_by=username,
-        approved_at=datetime.utcnow(),
+        created_by=user,
+        approved_by=user,
+        approved_at=timezone.now(),
     )
-    entry.save()
 
-    dr = JournalLine(company_id=company_id, side='DEBIT', amount=amount, description='AP payment')
-    dr.save()
-    entry.lines.connect(dr)
-    dr.account.connect(ap_acct)
+    JournalLine.objects.create(
+        company_id=company_id, entry=entry, account=ap_acct,
+        side='DEBIT', amount=amount, description='AP payment',
+    )
+    JournalLine.objects.create(
+        company_id=company_id, entry=entry, account=bank_gl,
+        side='CREDIT', amount=amount, description='Bank payment',
+    )
 
-    cr = JournalLine(company_id=company_id, side='CREDIT', amount=amount, description='Bank payment')
-    cr.save()
-    entry.lines.connect(cr)
-    cr.account.connect(bank_gl)
-
-    payment = APPayment(
+    payment = APPayment.objects.create(
         company_id=company_id,
         payment_date=_to_date(payment_date),
         amount=amount,
         reference=reference,
-        created_by=username,
+        created_by=user,
+        invoice=invoice,
+        bank_account=bank,
+        journal_entry=entry,
     )
-    payment.save()
-    payment.invoice.connect(invoice)
-    payment.bank_account.connect(bank)
-    payment.journal_entry.connect(entry)
 
     from banks.models import BankTransaction
-    bank_txn = BankTransaction(
+    BankTransaction.objects.create(
         company_id=company_id,
         reference=generate_bank_transaction_reference(company_id),
         transaction_type='PAYMENT',
         date=_to_date(payment_date),
         amount=amount,
         description=f'Payment for {invoice.invoice_number}',
-        created_by=username,
+        created_by=user,
+        source_bank=bank,
+        journal_entry=entry,
+        vendor=invoice.vendor,
     )
-    bank_txn.save()
-    bank_txn.source_bank.connect(bank)
-    bank_txn.journal_entry.connect(entry)
-    vendor = invoice.vendor.single()
-    if vendor:
-        bank_txn.vendor.connect(vendor)
 
     invoice.amount_paid = round(invoice.amount_paid + amount, 2)
     if invoice.amount_paid >= invoice.total_amount - 0.01:
@@ -170,11 +186,11 @@ def record_payment(invoice_id: str, company_id: str, payment_date, amount: float
 
 
 def get_vendor_statement(vendor_id: str, company_id: str) -> dict | None:
-    vendor = Vendor.nodes.get_or_none(vendor_id=vendor_id, company_id=company_id)
+    vendor = Vendor.objects.filter(vendor_id=vendor_id, company_id=company_id).first()
     if not vendor:
         return None
 
-    invoices = [i for i in vendor.invoices.all() if i.status in ('POSTED', 'PAID')]
+    invoices = vendor.invoices.filter(status__in=('POSTED', 'PAID')).prefetch_related('payments')
 
     events = []
     for invoice in invoices:

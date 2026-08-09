@@ -56,7 +56,7 @@ export class BankAccountDetailComponent implements OnInit {
     if (tab === 'transactions' && this.transactions.length === 0) {
       this.txnLoading = true;
       try {
-        const data = await this.txnService.getAll(this.id);
+        const data = await this.txnService.getAll({ bankAccountId: this.id, page: 1, pageSize: 100 });
         this.transactions = data.results ?? data;
       } catch {
         // leave empty; user can retry by switching tabs

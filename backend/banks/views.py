@@ -1,9 +1,14 @@
+from datetime import datetime
+from django.utils import timezone
+
+from django.db.models import Q
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from config.auth import get_active_company_id
-from .models import BankAccount, BankTransaction
+from config.pagination import parse_pagination_params, paginate_queryset, paginated_response
+from .models import BankAccount, BankReconciliation, BankTransaction
 from .serializers import BankAccountSerializer, BankReconciliationSerializer, BankTransactionSerializer
 
 
@@ -14,12 +19,12 @@ class BankAccountViewSet(viewsets.ViewSet):
         company_id = get_active_company_id(request)
         if not company_id:
             return Response({'detail': 'No active company.'}, status=status.HTTP_400_BAD_REQUEST)
-        accounts = BankAccount.nodes.filter(is_active=True, company_id=company_id)
+        accounts = BankAccount.objects.filter(is_active=True, company_id=company_id)
         return Response(BankAccountSerializer(list(accounts), many=True).data)
 
     def retrieve(self, request, pk=None):
         company_id = get_active_company_id(request)
-        account = BankAccount.nodes.get_or_none(bank_account_id=pk, company_id=company_id)
+        account = BankAccount.objects.filter(bank_account_id=pk, company_id=company_id).first()
         if not account:
             return Response({'detail': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
         return Response(BankAccountSerializer(account).data)
@@ -34,7 +39,7 @@ class BankAccountViewSet(viewsets.ViewSet):
 
     def partial_update(self, request, pk=None):
         company_id = get_active_company_id(request)
-        account = BankAccount.nodes.get_or_none(bank_account_id=pk, company_id=company_id)
+        account = BankAccount.objects.filter(bank_account_id=pk, company_id=company_id).first()
         if not account:
             return Response({'detail': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
         serializer = BankAccountSerializer(account, data=request.data, partial=True, context={'request': request})
@@ -44,7 +49,7 @@ class BankAccountViewSet(viewsets.ViewSet):
 
     def destroy(self, request, pk=None):
         company_id = get_active_company_id(request)
-        account = BankAccount.nodes.get_or_none(bank_account_id=pk, company_id=company_id)
+        account = BankAccount.objects.filter(bank_account_id=pk, company_id=company_id).first()
         if not account:
             return Response({'detail': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
         account.is_active = False
@@ -54,7 +59,7 @@ class BankAccountViewSet(viewsets.ViewSet):
     @action(detail=True, methods=['get'], url_path='ledger')
     def ledger(self, request, pk=None):
         company_id = get_active_company_id(request)
-        account = BankAccount.nodes.get_or_none(bank_account_id=pk, company_id=company_id)
+        account = BankAccount.objects.filter(bank_account_id=pk, company_id=company_id).first()
         if not account:
             return Response({'detail': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
         from . import services
@@ -65,7 +70,13 @@ class BankAccountViewSet(viewsets.ViewSet):
     def export(self, request):
         from config.export_utils import xlsx_response, pdf_response
         company_id = get_active_company_id(request)
-        accounts = sorted(BankAccount.nodes.filter(is_active=True, company_id=company_id), key=lambda a: a.name)
+        accounts = BankAccount.objects.filter(is_active=True, company_id=company_id)
+        search = request.query_params.get('search') or None
+        if search:
+            accounts = accounts.filter(
+                Q(name__icontains=search) | Q(account_number__icontains=search) | Q(bank_name__icontains=search)
+            )
+        accounts = accounts.order_by('name')
         fmt = request.query_params.get('format', 'xlsx')
         headers = ['Name', 'Bank', 'Account No.', 'Opening Balance (N)', 'Current Balance (N)']
         data = BankAccountSerializer(list(accounts), many=True).data
@@ -83,20 +94,10 @@ class BankAccountViewSet(viewsets.ViewSet):
     @action(detail=True, methods=['get'], url_path='reconciliations')
     def reconciliations(self, request, pk=None):
         company_id = get_active_company_id(request)
-        account = BankAccount.nodes.get_or_none(bank_account_id=pk, company_id=company_id)
+        account = BankAccount.objects.filter(bank_account_id=pk, company_id=company_id).first()
         if not account:
             return Response({'detail': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
-        from .models import BankReconciliation
-        from .serializers import BankReconciliationSerializer
-        # get all reconciliations for this bank account via Cypher
-        from neomodel import db
-        results, _ = db.cypher_query(
-            "MATCH (r:BankReconciliation {company_id: $company_id})-[:FOR_ACCOUNT]->(ba:BankAccount {bank_account_id: $id}) "
-            "RETURN r.reconciliation_id ORDER BY r.created_at DESC",
-            {'id': pk, 'company_id': company_id}
-        )
-        recons = [BankReconciliation.nodes.get_or_none(reconciliation_id=row[0]) for row in results]
-        recons = [r for r in recons if r is not None]
+        recons = BankReconciliation.objects.filter(bank_account_id=pk, company_id=company_id).order_by('-created_at')
         return Response(BankReconciliationSerializer(recons, many=True).data)
 
 
@@ -104,34 +105,21 @@ class BankReconciliationViewSet(viewsets.ViewSet):
     permission_classes = [IsAuthenticated]
 
     def list(self, request):
-        from neomodel import db
         company_id = get_active_company_id(request)
         bank_account_id = request.query_params.get('bank_account_id')
+        recons = BankReconciliation.objects.filter(company_id=company_id)
         if bank_account_id:
-            results, _ = db.cypher_query(
-                "MATCH (r:BankReconciliation {company_id: $company_id})-[:FOR_ACCOUNT]->(ba:BankAccount {bank_account_id: $id}) "
-                "RETURN r.reconciliation_id ORDER BY r.created_at DESC",
-                {'id': bank_account_id, 'company_id': company_id}
-            )
-        else:
-            results, _ = db.cypher_query(
-                "MATCH (r:BankReconciliation {company_id: $company_id}) RETURN r.reconciliation_id ORDER BY r.created_at DESC",
-                {'company_id': company_id}
-            )
-        from .models import BankReconciliation
-        recons = [BankReconciliation.nodes.get_or_none(reconciliation_id=row[0]) for row in results]
-        return Response(BankReconciliationSerializer(
-            [r for r in recons if r], many=True
-        ).data)
+            recons = recons.filter(bank_account_id=bank_account_id)
+        recons = recons.order_by('-created_at')
+        return Response(BankReconciliationSerializer(recons, many=True).data)
 
     def retrieve(self, request, pk=None):
-        from .models import BankReconciliation
         company_id = get_active_company_id(request)
-        recon = BankReconciliation.nodes.get_or_none(reconciliation_id=pk, company_id=company_id)
+        recon = BankReconciliation.objects.filter(reconciliation_id=pk, company_id=company_id).select_related('bank_account').first()
         if not recon:
             return Response({'detail': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
         data = BankReconciliationSerializer(recon).data
-        ba = recon.bank_account.single()
+        ba = recon.bank_account
         if ba:
             from . import services
             data['opening_balance'] = ba.opening_balance or 0.0
@@ -148,22 +136,22 @@ class BankReconciliationViewSet(viewsets.ViewSet):
         bank_account_id = request.data.get('bank_account_id')
         if not bank_account_id:
             return Response({'detail': 'bank_account_id is required.'}, status=status.HTTP_400_BAD_REQUEST)
-        bank_account = BankAccount.nodes.get_or_none(bank_account_id=bank_account_id, company_id=company_id)
+        bank_account = BankAccount.objects.filter(bank_account_id=bank_account_id, company_id=company_id).first()
         if not bank_account:
             return Response({'detail': 'Bank account not found.'}, status=status.HTTP_404_NOT_FOUND)
         serializer = BankReconciliationSerializer(data=request.data, context={'request': request})
         serializer.is_valid(raise_exception=True)
         recon = serializer.save(
+            company_id=company_id,
             bank_account=bank_account,
-            created_by=request.user.username,
+            created_by=request.user,
         )
         return Response(BankReconciliationSerializer(recon).data, status=status.HTTP_201_CREATED)
 
     @action(detail=True, methods=['post'], url_path='toggle-line')
     def toggle_line(self, request, pk=None):
-        from .models import BankReconciliation
         company_id = get_active_company_id(request)
-        recon = BankReconciliation.nodes.get_or_none(reconciliation_id=pk, company_id=company_id)
+        recon = BankReconciliation.objects.filter(reconciliation_id=pk, company_id=company_id).first()
         if not recon:
             return Response({'detail': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
         if recon.status != 'DRAFT':
@@ -172,27 +160,26 @@ class BankReconciliationViewSet(viewsets.ViewSet):
         if not line_id:
             return Response({'detail': 'line_id is required.'}, status=status.HTTP_400_BAD_REQUEST)
         from journals.models import JournalLine
-        line = JournalLine.nodes.get_or_none(line_id=line_id, company_id=company_id)
+        line = JournalLine.objects.filter(line_id=line_id, company_id=company_id).first()
         if not line:
             return Response({'detail': 'Journal line not found.'}, status=status.HTTP_404_NOT_FOUND)
-        if recon.reconciled_lines.is_connected(line):
-            recon.reconciled_lines.disconnect(line)
+        if recon.reconciled_lines.filter(pk=line.pk).exists():
+            recon.reconciled_lines.remove(line)
             reconciled = False
         else:
-            recon.reconciled_lines.connect(line)
+            recon.reconciled_lines.add(line)
             reconciled = True
         return Response({'line_id': line_id, 'is_reconciled': reconciled})
 
     @action(detail=True, methods=['post'], url_path='complete')
     def complete(self, request, pk=None):
-        from .models import BankReconciliation
         company_id = get_active_company_id(request)
-        recon = BankReconciliation.nodes.get_or_none(reconciliation_id=pk, company_id=company_id)
+        recon = BankReconciliation.objects.filter(reconciliation_id=pk, company_id=company_id).select_related('bank_account').first()
         if not recon:
             return Response({'detail': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
         if recon.status != 'DRAFT':
             return Response({'detail': 'Already completed.'}, status=status.HTTP_400_BAD_REQUEST)
-        ba = recon.bank_account.single()
+        ba = recon.bank_account
         opening = ba.opening_balance if ba else 0.0
         lines = list(recon.reconciled_lines.all())
         book_balance = opening
@@ -207,9 +194,8 @@ class BankReconciliationViewSet(viewsets.ViewSet):
                 {'detail': f'Unreconciled difference of ₦{diff:,.2f}. Tick all matching items first.'},
                 status=status.HTTP_400_BAD_REQUEST
             )
-        from datetime import datetime
         recon.status = 'COMPLETED'
-        recon.completed_at = datetime.utcnow()
+        recon.completed_at = timezone.now()
         recon.save()
         return Response(BankReconciliationSerializer(recon).data)
 
@@ -217,34 +203,41 @@ class BankReconciliationViewSet(viewsets.ViewSet):
 class BankTransactionViewSet(viewsets.ViewSet):
     permission_classes = [IsAuthenticated]
 
-    def _query_transactions(self, company_id, bank_account_id=None, date_from=None, date_to=None):
-        from neomodel import db
+    def _build_transactions_qs(self, company_id, bank_account_id=None, date_from=None, date_to=None, search=None):
+        qs = BankTransaction.objects.filter(company_id=company_id)
         if bank_account_id:
-            results, _ = db.cypher_query(
-                "MATCH (t:BankTransaction {company_id: $company_id})-[:FROM_BANK|TO_BANK]->(ba:BankAccount {bank_account_id: $id}) "
-                "RETURN DISTINCT t.transaction_id, t.created_at ORDER BY t.created_at DESC",
-                {'id': bank_account_id, 'company_id': company_id}
-            )
-            txns = [BankTransaction.nodes.get_or_none(transaction_id=row[0]) for row in results]
-        else:
-            txns = list(BankTransaction.nodes.filter(company_id=company_id))
-            txns = sorted(txns, key=lambda t: str(t.created_at), reverse=True)
-        txns = [t for t in txns if t]
+            qs = qs.filter(Q(source_bank_id=bank_account_id) | Q(destination_bank_id=bank_account_id))
         if date_from:
-            txns = [t for t in txns if str(t.date) >= date_from]
+            try:
+                qs = qs.filter(date__gte=datetime.strptime(date_from, '%Y-%m-%d').date())
+            except ValueError:
+                pass
         if date_to:
-            txns = [t for t in txns if str(t.date) <= date_to]
-        return txns
+            try:
+                qs = qs.filter(date__lte=datetime.strptime(date_to, '%Y-%m-%d').date())
+            except ValueError:
+                pass
+        if search:
+            qs = qs.filter(
+                Q(reference__icontains=search)
+                | Q(description__icontains=search)
+                | Q(vendor__name__icontains=search)
+                | Q(customer__name__icontains=search)
+            )
+        return qs.select_related('source_bank', 'destination_bank', 'vendor', 'customer').order_by('-created_at')
 
     def list(self, request):
         company_id = get_active_company_id(request)
-        txns = self._query_transactions(
-            company_id,
-            bank_account_id=request.query_params.get('bank_account_id') or None,
-            date_from=request.query_params.get('date_from') or None,
-            date_to=request.query_params.get('date_to') or None,
-        )
-        return Response(BankTransactionSerializer(txns, many=True).data)
+        bank_account_id = request.query_params.get('bank_account_id') or None
+        date_from = request.query_params.get('date_from') or None
+        date_to = request.query_params.get('date_to') or None
+        search = request.query_params.get('search') or None
+        page, page_size = parse_pagination_params(request)
+
+        qs = self._build_transactions_qs(company_id, bank_account_id, date_from, date_to, search)
+        total, txns = paginate_queryset(qs, page, page_size)
+
+        return Response(paginated_response(total, page, page_size, BankTransactionSerializer(txns, many=True).data))
 
     @action(detail=False, methods=['get'], url_path='export')
     def export(self, request):
@@ -255,15 +248,22 @@ class BankTransactionViewSet(viewsets.ViewSet):
         bank_account_id = request.query_params.get('bank_account_id') or None
         date_from = request.query_params.get('date_from') or None
         date_to = request.query_params.get('date_to') or None
+        search = request.query_params.get('search') or None
         fmt = request.query_params.get('format', 'csv')
 
-        txns = self._query_transactions(company_id, bank_account_id, date_from, date_to)
+        txns = list(self._build_transactions_qs(company_id, bank_account_id, date_from, date_to, search))
         data = BankTransactionSerializer(txns, many=True).data
 
-        headers = ['Reference', 'Date', 'Bank', 'Type', 'Description', 'Amount']
+        from . import services
+        account_names = services.get_account_names_for_transactions(
+            [t.transaction_id for t in txns], company_id
+        )
+
+        headers = ['Reference', 'Date', 'Bank', 'Type', 'Account', 'Description', 'Amount']
         rows = [
             [r['reference'], str(r['date']), r.get('source_bank_name', ''),
-             r['transaction_type'], r.get('description', ''), r['amount']]
+             r['transaction_type'], account_names.get(r['transaction_id'], ''),
+             r.get('description', ''), r['amount']]
             for r in data
         ]
 
@@ -281,7 +281,7 @@ class BankTransactionViewSet(viewsets.ViewSet):
 
     def retrieve(self, request, pk=None):
         company_id = get_active_company_id(request)
-        txn = BankTransaction.nodes.get_or_none(transaction_id=pk, company_id=company_id)
+        txn = BankTransaction.objects.filter(transaction_id=pk, company_id=company_id).first()
         if not txn:
             return Response({'detail': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
         return Response(BankTransactionSerializer(txn).data)
@@ -304,7 +304,7 @@ class BankTransactionViewSet(viewsets.ViewSet):
                 destination_bank_id=data.get('destination_bank_id'),
                 splits=data.get('splits', []),
                 amount=data.get('transfer_amount'),
-                created_by=request.user.username,
+                created_by=request.user,
                 vendor_id=data.get('vendor_id') or None,
                 customer_id=data.get('customer_id') or None,
                 reference=request.data.get('reference') or None,
@@ -394,7 +394,7 @@ class BankTransactionViewSet(viewsets.ViewSet):
                     destination_bank_id=None,
                     splits=[{'account_id': default_acct_id, 'amount': abs(amount), 'description': ''}],
                     amount=None,
-                    created_by=request.user.username,
+                    created_by=request.user,
                 )
                 created += 1
             except Exception as e:

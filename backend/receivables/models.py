@@ -1,70 +1,76 @@
-from neomodel import (
-    StructuredNode, StringProperty, BooleanProperty,
-    FloatProperty, DateProperty, DateTimeProperty,
-    UniqueIdProperty, RelationshipTo, RelationshipFrom, One, ZeroOrOne
-)
+from django.conf import settings
+from django.db import models
+
+from config.ids import new_id
+from users.models import Company
+from accounts.models import Account
+from journals.models import JournalEntry
 
 
-class Customer(StructuredNode):
-    customer_id = UniqueIdProperty()
-    company_id = StringProperty(required=True, index=True)
-    name = StringProperty(required=True)
-    email = StringProperty(default='')
-    phone = StringProperty(default='')
-    address = StringProperty(default='')
-    customer_type = StringProperty(
-        choices=[('STUDENT', 'Student'), ('EXTERNAL', 'External')],
-        default='EXTERNAL'
+class Customer(models.Model):
+    customer_id = models.CharField(max_length=32, primary_key=True, default=new_id, editable=False)
+    company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name='customers')
+    name = models.CharField(max_length=200)
+    email = models.CharField(max_length=200, blank=True, default='')
+    phone = models.CharField(max_length=50, blank=True, default='')
+    address = models.TextField(blank=True, default='')
+    customer_type = models.CharField(
+        max_length=8, choices=[('STUDENT', 'Student'), ('EXTERNAL', 'External')], default='EXTERNAL',
     )
-    is_active = BooleanProperty(default=True)
-    created_at = DateTimeProperty(default_now=True)
-
-    invoices = RelationshipFrom('SalesInvoice', 'BILLED_TO')
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
 
 
-class SalesInvoice(StructuredNode):
-    invoice_id = UniqueIdProperty()
-    company_id = StringProperty(required=True, index=True)
-    invoice_number = StringProperty(required=True)
-    date = DateProperty(required=True)
-    due_date = DateProperty(required=True)
-    description = StringProperty(default='')
-    status = StringProperty(
+class SalesInvoice(models.Model):
+    invoice_id = models.CharField(max_length=32, primary_key=True, default=new_id, editable=False)
+    company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name='sales_invoices')
+    invoice_number = models.CharField(max_length=50)
+    date = models.DateField()
+    due_date = models.DateField()
+    description = models.TextField(blank=True, default='')
+    status = models.CharField(
+        max_length=6,
         choices=[('DRAFT', 'Draft'), ('POSTED', 'Posted'), ('PAID', 'Paid'), ('VOID', 'Void')],
-        default='DRAFT'
+        default='DRAFT',
     )
-    total_amount = FloatProperty(default=0.0)
-    amount_received = FloatProperty(default=0.0)
-    created_by = StringProperty(required=True)
-    created_at = DateTimeProperty(default_now=True)
-
-    customer = RelationshipTo('Customer', 'BILLED_TO', cardinality=One)
-    ar_account = RelationshipTo('accounts.models.Account', 'RECEIVABLE_FROM', cardinality=One)
-    lines = RelationshipTo('SalesInvoiceLine', 'HAS_LINE')
-    journal_entry = RelationshipTo('journals.models.JournalEntry', 'HAS_JOURNAL_ENTRY', cardinality=ZeroOrOne)
-    receipts = RelationshipFrom('ARReceipt', 'RECEIVES_PAYMENT_FOR')
-
-
-class SalesInvoiceLine(StructuredNode):
-    line_id = UniqueIdProperty()
-    company_id = StringProperty(required=True, index=True)
-    description = StringProperty(default='')
-    quantity = FloatProperty(default=1.0)
-    unit_price = FloatProperty(default=0.0)
-    amount = FloatProperty(required=True)
-
-    revenue_account = RelationshipTo('accounts.models.Account', 'EARNS_REVENUE', cardinality=One)
+    total_amount = models.FloatField(default=0.0)
+    amount_received = models.FloatField(default=0.0)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, on_delete=models.SET_NULL, related_name='+',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    customer = models.ForeignKey(Customer, on_delete=models.PROTECT, related_name='invoices')
+    ar_account = models.ForeignKey(Account, on_delete=models.PROTECT, related_name='receivable_invoices')
+    journal_entry = models.ForeignKey(
+        JournalEntry, null=True, blank=True, on_delete=models.SET_NULL, related_name='sales_invoices',
+    )
 
 
-class ARReceipt(StructuredNode):
-    receipt_id = UniqueIdProperty()
-    company_id = StringProperty(required=True, index=True)
-    receipt_date = DateProperty(required=True)
-    amount = FloatProperty(required=True)
-    reference = StringProperty(default='')
-    created_by = StringProperty(required=True)
-    created_at = DateTimeProperty(default_now=True)
+class SalesInvoiceLine(models.Model):
+    line_id = models.CharField(max_length=32, primary_key=True, default=new_id, editable=False)
+    company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name='sales_invoice_lines')
+    invoice = models.ForeignKey(SalesInvoice, on_delete=models.CASCADE, related_name='lines')
+    description = models.TextField(blank=True, default='')
+    quantity = models.FloatField(default=1.0)
+    unit_price = models.FloatField(default=0.0)
+    amount = models.FloatField()
+    revenue_account = models.ForeignKey(
+        Account, on_delete=models.PROTECT, related_name='sales_invoice_lines',
+    )
 
-    invoice = RelationshipTo('SalesInvoice', 'RECEIVES_PAYMENT_FOR', cardinality=One)
-    bank_account = RelationshipTo('banks.models.BankAccount', 'RECEIVED_INTO', cardinality=One)
-    journal_entry = RelationshipTo('journals.models.JournalEntry', 'HAS_JOURNAL_ENTRY', cardinality=ZeroOrOne)
+
+class ARReceipt(models.Model):
+    receipt_id = models.CharField(max_length=32, primary_key=True, default=new_id, editable=False)
+    company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name='ar_receipts')
+    receipt_date = models.DateField()
+    amount = models.FloatField()
+    reference = models.CharField(max_length=100, blank=True, default='')
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, on_delete=models.SET_NULL, related_name='+',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    invoice = models.ForeignKey(SalesInvoice, on_delete=models.PROTECT, related_name='receipts')
+    bank_account = models.ForeignKey('banks.BankAccount', on_delete=models.PROTECT, related_name='ar_receipts')
+    journal_entry = models.ForeignKey(
+        JournalEntry, null=True, blank=True, on_delete=models.SET_NULL, related_name='ar_receipts',
+    )

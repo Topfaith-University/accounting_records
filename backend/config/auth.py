@@ -1,7 +1,7 @@
 """Shared helpers for reading the active company/role off a request's validated JWT.
 
 Every company-scoped view (ViewSet or function-based) should use these instead of
-`request.user.groups` for authorization, and instead of a bare `Model.nodes.all()`
+`request.user.groups` for authorization, and instead of a bare `Model.objects.all()`
 for data access — role and data visibility are both scoped to the *active company*
 carried in the token, not globally per-user.
 """

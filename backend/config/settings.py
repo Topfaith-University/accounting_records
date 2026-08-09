@@ -1,8 +1,6 @@
 from pathlib import Path
 from datetime import timedelta
 from decouple import config
-from neomodel import config as neo_config
-import os
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -28,7 +26,6 @@ INSTALLED_APPS = [
     'receivables',
     'budget',
     'users',
-    'django_neomodel',
 ]
 
 MIDDLEWARE = [
@@ -40,7 +37,6 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
-    # 'django_neomodel.middleware.NeomodelMiddleware',
 ]
 
 ROOT_URLCONF = 'config.urls'
@@ -86,13 +82,6 @@ STATIC_URL = '/static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
-
-# Neo4j config
-neo_config.DATABASE_URL = config('NEO4J_BOLT_URL')
-NEOMODEL_NEO4J_BOLT_URL = os.getenv(
-    'NEO4J_BOLT_URL', 'bolt://neo4j:password@localhost:7687')
-NEOMODEL_SIGNALS = True  # optional, allows Django-like signals
-NEOMODEL_ENCRYPTED_CONNECTION = False
 
 # CORS
 CORS_ALLOW_ALL_ORIGINS = True

@@ -30,6 +30,14 @@
       </div>
     </div>
 
+    <div class="form-row" style="margin-top:0.75rem;">
+      <div class="form-full">
+        <input [(ngModel)]="search" (ngModelChange)="onSearchChange()"
+          placeholder="Search by code, name, or type…"
+          style="width:100%;max-width:320px;padding:0.6rem 0.85rem;border:1px solid var(--gray-light);border-radius:var(--radius-sm);box-sizing:border-box;font-family:var(--font-sans);" />
+      </div>
+    </div>
+
     @if (showForm) {
       <div class="form-container" style="background:var(--cream-dark);padding:1.5rem;border-radius:var(--radius-lg);margin-bottom:1.5rem;border:1px solid var(--gray-light);">
         <h3 style="margin:0 0 1rem;font-family:var(--font-serif);color:var(--burgundy-deep);font-size:1.25rem;">
@@ -108,7 +116,7 @@
           </tr>
         </thead>
         <tbody>
-          @for (account of accounts | paginate:page:pageSize; track account.account_id) {
+          @for (account of filteredAccounts | paginate:page:pageSize; track account.account_id) {
             <tr class="lift-on-hover">
               <td style="font-family:monospace;font-weight:500;">{{ account.code }}</td>
               <td>
@@ -154,7 +162,7 @@
           }
         </tbody>
       </table>
-      <app-pagination [total]="accounts.length" [page]="page" [pageSize]="pageSize" (pageChange)="page = $event"></app-pagination>
+      <app-pagination [total]="filteredAccounts.length" [page]="page" [pageSize]="pageSize" (pageChange)="page = $event"></app-pagination>
     }
   </div>
 </div>

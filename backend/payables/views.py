@@ -9,40 +9,6 @@ from .serializers import VendorSerializer, PurchaseInvoiceSerializer, APPaymentS
 from . import services
 
 
-def _serialize_vendor(vendor):
-    data = VendorSerializer(vendor).data
-    data['balance'] = round(sum(
-        max(0, inv.total_amount - inv.amount_paid)
-        for inv in vendor.invoices.all() if inv.status in ('POSTED', 'PAID')
-    ), 2)
-    return data
-
-
-def _serialize_item(item):
-    data = ItemSerializer(item).data
-    vendor = item.vendor.single()
-    expense_account = item.expense_account.single()
-    revenue_account = item.revenue_account.single()
-    data['vendor_id'] = vendor.vendor_id if vendor else None
-    data['expense_account_id'] = expense_account.account_id if expense_account else None
-    data['revenue_account_id'] = revenue_account.account_id if revenue_account else None
-    return data
-
-
-def _serialize_invoice(invoice):
-    data = PurchaseInvoiceSerializer(invoice).data
-    lines = list(invoice.lines.all())
-    data['lines'] = PurchaseInvoiceLineSerializer(lines, many=True).data
-    vendor = invoice.vendor.single()
-    ap_account = invoice.ap_account.single()
-    data['vendor_id'] = vendor.vendor_id if vendor else None
-    data['ap_account_id'] = ap_account.account_id if ap_account else None
-    for idx, line in enumerate(lines):
-        expense_account = line.expense_account.single()
-        data['lines'][idx]['expense_account_id'] = expense_account.account_id if expense_account else None
-    return data
-
-
 class VendorViewSet(viewsets.ViewSet):
     permission_classes = [IsAuthenticated]
 
@@ -50,15 +16,15 @@ class VendorViewSet(viewsets.ViewSet):
         company_id = get_active_company_id(request)
         if not company_id:
             return Response({'detail': 'No active company.'}, status=status.HTTP_400_BAD_REQUEST)
-        vendors = [v for v in Vendor.nodes.filter(company_id=company_id) if v.is_active]
-        return Response([_serialize_vendor(v) for v in vendors])
+        vendors = Vendor.objects.filter(company_id=company_id, is_active=True)
+        return Response(VendorSerializer(vendors, many=True).data)
 
     def retrieve(self, request, pk=None):
         company_id = get_active_company_id(request)
-        vendor = Vendor.nodes.get_or_none(vendor_id=pk, company_id=company_id)
+        vendor = Vendor.objects.filter(vendor_id=pk, company_id=company_id).first()
         if not vendor:
             return Response({'detail': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
-        return Response(_serialize_vendor(vendor))
+        return Response(VendorSerializer(vendor).data)
 
     def create(self, request):
         if not get_active_company_id(request):
@@ -66,21 +32,21 @@ class VendorViewSet(viewsets.ViewSet):
         serializer = VendorSerializer(data=request.data, context={'request': request})
         serializer.is_valid(raise_exception=True)
         vendor = serializer.save()
-        return Response(_serialize_vendor(vendor), status=status.HTTP_201_CREATED)
+        return Response(VendorSerializer(vendor).data, status=status.HTTP_201_CREATED)
 
     def partial_update(self, request, pk=None):
         company_id = get_active_company_id(request)
-        vendor = Vendor.nodes.get_or_none(vendor_id=pk, company_id=company_id)
+        vendor = Vendor.objects.filter(vendor_id=pk, company_id=company_id).first()
         if not vendor:
             return Response({'detail': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
         serializer = VendorSerializer(vendor, data=request.data, partial=True, context={'request': request})
         serializer.is_valid(raise_exception=True)
         vendor = serializer.save()
-        return Response(_serialize_vendor(vendor))
+        return Response(VendorSerializer(vendor).data)
 
     def destroy(self, request, pk=None):
         company_id = get_active_company_id(request)
-        vendor = Vendor.nodes.get_or_none(vendor_id=pk, company_id=company_id)
+        vendor = Vendor.objects.filter(vendor_id=pk, company_id=company_id).first()
         if not vendor:
             return Response({'detail': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
         vendor.is_active = False
@@ -111,7 +77,7 @@ class VendorViewSet(viewsets.ViewSet):
     def export(self, request):
         from config.export_utils import xlsx_response, pdf_response
         company_id = get_active_company_id(request)
-        vendors = sorted([v for v in Vendor.nodes.filter(company_id=company_id) if v.is_active], key=lambda v: v.name)
+        vendors = Vendor.objects.filter(company_id=company_id, is_active=True).order_by('name')
         fmt = request.query_params.get('format', 'xlsx')
         headers = ['Name', 'Email', 'Phone', 'Address']
         rows = [[v.name, v.email, v.phone, v.address] for v in vendors]
@@ -128,35 +94,33 @@ class PurchaseInvoiceViewSet(viewsets.ViewSet):
         company_id = get_active_company_id(request)
         if not company_id:
             return Response({'detail': 'No active company.'}, status=status.HTTP_400_BAD_REQUEST)
-        invoices = PurchaseInvoice.nodes.filter(company_id=company_id)
+        invoices = PurchaseInvoice.objects.filter(company_id=company_id).select_related('vendor', 'ap_account')
         inv_status = request.query_params.get('status')
-        vendor_id = request.query_params.get('vendor_id')
-        invoices = list(invoices)
         if inv_status:
-            invoices = [i for i in invoices if i.status == inv_status.upper()]
+            invoices = invoices.filter(status=inv_status.upper())
+        vendor_id = request.query_params.get('vendor_id')
         if vendor_id:
-            invoices = [i for i in invoices if (v := i.vendor.single()) and v.vendor_id == vendor_id]
-        invoices = sorted(invoices, key=lambda i: str(i.date), reverse=True)
+            invoices = invoices.filter(vendor_id=vendor_id)
+        invoices = invoices.order_by('-date')
         return Response(PurchaseInvoiceSerializer(invoices, many=True).data)
 
     def retrieve(self, request, pk=None):
         company_id = get_active_company_id(request)
-        invoice = PurchaseInvoice.nodes.get_or_none(invoice_id=pk, company_id=company_id)
+        invoice = PurchaseInvoice.objects.filter(invoice_id=pk, company_id=company_id).select_related('vendor', 'ap_account').first()
         if not invoice:
             return Response({'detail': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
-        return Response(_serialize_invoice(invoice))
+        return Response(PurchaseInvoiceSerializer(invoice).data)
 
     @action(detail=True, methods=['get'], url_path='print')
     def print_invoice(self, request, pk=None):
         company_id = get_active_company_id(request)
-        invoice = PurchaseInvoice.nodes.get_or_none(invoice_id=pk, company_id=company_id)
+        invoice = PurchaseInvoice.objects.filter(invoice_id=pk, company_id=company_id).select_related('vendor').first()
         if not invoice:
             return Response({'detail': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
-        vendor = invoice.vendor.single()
-        lines = list(invoice.lines.all())
+        lines = list(invoice.lines.select_related('expense_account').all())
         return pdf_response(request, 'payables/purchase_invoice.html', {
             'invoice': invoice,
-            'vendor': vendor,
+            'vendor': invoice.vendor,
             'lines': lines,
             'settled_amount': invoice.amount_paid,
             'outstanding_amount': max(0, invoice.total_amount - invoice.amount_paid),
@@ -167,12 +131,12 @@ class PurchaseInvoiceViewSet(viewsets.ViewSet):
             return Response({'detail': 'No active company.'}, status=status.HTTP_400_BAD_REQUEST)
         serializer = PurchaseInvoiceSerializer(data=request.data, context={'request': request})
         serializer.is_valid(raise_exception=True)
-        invoice = serializer.save(created_by=request.user.username)
-        return Response(_serialize_invoice(invoice), status=status.HTTP_201_CREATED)
+        invoice = serializer.save(created_by=request.user)
+        return Response(PurchaseInvoiceSerializer(invoice).data, status=status.HTTP_201_CREATED)
 
     def partial_update(self, request, pk=None):
         company_id = get_active_company_id(request)
-        invoice = PurchaseInvoice.nodes.get_or_none(invoice_id=pk, company_id=company_id)
+        invoice = PurchaseInvoice.objects.filter(invoice_id=pk, company_id=company_id).first()
         if not invoice:
             return Response({'detail': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
         if invoice.status != 'DRAFT':
@@ -180,63 +144,50 @@ class PurchaseInvoiceViewSet(viewsets.ViewSet):
         serializer = PurchaseInvoiceSerializer(invoice, data=request.data, partial=True, context={'request': request})
         serializer.is_valid(raise_exception=True)
         invoice = serializer.save()
-        return Response(_serialize_invoice(invoice))
+        return Response(PurchaseInvoiceSerializer(invoice).data)
 
     def destroy(self, request, pk=None):
         company_id = get_active_company_id(request)
-        invoice = PurchaseInvoice.nodes.get_or_none(invoice_id=pk, company_id=company_id)
+        invoice = PurchaseInvoice.objects.filter(invoice_id=pk, company_id=company_id).first()
         if not invoice:
             return Response({'detail': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
         if invoice.status != 'DRAFT':
             return Response({'detail': 'Only draft invoices can be deleted.'}, status=status.HTTP_400_BAD_REQUEST)
-        for line in list(invoice.lines.all()):
-            invoice.lines.disconnect(line)
-            expense_account = line.expense_account.single()
-            if expense_account:
-                line.expense_account.disconnect(expense_account)
-            line.delete()
-        vendor = invoice.vendor.single()
-        if vendor:
-            invoice.vendor.disconnect(vendor)
-        ap_account = invoice.ap_account.single()
-        if ap_account:
-            invoice.ap_account.disconnect(ap_account)
-        invoice.delete()
+        invoice.delete()  # PurchaseInvoiceLine.invoice FK is on_delete=CASCADE
         return Response(status=status.HTTP_204_NO_CONTENT)
 
     @action(detail=True, methods=['post'], url_path='post')
     def post_invoice(self, request, pk=None):
         company_id = get_active_company_id(request)
         try:
-            invoice = services.post_invoice(pk, company_id, request.user.username)
+            invoice = services.post_invoice(pk, company_id, request.user)
         except Exception as e:
             return Response({'detail': str(e)}, status=status.HTTP_400_BAD_REQUEST)
-        return Response(_serialize_invoice(invoice))
+        return Response(PurchaseInvoiceSerializer(invoice).data)
 
     @action(detail=True, methods=['post'], url_path='void')
     def void_invoice(self, request, pk=None):
         company_id = get_active_company_id(request)
         try:
-            invoice = services.void_invoice(pk, company_id, request.user.username)
+            invoice = services.void_invoice(pk, company_id, request.user)
         except Exception as e:
             return Response({'detail': str(e)}, status=status.HTTP_400_BAD_REQUEST)
-        return Response(_serialize_invoice(invoice))
+        return Response(PurchaseInvoiceSerializer(invoice).data)
 
     @action(detail=False, methods=['get'], url_path='export')
     def export(self, request):
         from config.export_utils import xlsx_response, pdf_response
         company_id = get_active_company_id(request)
-        invoices = list(PurchaseInvoice.nodes.filter(company_id=company_id))
-        invoices = sorted(invoices, key=lambda i: str(i.date), reverse=True)
+        invoices = PurchaseInvoice.objects.filter(company_id=company_id).select_related('vendor').order_by('-date')
         fmt = request.query_params.get('format', 'xlsx')
         headers = ['Invoice #', 'Vendor', 'Date', 'Due Date', 'Total (N)', 'Paid (N)', 'Status']
-        rows = []
-        for inv in invoices:
-            vendor = inv.vendor.single()
-            rows.append([
-                inv.invoice_number, vendor.name if vendor else '', str(inv.date), str(inv.due_date),
+        rows = [
+            [
+                inv.invoice_number, inv.vendor.name if inv.vendor else '', str(inv.date), str(inv.due_date),
                 inv.total_amount, inv.amount_paid, inv.status,
-            ])
+            ]
+            for inv in invoices
+        ]
         if fmt == 'pdf':
             ctx = {'rows': [dict(zip(
                 ['invoice_number', 'vendor', 'date', 'due_date', 'total_amount', 'amount_paid', 'status'], r
@@ -260,7 +211,7 @@ class PurchaseInvoiceViewSet(viewsets.ViewSet):
             return Response({'detail': 'amount must be a valid number.'}, status=status.HTTP_400_BAD_REQUEST)
         try:
             payment = services.record_payment(
-                pk, company_id, payment_date, amount, reference, bank_account_id, request.user.username
+                pk, company_id, payment_date, amount, reference, bank_account_id, request.user
             )
         except Exception as e:
             return Response({'detail': str(e)}, status=status.HTTP_400_BAD_REQUEST)
@@ -272,15 +223,15 @@ class ItemViewSet(viewsets.ViewSet):
 
     def list(self, request):
         company_id = get_active_company_id(request)
-        items = [i for i in Item.nodes.filter(company_id=company_id) if i.is_active]
-        return Response([_serialize_item(i) for i in items])
+        items = Item.objects.filter(company_id=company_id, is_active=True)
+        return Response(ItemSerializer(items, many=True).data)
 
     def retrieve(self, request, pk=None):
         company_id = get_active_company_id(request)
-        item = Item.nodes.get_or_none(item_id=pk, company_id=company_id)
+        item = Item.objects.filter(item_id=pk, company_id=company_id).first()
         if not item:
             return Response({'detail': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
-        return Response(_serialize_item(item))
+        return Response(ItemSerializer(item).data)
 
     def create(self, request):
         if not get_active_company_id(request):
@@ -288,21 +239,21 @@ class ItemViewSet(viewsets.ViewSet):
         serializer = ItemSerializer(data=request.data, context={'request': request})
         serializer.is_valid(raise_exception=True)
         item = serializer.save()
-        return Response(_serialize_item(item), status=status.HTTP_201_CREATED)
+        return Response(ItemSerializer(item).data, status=status.HTTP_201_CREATED)
 
     def partial_update(self, request, pk=None):
         company_id = get_active_company_id(request)
-        item = Item.nodes.get_or_none(item_id=pk, company_id=company_id)
+        item = Item.objects.filter(item_id=pk, company_id=company_id).first()
         if not item:
             return Response({'detail': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
         serializer = ItemSerializer(item, data=request.data, partial=True, context={'request': request})
         serializer.is_valid(raise_exception=True)
         item = serializer.save()
-        return Response(_serialize_item(item))
+        return Response(ItemSerializer(item).data)
 
     def destroy(self, request, pk=None):
         company_id = get_active_company_id(request)
-        item = Item.nodes.get_or_none(item_id=pk, company_id=company_id)
+        item = Item.objects.filter(item_id=pk, company_id=company_id).first()
         if not item:
             return Response({'detail': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
         item.is_active = False
@@ -313,13 +264,13 @@ class ItemViewSet(viewsets.ViewSet):
     def export(self, request):
         from config.export_utils import xlsx_response, pdf_response
         company_id = get_active_company_id(request)
-        items = sorted([i for i in Item.nodes.filter(company_id=company_id) if i.is_active], key=lambda i: i.name)
+        items = Item.objects.filter(company_id=company_id, is_active=True).select_related('vendor').order_by('name')
         fmt = request.query_params.get('format', 'xlsx')
         headers = ['Name', 'Type', 'Vendor', 'Cost Price (N)', 'Selling Price (N)']
-        rows = []
-        for i in items:
-            vendor = i.vendor.single()
-            rows.append([i.name, i.item_type, vendor.name if vendor else '', i.cost_price, i.selling_price])
+        rows = [
+            [i.name, i.item_type, i.vendor.name if i.vendor else '', i.cost_price, i.selling_price]
+            for i in items
+        ]
         if fmt == 'pdf':
             ctx = {'rows': [dict(zip(
                 ['name', 'item_type', 'vendor', 'cost_price', 'selling_price'], r
