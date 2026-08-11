@@ -5,7 +5,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Project Overview
 
 **Page** is a university accounting records application for Topfaith University. Full-stack monorepo:
-- **Backend**: Django + Django REST Framework (port 8082)
+- **Backend**: Django + Django REST Framework (port 8080)
 - **Frontend**: Angular 17 standalone-component app (port 4200)
 - **Database**: SQLite for everything — Django auth/admin, invite codes/companies, and all domain data (accounts, journals, banks, payables, receivables, budget)
 
@@ -16,7 +16,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 docker-compose up --build
 
 # Backend only
-cd backend && source venv/bin/activate && python manage.py runserver 0.0.0.0:8082
+cd backend && source venv/bin/activate && python manage.py runserver 0.0.0.0:8080
 
 # Frontend only
 cd frontend/sage-frontend && npm install && npm start
@@ -141,7 +141,7 @@ Single-use, 7-day TTL codes in `TFU-XXXX-XXXX-XXXX` format. Fields: `code`, `cre
 
 ## Frontend
 
-Angular 17 with standalone components. No NgModules — every component declares its own `imports` array. All routes use lazy loading: `.then(m => m.ComponentName)`. Services use **axios** (not Angular's HttpClient) with base URL `http://localhost:8082/api/`.
+Angular 17 with standalone components. No NgModules — every component declares its own `imports` array. All routes use lazy loading: `.then(m => m.ComponentName)`. Services use **axios** (not Angular's HttpClient) with base URL `http://localhost:8080/api/`.
 
 ### Services (one per backend app)
 All in `src/app/services/`.
